@@ -139,8 +139,12 @@ bindsym $mod+l exec i3lock -c 000000
 
 bindsym $mod+r mode "resize"
 
+# Brightness keys
 bindsym XF86MonBrightnessDown exec --no-startup-id brightnessctl s 5%-
 bindsym XF86MonBrightnessUp exec --no-startup-id brightnessctl s 5%+
+
+# Screen capture
+bindsym Print exec flameshot gui
 
 for_window [class="zoom"] floating enable
 

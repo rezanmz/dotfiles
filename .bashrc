@@ -10,3 +10,5 @@ alias ls='ls -ltrh --color=auto'
 alias vim='nvim'
 alias htop='htop -d 5'
 alias dotfiles='/usr/bin/git --git-dir=$HOME/.dotfiles.git/ --work-tree=$HOME'
+
+DOCKER_HOST=unix://$XDG_RUNTIME_DIR/docker.sock

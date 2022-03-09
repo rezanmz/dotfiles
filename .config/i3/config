@@ -77,10 +77,11 @@ set $ws5 "5"
 set $ws6 "6"
 set $ws7 "7"
 set $ws8 "8"
-set $ws9 "9"
+set $ws9 "9  Slack"
 set $ws10 "10  Email"
 
 assign [class="Code"] $ws2
+assign [class="Slack"] $ws9
 assign [class="Thunderbird"] $ws10
 
 # switch to workspace
@@ -162,3 +163,4 @@ exec_always --no-startup-id autotiling
 
 # Autostart
 exec thunderbird
+exec slack

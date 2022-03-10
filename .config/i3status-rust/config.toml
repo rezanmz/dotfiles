@@ -33,6 +33,7 @@ collapsed = false
 
 [[block]]
 block = "sound"
+on_click = "pavucontrol"
 
 [[block]]
 block = "time"

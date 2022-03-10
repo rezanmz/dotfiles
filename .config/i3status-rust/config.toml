@@ -1,5 +1,5 @@
 theme = "dracula"
-icons = "awesome5"
+icons = "material-nf"
 
 [[block]]
 block = "backlight"

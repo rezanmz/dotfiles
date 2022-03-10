@@ -1,0 +1,45 @@
+theme = "dracula"
+icons = "awesome5"
+
+[[block]]
+block = "backlight"
+cycle = [25, 45, 65, 85]
+
+[[block]]
+block = "hueshift"
+hue_shifter = "redshift"
+step = 50
+click_temp = 6500
+
+[[block]]
+block = "net"
+
+[[block]]
+block = "pacman"
+interval = 600
+format = "{both} updates"
+format_singular = "{both} update"
+format_up_to_date = "up to date"
+aur_command = "yay -Qua"
+
+[[block]]
+block = "nvidia_gpu"
+label = "GPU"
+show_temperature = false
+
+[[block]]
+block = "temperature"
+collapsed = false
+
+[[block]]
+block = "sound"
+
+[[block]]
+block = "time"
+interval = 1
+format = "%a %m/%d-%R"
+
+[[block]]
+block = "battery"
+format = "{percentage} {time}"
+

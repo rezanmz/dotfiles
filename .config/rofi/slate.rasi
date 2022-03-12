@@ -3,7 +3,8 @@
   border-color: #2e343f;
   text-color: #8ca0aa;
   spacing: 0;
-  width: 1000px;
+  width: 600px;
+  height: 40%;
   font: "JetBrains Mono 14";
   vertical-align: 0.5;
 }
@@ -34,7 +35,7 @@ entry {
 listview {
   cycle: false;
   margin: 0 0 -1px 0;
-  scrollbar: true;
+  scrollbar: false;
 }
 
 element {

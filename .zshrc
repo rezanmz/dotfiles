@@ -88,6 +88,8 @@ alias htop='htop -d 5'
 alias dotfiles='/usr/bin/git --git-dir=$HOME/.dotfiles.git/ --work-tree=$HOME'
 alias torch='docker run --rm -it --gpus all pytorch/pytorch ipython'
 alias runvidia='__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia'
+
+export PATH=$PATH:$HOME/.local/bin/
 # export MANPATH="/usr/local/man:$MANPATH"
 
 # You may need to manually set your language environment

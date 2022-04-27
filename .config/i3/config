@@ -203,6 +203,9 @@ exec --no-startup-id blueman-applet
 # Automatically switch horizontal/vertical tiling
 exec_always --no-startup-id autotiling
 
+# Mount MEGA
+exec rclone --vfs-cache-mode writes mount mega: ~/mega &
+
 # Autostart
 exec thunderbird
 exec slack

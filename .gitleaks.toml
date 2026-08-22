@@ -1,0 +1,10 @@
+title = "rezanmz dotfiles secret policy"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public source contains references only; credentials stay machine-local."
+paths = [
+  '''^\.git/''',
+]

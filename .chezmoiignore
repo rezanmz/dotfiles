@@ -1,0 +1,21 @@
+# Linux X11 desktop configuration is never applied on macOS or other systems.
+{{- if ne .chezmoi.os "linux" }}
+.config/i3/
+.config/i3status-rust/
+.config/picom/
+.config/rofi/
+.config/fontconfig/
+{{- end }}
+
+# Repository metadata and automation are not home-directory files.
+.chezmoi.toml.tmpl
+.chezmoiignore
+.git/
+.gitignore
+.ignore
+.gitattributes
+.github/
+.gitleaks.toml
+.pre-commit-config.yaml
+README.md
+.slim/

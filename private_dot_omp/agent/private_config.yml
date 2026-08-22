@@ -1,0 +1,85 @@
+providers:
+  webSearchOrder:
+    - ecosia
+    - perplexity
+    - gemini
+    - anthropic
+    - codex
+    - xai
+    - zai
+    - exa
+    - tinyfish
+    - jina
+    - kagi
+    - tavily
+    - firecrawl
+    - brave
+    - kimi
+    - parallel
+    - synthetic
+    - searxng
+    - startpage
+    - duckduckgo
+    - google
+    - mojeek
+    - public
+modelRoles:
+  default: opencode-go/deepseek-v4-flash:high
+  slow: opencode-go/kimi-k3:max
+  smol: opencode-go/deepseek-v4-flash
+  vision: opencode-go/gpt-5.6-luna:high
+  plan: opencode-go/kimi-k3:max
+  designer: opencode-go/gpt-5.6-luna:high
+  commit: opencode-go/deepseek-v4-flash:low
+  tiny: opencode-go/deepseek-v4-flash:minimal
+  task: opencode-go/deepseek-v4-flash
+  advisor: opencode-go/gpt-5.6-luna:high
+task:
+  eager: preferred
+  batch: true
+  maxConcurrency: 4
+  maxRecursionDepth: 1
+  softRequestBudget: 100
+  enableEffort: true
+  enableLsp: true
+  showResolvedModelBadge: true
+  isolation:
+    mode: auto
+    apply: true
+    merge: patch
+  agentModelOverrides:
+    security-reviewer: "@slow"
+retry:
+  enabled: true
+  modelFallback: true
+  usageAwareFallback: false
+  fallbackChains:
+    default:
+      - opencode-go/gpt-5.6-luna:high
+    slow:
+      - opencode-go/deepseek-v4-flash:xhigh
+    plan:
+      - opencode-go/deepseek-v4-flash:xhigh
+    smol:
+      - opencode-go/gpt-5.6-luna:medium
+    task:
+      - opencode-go/gpt-5.6-luna:high
+    vision:
+      - opencode-go/deepseek-v4-flash-vision-exp:high
+    designer:
+      - opencode-go/deepseek-v4-flash-vision-exp:high
+    commit:
+      - opencode-go/gpt-5.6-luna:low
+    tiny:
+      - opencode-go/gpt-5.6-luna:low
+    advisor:
+      - opencode-go/deepseek-v4-flash:high
+symbolPreset: unicode
+theme:
+  dark: titanium
+  light: light
+setupVersion: 2
+dev:
+  autoqaConsent: granted
+composer:
+  shape: box

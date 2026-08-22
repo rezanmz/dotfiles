@@ -1,0 +1,12 @@
+{{- $machine := promptChoiceOnce . "machine" "Machine role" (list "personal" "work") "personal" -}}
+{{- $gitName := promptStringOnce . "gitName" "Git author name" "" -}}
+{{- $gitEmail := promptStringOnce . "gitEmail" "Git author email" "" -}}
+{{- $enableNetworkMCP := promptBoolOnce . "enableNetworkMCP" "Enable network MCP integrations" false -}}
+{{- $enableLocalMCP := promptBoolOnce . "enableLocalMCP" "Enable local MCP integrations" false -}}
+
+[data]
+machine = {{ $machine | quote }}
+gitName = {{ $gitName | quote }}
+gitEmail = {{ $gitEmail | quote }}
+enableNetworkMCP = {{ $enableNetworkMCP }}
+enableLocalMCP = {{ $enableLocalMCP }}

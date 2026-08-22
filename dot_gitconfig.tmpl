@@ -1,0 +1,15 @@
+[user]
+	name = {{ .gitName | quote }}
+	email = {{ .gitEmail | quote }}
+
+[init]
+	defaultBranch = main
+
+[fetch]
+	prune = true
+
+[pull]
+	rebase = false
+
+[core]
+	autocrlf = input

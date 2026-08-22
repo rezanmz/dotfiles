@@ -1,0 +1,14 @@
+# Initialize Homebrew only on supported macOS architectures and when installed.
+if [[ "$OSTYPE" == darwin* ]]; then
+  _brew_bin=""
+  case "$(uname -m)" in
+    arm64) _brew_bin="/opt/homebrew/bin/brew" ;;
+    x86_64) _brew_bin="/usr/local/bin/brew" ;;
+  esac
+  if [[ -x "$_brew_bin" ]]; then
+    eval "$("$_brew_bin" shellenv)"
+  elif (( $+commands[brew] )); then
+    eval "$(brew shellenv)"
+  fi
+  unset _brew_bin
+fi

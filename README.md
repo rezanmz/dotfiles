@@ -2,6 +2,8 @@
 
 A public [chezmoi](https://www.chezmoi.io/) source repository for a personal or work machine. The source is intentionally credentials-free and supports macOS plus an optional Linux X11 desktop profile.
 
+Managed editor configuration includes the preserved Vim setup at `~/.vimrc`; chezmoi source path `dot_vimrc` restores it on every profile.
+
 ## First machine
 
 Install chezmoi using the operating system's trusted package manager, then initialize without applying so the generated plan can be reviewed:

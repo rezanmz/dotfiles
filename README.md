@@ -38,9 +38,31 @@ This is a public repository. Never add passwords, API keys, bearer values, OAuth
 
 Fonts are not vendored. Install Hack Nerd Font through the platform package manager if desired. B Nazanin is an optional local font; install it independently and never commit the font file.
 
+## OMP model routing
+
+The OMP configuration is rendered from the machine role. `personal` uses the OpenCode Go routing profile. `work` uses only `github-copilot/*` models and keeps authentication machine-local.
+
+| OMP role | Work model | Purpose |
+| --- | --- | --- |
+| `default`, `task` | GPT-5.6 Sol | Primary and long-running implementation |
+| `slow`, `plan` | Claude Opus 5 | Architecture, review, and highest-judgment work |
+| `smol` | Gemini 3.7 Flash | Fast scouting, research, and mechanical agents |
+| `vision`, `designer` | Claude Sonnet 5 | Multimodal and UI/UX work |
+| `commit`, `tiny` | GPT-5.6 Luna | Low-cost utility operations |
+| `advisor` | Grok 4.6 | Diverse second-opinion review |
+
+Authenticate on the work laptop from inside OMP with `/login github-copilot`. Credentials are not managed by chezmoi. Verify the live catalog and quota after login:
+
+```sh
+omp models github-copilot --json
+omp usage --provider github-copilot
+```
+
+Copilot model availability and billing metadata can change. OMP reads model capabilities dynamically; review these commands after major provider changes before updating the pinned role IDs.
+
 ## Rollback and legacy history
 
-Review with `chezmoi diff` before every apply. To undo an uncommitted source edit, use `chezmoi git -- checkout -- <path>` and re-run `chezmoi diff`. To restore a previously applied target, use `chezmoi diff` to identify it and restore that file from the source or your normal backup. The original bare-Git Arch Linux home mirror is preserved locally at the `archlinux-2022` tag for historical recovery; it is not an active source profile and should not be copied wholesale into a new home.
+Review with `chezmoi diff` before every apply. To undo an uncommitted source edit, use `chezmoi git -- checkout -- <path>` and re-run `chezmoi diff`. To restore a previously applied target, use `chezmoi diff` to identify it and restore that file from the source or your normal backup. The original bare-Git Arch Linux home mirror is published at the `archlinux-2022` tag for historical recovery; it is not an active source profile and should not be copied wholesale into a new home.
 
 ## Repository protection
 

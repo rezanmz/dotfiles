@@ -36,16 +36,16 @@ modelRoles:
   task: github-copilot/gpt-5.6-sol
   advisor: github-copilot/grok-4.6:high
 {{ else }}
-  default: opencode-go/gpt-5.6-luna:high
+  default: openrouter/z-ai/glm-5.3-flash:high
   slow: opencode-go/kimi-k3:max
   smol: opencode-go/deepseek-v4-flash
-  vision: opencode-go/gpt-5.6-luna:high
+  vision: openrouter/z-ai/glm-5.3-flash:high
   plan: opencode-go/kimi-k3:max
-  designer: opencode-go/gpt-5.6-luna:high
+  designer: openrouter/z-ai/glm-5.3-flash:high
   commit: opencode-go/deepseek-v4-flash:low
   tiny: opencode-go/deepseek-v4-flash:minimal
-  task: opencode-go/gpt-5.6-luna:high
-  advisor: opencode-go/gpt-5.6-luna:high
+  task: openrouter/z-ai/glm-5.3-flash:high
+  advisor: openrouter/z-ai/glm-5.3-flash:high
 {{ end }}
 advisor:
   enabled: false
@@ -100,7 +100,7 @@ retry:
       - github-copilot/gpt-5.6-terra:high
 {{ else }}
     default:
-      - openrouter/openai/gpt-5.6-luna:high
+      - openrouter/z-ai/glm-5.3-flash:high
     slow:
       - openrouter/moonshotai/kimi-k3:max
     plan:
@@ -108,17 +108,17 @@ retry:
     smol:
       - openrouter/deepseek/deepseek-v4-flash:medium
     task:
-      - openrouter/openai/gpt-5.6-luna:high
+      - openrouter/z-ai/glm-5.3-flash:high
     vision:
-      - openrouter/openai/gpt-5.6-luna:high
+      - openrouter/z-ai/glm-5.3-flash:high
     designer:
-      - openrouter/openai/gpt-5.6-luna:high
+      - openrouter/z-ai/glm-5.3-flash:high
     commit:
       - openrouter/deepseek/deepseek-v4-flash:low
     tiny:
       - openrouter/deepseek/deepseek-v4-flash:low
     advisor:
-      - openrouter/openai/gpt-5.6-luna:high
+      - openrouter/z-ai/glm-5.3-flash:high
 {{ end }}
 symbolPreset: unicode
 theme:

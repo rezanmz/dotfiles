@@ -100,25 +100,25 @@ retry:
       - github-copilot/gpt-5.6-terra:high
 {{ else }}
     default:
-      - opencode-go/gpt-5.6-luna:high
+      - openrouter/openai/gpt-5.6-luna:high
     slow:
-      - opencode-go/gpt-5.6-luna:high
+      - openrouter/moonshotai/kimi-k3:max
     plan:
-      - opencode-go/gpt-5.6-luna:high
+      - openrouter/moonshotai/kimi-k3:max
     smol:
-      - opencode-go/gpt-5.6-luna:medium
+      - openrouter/deepseek/deepseek-v4-flash:medium
     task:
-      - opencode-go/gpt-5.6-luna:high
+      - openrouter/openai/gpt-5.6-luna:high
     vision:
-      - opencode-go/deepseek-v4-flash-vision-exp:high
+      - openrouter/openai/gpt-5.6-luna:high
     designer:
-      - opencode-go/deepseek-v4-flash-vision-exp:high
+      - openrouter/openai/gpt-5.6-luna:high
     commit:
-      - opencode-go/gpt-5.6-luna:low
+      - openrouter/deepseek/deepseek-v4-flash:low
     tiny:
-      - opencode-go/gpt-5.6-luna:low
+      - openrouter/deepseek/deepseek-v4-flash:low
     advisor:
-      - opencode-go/deepseek-v4-flash:high
+      - openrouter/openai/gpt-5.6-luna:high
 {{ end }}
 symbolPreset: unicode
 theme:

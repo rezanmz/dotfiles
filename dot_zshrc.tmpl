@@ -60,6 +60,10 @@ fi
 unset OPENCODE_ENABLE_EXA OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS
 {{- else }}
 # Enable the current personal OpenCode integrations.
+if [[ -z "${CONTEXT7_API_KEY:-}" && -r "$HOME/.config/context7/credentials.json" ]] && (( $+commands[jq] )); then
+  CONTEXT7_API_KEY="$(jq -r '.access_token // empty' "$HOME/.config/context7/credentials.json" 2>/dev/null)"
+  [[ -n "$CONTEXT7_API_KEY" ]] && export CONTEXT7_API_KEY
+fi
 export OPENCODE_ENABLE_EXA=1
 export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
 {{- end }}

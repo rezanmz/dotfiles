@@ -1,13 +1,13 @@
 {
   "$schema": "https://unpkg.com/oh-my-opencode-slim@2.2.15/oh-my-opencode-slim.schema.json",
-  "preset": "openai",
+  "preset": "{{ if eq .machine "work" }}openai{{ else }}opencode-go{{ end }}",
   "backgroundJobs": {
-    "maxSessionsPerAgent": 1,
+    "maxSessionsPerAgent": 3,
     "maxContextLines": 20000,
     "readContextMinLines": 20,
     "readContextMaxFiles": 4,
     "continueOnIdle": false,
-    "wallClockTimeoutMs": 600000,
+    "wallClockTimeoutMs": 1800000,
     "abortGraceMs": 10000
   },
   "presets": {
@@ -50,7 +50,10 @@
       "designer": {
         "model": "openai/gpt-5.6-luna",
         "variant": "medium",
-        "skills": [],
+        "skills": [
+          "*",
+          "!codemap"
+        ],
         "mcps": []
       },
       "fixer": {
@@ -62,7 +65,7 @@
     },
     "opencode-go": {
       "orchestrator": {
-        "model": "opencode-go/deepseek-v4-flash",
+        "model": "opencode-go/kimi-k3",
         "variant": "max",
         "skills": [
           "*"
@@ -73,22 +76,24 @@
         ]
       },
       "oracle": {
-        "model": "opencode-go/deepseek-v4-flash",
+        "model": "opencode-go/qwen3.8-max",
         "variant": "max",
         "skills": [
-          "simplify"
+          "simplify",
+          "verification-planning",
+          "security-review"
         ],
         "mcps": []
       },
       "explorer": {
         "model": "opencode-go/deepseek-v4-flash",
-        "variant": "max",
+        "variant": "low",
         "skills": [],
         "mcps": []
       },
       "librarian": {
         "model": "opencode-go/deepseek-v4-flash",
-        "variant": "max",
+        "variant": "low",
         "skills": [],
         "mcps": [
           "context7",
@@ -96,20 +101,23 @@
         ]
       },
       "designer": {
-        "model": "opencode-go/deepseek-v4-flash",
-        "variant": "max",
-        "skills": [],
+        "model": "opencode-go/glm-5.3",
+        "variant": "medium",
+        "skills": [
+          "*",
+          "!codemap"
+        ],
         "mcps": []
       },
       "fixer": {
         "model": "opencode-go/deepseek-v4-flash",
-        "variant": "max",
+        "variant": "high",
         "skills": [],
         "mcps": []
       },
       "observer": {
-        "model": "opencode-go/deepseek-v4-flash",
-        "variant": "max",
+        "model": "opencode-go/gpt-5.6-luna",
+        "variant": "high",
         "skills": [],
         "mcps": []
       }

@@ -36,7 +36,7 @@ modelRoles:
   task: github-copilot/gpt-5.6-sol
   advisor: github-copilot/grok-4.6:high
 {{ else }}
-  default: opencode-go/deepseek-v4-flash:high
+  default: opencode-go/gpt-5.6-luna:high
   slow: opencode-go/kimi-k3:max
   smol: opencode-go/deepseek-v4-flash
   vision: opencode-go/gpt-5.6-luna:high
@@ -44,9 +44,11 @@ modelRoles:
   designer: opencode-go/gpt-5.6-luna:high
   commit: opencode-go/deepseek-v4-flash:low
   tiny: opencode-go/deepseek-v4-flash:minimal
-  task: opencode-go/deepseek-v4-flash
+  task: opencode-go/gpt-5.6-luna:high
   advisor: opencode-go/gpt-5.6-luna:high
 {{ end }}
+advisor:
+  enabled: true
 task:
   eager: preferred
   batch: true
@@ -100,9 +102,9 @@ retry:
     default:
       - opencode-go/gpt-5.6-luna:high
     slow:
-      - opencode-go/deepseek-v4-flash:xhigh
+      - opencode-go/gpt-5.6-luna:high
     plan:
-      - opencode-go/deepseek-v4-flash:xhigh
+      - opencode-go/gpt-5.6-luna:high
     smol:
       - opencode-go/gpt-5.6-luna:medium
     task:
@@ -127,3 +129,4 @@ dev:
   autoqaConsent: granted
 composer:
   shape: box
+defaultThinkingLevel: auto

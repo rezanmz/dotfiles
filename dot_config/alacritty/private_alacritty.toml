@@ -1,6 +1,23 @@
+[general]
 import = [
     "~/.config/alacritty/themes/dracula.toml"
 ]
 
 [font]
 size = 13.0
+
+[font.normal]
+family = "Hack Nerd Font"
+style = "Regular"
+
+[font.bold]
+family = "Hack Nerd Font"
+style = "Bold"
+
+[font.italic]
+family = "Hack Nerd Font"
+style = "Italic"
+
+[font.bold_italic]
+family = "Hack Nerd Font"
+style = "Bold Italic"

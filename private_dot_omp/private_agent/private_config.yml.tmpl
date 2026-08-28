@@ -24,7 +24,7 @@ providers:
     - mojeek
     - public
 modelRoles:
-{{ if eq .machine "work" }}
+{{- if eq .machine "work" }}
   default: github-copilot/gpt-5.6-sol:xhigh
   slow: github-copilot/claude-opus-5:max
   smol: github-copilot/gemini-3.7-flash
@@ -35,18 +35,18 @@ modelRoles:
   tiny: github-copilot/gpt-5.6-luna:minimal
   task: github-copilot/gpt-5.6-sol
   advisor: github-copilot/grok-4.6:high
-{{ else }}
+{{- else }}
   default: opencode-go/glm-5.3-flash:high
-  slow: opencode-go/kimi-k3:max
+  slow: openrouter/tencent/hy4-preview:high
   smol: opencode-go/deepseek-v4-flash
   vision: opencode-go/glm-5.3-flash:high
-  plan: opencode-go/kimi-k3:max
+  plan: openrouter/tencent/hy4-preview:high
   designer: opencode-go/glm-5.3-flash:high
   commit: opencode-go/deepseek-v4-flash:low
   tiny: opencode-go/deepseek-v4-flash:minimal
   task: opencode-go/glm-5.3-flash:high
   advisor: opencode-go/glm-5.3-flash:high
-{{ end }}
+{{- end }}
 advisor:
   enabled: false
 task:
@@ -69,7 +69,7 @@ retry:
   modelFallback: true
   usageAwareFallback: false
   fallbackChains:
-{{ if eq .machine "work" }}
+{{- if eq .machine "work" }}
     default:
       - github-copilot/grok-4.6:high
       - github-copilot/gpt-5.6-terra:high
@@ -98,12 +98,14 @@ retry:
     advisor:
       - github-copilot/claude-sonnet-5:high
       - github-copilot/gpt-5.6-terra:high
-{{ else }}
+{{- else }}
     default:
       - openrouter/z-ai/glm-5.3-flash:high
     slow:
+      - opencode-go/kimi-k3:max
       - openrouter/moonshotai/kimi-k3:max
     plan:
+      - opencode-go/kimi-k3:max
       - openrouter/moonshotai/kimi-k3:max
     smol:
       - openrouter/deepseek/deepseek-v4-flash:medium
@@ -119,7 +121,7 @@ retry:
       - openrouter/deepseek/deepseek-v4-flash:low
     advisor:
       - openrouter/z-ai/glm-5.3-flash:high
-{{ end }}
+{{- end }}
 symbolPreset: unicode
 theme:
   dark: titanium

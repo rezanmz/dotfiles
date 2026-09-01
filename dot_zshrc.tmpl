@@ -69,5 +69,12 @@ export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
 {{- end }}
 
 if (( $+commands[fastfetch] )); then
-  fastfetch
+  # Defer fastfetch until after p10k's instant prompt finishes, otherwise
+  # stdout is redirected during init and fastfetch drops colors.
+  autoload -Uz add-zsh-hook
+  _fastfetch_banner() {
+    add-zsh-hook -d precmd _fastfetch_banner
+    fastfetch
+  }
+  add-zsh-hook precmd _fastfetch_banner
 fi

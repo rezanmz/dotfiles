@@ -46,8 +46,9 @@ The OMP configuration is rendered from the machine role. `personal` uses the Ope
 
 | OMP role | Work model | Purpose |
 | --- | --- | --- |
-| `default`, `task` | GPT-5.6 Sol | Primary and long-running implementation |
-| `slow`, `plan` | Claude Opus 5 | Architecture, review, and highest-judgment work |
+| `default`, `task` | GPT-5.6 Terra | Everyday implementation and delegated coding |
+| `slow` | Claude Opus 5 | Highest-judgment review and security |
+| `plan` | GPT-5.6 Sol | Architecture and deep coding plans |
 | `smol` | Gemini 3.7 Flash | Fast scouting, research, and mechanical agents |
 | `vision`, `designer` | Claude Sonnet 5 | Multimodal and UI/UX work |
 | `commit`, `tiny` | GPT-5.6 Luna | Low-cost utility operations |

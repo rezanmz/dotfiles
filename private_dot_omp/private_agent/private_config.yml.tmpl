@@ -25,15 +25,15 @@ providers:
     - public
 modelRoles:
 {{- if eq .machine "work" }}
-  default: github-copilot/gpt-5.6-sol:xhigh
+  default: github-copilot/gpt-5.6-terra:high
   slow: github-copilot/claude-opus-5:max
   smol: github-copilot/gemini-3.7-flash
   vision: github-copilot/claude-sonnet-5:high
-  plan: github-copilot/claude-opus-5:max
+  plan: github-copilot/gpt-5.6-sol:xhigh
   designer: github-copilot/claude-sonnet-5:high
   commit: github-copilot/gpt-5.6-luna:low
-  tiny: github-copilot/gpt-5.6-luna:minimal
-  task: github-copilot/gpt-5.6-sol
+  tiny: github-copilot/gpt-5.6-luna:low
+  task: github-copilot/gpt-5.6-terra:high
   advisor: github-copilot/grok-4.6:high
 {{- else }}
   default: opencode-go/glm-5.3-flash:high
@@ -71,20 +71,20 @@ retry:
   fallbackChains:
 {{- if eq .machine "work" }}
     default:
+      - github-copilot/gpt-5.6-sol:xhigh
       - github-copilot/grok-4.6:high
-      - github-copilot/gpt-5.6-terra:high
     slow:
       - github-copilot/gpt-5.6-sol:xhigh
       - github-copilot/claude-opus-4.8:high
     plan:
-      - github-copilot/gpt-5.6-sol:xhigh
+      - github-copilot/claude-opus-5:max
       - github-copilot/claude-opus-4.8:high
     smol:
       - github-copilot/gpt-5.6-luna
       - github-copilot/mai-code-1.1-flash
     task:
+      - github-copilot/gpt-5.6-sol
       - github-copilot/gpt-5.3-codex:high
-      - github-copilot/grok-4.6:high
     vision:
       - github-copilot/gemini-3.7-flash:high
       - github-copilot/gpt-5.6-terra:high

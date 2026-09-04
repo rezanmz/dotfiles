@@ -17,7 +17,6 @@ providers:
     - kimi
     - parallel
     - synthetic
-    - searxng
     - startpage
     - duckduckgo
     - google
@@ -59,9 +58,9 @@ task:
   enableLsp: true
   showResolvedModelBadge: true
   isolation:
-    mode: auto
     apply: true
     merge: patch
+    enabled: true
   agentModelOverrides:
     security-reviewer: "@slow"
 retry:
@@ -132,3 +131,17 @@ dev:
 composer:
   shape: box
 defaultThinkingLevel: auto
+isolation:
+  backend: auto
+memory:
+  backend: local
+checkpoint:
+  enabled: true
+secrets:
+  enabled: true
+compaction:
+  idleEnabled: true
+  handoffSaveToDisk: true
+display:
+  showTokenUsage: true
+  showTurnTime: true

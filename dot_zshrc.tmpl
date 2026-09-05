@@ -18,6 +18,9 @@ elif [[ "$OSTYPE" == linux* ]]; then
   alias ls='ls -ltrh --color=auto'
 fi
 
+# omp model profiles: daily driver by default, heavy models on demand.
+alias omp-heavy='omp --config "$HOME/.omp/agent/heavy.yml"'
+
 # Load the prompt only when it is present.
 [[ -r "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
 typeset -g POWERLEVEL9K_INSTANT_PROMPT=quiet

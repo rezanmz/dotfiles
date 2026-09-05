@@ -1,0 +1,39 @@
+# Heavy-task model profile: pricier/smarter models for hard work.
+# Usage: omp-heavy (alias) or omp --config ~/.omp/agent/heavy.yml
+# Daily-driver profile is untouched; only roles listed here are overridden.
+# smol/tiny/commit stay cheap on purpose.
+
+modelRoles:
+  default: opencode-go/gpt-5.6-luna:high
+  slow: opencode-go/hy4-preview:xhigh
+  smol: opencode-go/deepseek-v4-flash
+  vision: opencode-go/gpt-5.6-luna:high
+  plan: opencode-go/hy4-preview:xhigh
+  designer: opencode-go/gpt-5.6-luna:high
+  commit: opencode-go/deepseek-v4-flash:low
+  tiny: opencode-go/deepseek-v4-flash:minimal
+  task: opencode-go/gpt-5.6-luna:high
+  advisor: opencode-go/gpt-5.6-luna:high
+
+retry:
+  fallbackChains:
+    default:
+      - openrouter/z-ai/glm-5.3-flash:high
+    slow:
+      - openrouter/tencent/hy4-preview:high
+    plan:
+      - openrouter/tencent/hy4-preview:high
+    smol:
+      - openrouter/deepseek/deepseek-v4-flash:medium
+    task:
+      - openrouter/z-ai/glm-5.3-flash:high
+    vision:
+      - opencode-go/deepseek-v4-flash-vision-exp:high
+    designer:
+      - opencode-go/deepseek-v4-flash-vision-exp:high
+    commit:
+      - openrouter/deepseek/deepseek-v4-flash:low
+    tiny:
+      - openrouter/deepseek/deepseek-v4-flash:low
+    advisor:
+      - openrouter/z-ai/glm-5.3-flash:high

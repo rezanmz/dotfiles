@@ -145,3 +145,21 @@ compaction:
 display:
   showTokenUsage: true
   showTurnTime: true
+  cacheMissMarker: true
+terminal:
+  showProgress: true
+statusLine:
+  preset: custom
+  leftSegments:
+    - model
+    - mode
+    - path
+    - git
+    - pr
+  rightSegments:
+    - context_pct
+    - token_total
+    - cost
+    - time_spent
+    - subagents
+    - status

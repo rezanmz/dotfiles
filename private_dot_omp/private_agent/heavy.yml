@@ -2,9 +2,13 @@
 # Usage: omp-heavy (alias) or omp --config ~/.omp/agent/heavy.yml
 # Daily-driver profile is untouched; only roles listed here are overridden.
 # smol/tiny/commit stay cheap on purpose.
-
+#
+# Rationale (independent AA data, 2026-09-04):
+# - kimi-k3: best measured coding (AA Coding 76.2, SWE-bench 93.4 open-weight), Int ~60, $3/$15
+# - muse-spark-1.3-contributor: highest measured Int (61-62), same weights as full muse 1.3,
+#   $0.10/$0.20 but 60 RPM / 2.1M TPM caps -> full muse tier on openrouter is fallback #1
 modelRoles:
-  default: opencode-go/muse-spark-1.3-contributor:high
+  default: opencode-go/kimi-k3:max
   slow: opencode-go/muse-spark-1.3-contributor:xhigh
   smol: opencode-go/deepseek-v4-flash
   vision: opencode-go/muse-spark-1.3-contributor:high
@@ -12,35 +16,35 @@ modelRoles:
   designer: opencode-go/muse-spark-1.3-contributor:high
   commit: opencode-go/deepseek-v4-flash:low
   tiny: opencode-go/deepseek-v4-flash:minimal
-  task: opencode-go/muse-spark-1.3-contributor:high
-  advisor: opencode-go/muse-spark-1.3-contributor:high
+  task: opencode-go/kimi-k3:max
+  advisor: opencode-go/muse-spark-1.3-contributor:xhigh
 
 retry:
   fallbackChains:
     default:
-      - opencode-go/gpt-5.6-luna:high
       - openrouter/meta/muse-spark-1.3:high
+      - openrouter/moonshotai/kimi-k3:max
     slow:
-      - openrouter/tencent/hy4-preview:xhigh
-      - openrouter/z-ai/glm-5.3:high
+      - openrouter/meta/muse-spark-1.3:xhigh
+      - openrouter/moonshotai/kimi-k3:max
     plan:
-      - openrouter/tencent/hy4-preview:xhigh
-      - openrouter/z-ai/glm-5.3:high
+      - openrouter/meta/muse-spark-1.3:xhigh
+      - openrouter/moonshotai/kimi-k3:max
     smol:
       - openrouter/deepseek/deepseek-v4-flash:medium
     task:
-      - opencode-go/gpt-5.6-luna:high
       - openrouter/meta/muse-spark-1.3:high
+      - openrouter/moonshotai/kimi-k3:max
     vision:
-      - opencode-go/gpt-5.6-luna:high
       - openrouter/meta/muse-spark-1.3:high
+      - opencode-go/gpt-5.6-luna:high
     designer:
-      - opencode-go/gpt-5.6-luna:high
       - openrouter/meta/muse-spark-1.3:high
+      - opencode-go/gpt-5.6-luna:high
     commit:
       - openrouter/deepseek/deepseek-v4-flash:low
     tiny:
       - openrouter/deepseek/deepseek-v4-flash:low
     advisor:
-      - opencode-go/gpt-5.6-luna:high
-      - openrouter/meta/muse-spark-1.3:high
+      - openrouter/meta/muse-spark-1.3:xhigh
+      - openrouter/moonshotai/kimi-k3:high

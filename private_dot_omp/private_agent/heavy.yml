@@ -4,36 +4,43 @@
 # smol/tiny/commit stay cheap on purpose.
 
 modelRoles:
-  default: opencode-go/gpt-5.6-luna:high
-  slow: opencode-go/hy4-preview:xhigh
+  default: opencode-go/muse-spark-1.3-contributor:high
+  slow: opencode-go/muse-spark-1.3-contributor:xhigh
   smol: opencode-go/deepseek-v4-flash
-  vision: opencode-go/gpt-5.6-luna:high
-  plan: opencode-go/hy4-preview:xhigh
-  designer: opencode-go/gpt-5.6-luna:high
+  vision: opencode-go/muse-spark-1.3-contributor:high
+  plan: opencode-go/muse-spark-1.3-contributor:xhigh
+  designer: opencode-go/muse-spark-1.3-contributor:high
   commit: opencode-go/deepseek-v4-flash:low
   tiny: opencode-go/deepseek-v4-flash:minimal
-  task: opencode-go/gpt-5.6-luna:high
-  advisor: opencode-go/gpt-5.6-luna:high
+  task: opencode-go/muse-spark-1.3-contributor:high
+  advisor: opencode-go/muse-spark-1.3-contributor:high
 
 retry:
   fallbackChains:
     default:
-      - openrouter/z-ai/glm-5.3-flash:high
+      - opencode-go/gpt-5.6-luna:high
+      - openrouter/meta/muse-spark-1.3:high
     slow:
-      - openrouter/tencent/hy4-preview:high
+      - openrouter/tencent/hy4-preview:xhigh
+      - openrouter/z-ai/glm-5.3:high
     plan:
-      - openrouter/tencent/hy4-preview:high
+      - openrouter/tencent/hy4-preview:xhigh
+      - openrouter/z-ai/glm-5.3:high
     smol:
       - openrouter/deepseek/deepseek-v4-flash:medium
     task:
-      - openrouter/z-ai/glm-5.3-flash:high
+      - opencode-go/gpt-5.6-luna:high
+      - openrouter/meta/muse-spark-1.3:high
     vision:
-      - opencode-go/deepseek-v4-flash-vision-exp:high
+      - opencode-go/gpt-5.6-luna:high
+      - openrouter/meta/muse-spark-1.3:high
     designer:
-      - opencode-go/deepseek-v4-flash-vision-exp:high
+      - opencode-go/gpt-5.6-luna:high
+      - openrouter/meta/muse-spark-1.3:high
     commit:
       - openrouter/deepseek/deepseek-v4-flash:low
     tiny:
       - openrouter/deepseek/deepseek-v4-flash:low
     advisor:
-      - openrouter/z-ai/glm-5.3-flash:high
+      - opencode-go/gpt-5.6-luna:high
+      - openrouter/meta/muse-spark-1.3:high

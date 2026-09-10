@@ -35,16 +35,16 @@ modelRoles:
   task: github-copilot/gpt-5.6-terra:high
   advisor: github-copilot/grok-4.6:high
 {{- else }}
-  default: opencode-go/muse-spark-1.3-contributor:high
-  slow: opencode-go/muse-spark-1.3-contributor:xhigh
+  default: opencode-go/qwen3.8-flash:high
+  slow: opencode-go/qwen3.8-max:high
   smol: opencode-go/deepseek-v4-flash
-  vision: opencode-go/muse-spark-1.3-contributor:high
-  plan: opencode-go/muse-spark-1.3-contributor:xhigh
-  designer: opencode-go/muse-spark-1.3-contributor:high
+  vision: opencode-go/qwen3.8-flash:high
+  plan: opencode-go/qwen3.8-max:high
+  designer: opencode-go/qwen3.8-flash:high
   commit: opencode-go/deepseek-v4-flash:low
   tiny: opencode-go/deepseek-v4-flash:minimal
-  task: opencode-go/muse-spark-1.3-contributor:high
-  advisor: opencode-go/muse-spark-1.3-contributor:high
+  task: opencode-go/qwen3.8-flash:high
+  advisor: opencode-go/qwen3.8-flash:high
 {{- end }}
 advisor:
   enabled: false
@@ -99,32 +99,32 @@ retry:
       - github-copilot/gpt-5.6-terra:high
 {{- else }}
     default:
-      - openrouter/meta/muse-spark-1.3-contributor:high
+      - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     slow:
-      - openrouter/meta/muse-spark-1.3-contributor:xhigh
-      - openrouter/z-ai/glm-5.3:high
+      - openrouter/qwen/qwen3.8-max:xhigh
+      - openrouter/moonshotai/kimi-k3:max
     plan:
-      - openrouter/meta/muse-spark-1.3-contributor:xhigh
-      - openrouter/z-ai/glm-5.3:high
+      - openrouter/qwen/qwen3.8-max:xhigh
+      - openrouter/moonshotai/kimi-k3:max
     smol:
-      - openrouter/deepseek/deepseek-v4-flash:medium
+      - openrouter/deepseek/deepseek-v4.1-flash:medium
     task:
-      - openrouter/meta/muse-spark-1.3-contributor:high
+      - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     vision:
-      - openrouter/meta/muse-spark-1.3:high
+      - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     designer:
-      - openrouter/meta/muse-spark-1.3:high
+      - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     commit:
-      - openrouter/deepseek/deepseek-v4-flash:low
+      - openrouter/deepseek/deepseek-v4.1-flash:low
     tiny:
-      - openrouter/deepseek/deepseek-v4-flash:low
+      - openrouter/deepseek/deepseek-v4.1-flash:low
     advisor:
-      - openrouter/meta/muse-spark-1.3:high
-      - openrouter/z-ai/glm-5.3:high
+      - openrouter/qwen/qwen3.8-flash:high
+      - openrouter/z-ai/glm-5.3-flash:high
 {{- end }}
 symbolPreset: nerd
 theme:

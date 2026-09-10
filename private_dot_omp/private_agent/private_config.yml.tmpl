@@ -36,10 +36,10 @@ modelRoles:
   advisor: github-copilot/grok-4.6:high
 {{- else }}
   default: opencode-go/qwen3.8-flash:high
-  slow: opencode-go/qwen3.8-max:high
+  slow: openrouter/deepseek/deepseek-v4.1-flash:max
   smol: opencode-go/deepseek-v4-flash
   vision: opencode-go/qwen3.8-flash:high
-  plan: opencode-go/qwen3.8-max:high
+  plan: openrouter/deepseek/deepseek-v4.1-flash:max
   designer: opencode-go/qwen3.8-flash:high
   commit: opencode-go/deepseek-v4-flash:low
   tiny: opencode-go/deepseek-v4-flash:minimal
@@ -102,10 +102,10 @@ retry:
       - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     slow:
-      - openrouter/qwen/qwen3.8-max:xhigh
+      - opencode-go/qwen3.8-max:high
       - openrouter/moonshotai/kimi-k3:max
     plan:
-      - openrouter/qwen/qwen3.8-max:xhigh
+      - opencode-go/qwen3.8-max:high
       - openrouter/moonshotai/kimi-k3:max
     smol:
       - openrouter/deepseek/deepseek-v4.1-flash:medium

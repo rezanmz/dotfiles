@@ -99,30 +99,43 @@ retry:
       - github-copilot/gpt-5.6-terra:high
 {{- else }}
     default:
+      - opencode-go/glm-5.3-flash:high
       - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     slow:
       - opencode-go/qwen3.8-max:high
+      - openrouter/qwen/qwen3.8-max:xhigh
       - openrouter/moonshotai/kimi-k3:max
     plan:
       - opencode-go/qwen3.8-max:high
+      - openrouter/qwen/qwen3.8-max:xhigh
       - openrouter/moonshotai/kimi-k3:max
     smol:
-      - openrouter/deepseek/deepseek-v4.1-flash:medium
+      - opencode-go/qwen3.8-flash
+      - openrouter/deepseek/deepseek-v4.1-flash
+      - openrouter/qwen/qwen3.8-flash
     task:
+      - opencode-go/glm-5.3-flash:high
       - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     vision:
+      - opencode-go/glm-5.3-flash:high
       - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     designer:
+      - opencode-go/glm-5.3-flash:high
       - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     commit:
+      - opencode-go/qwen3.8-flash:low
       - openrouter/deepseek/deepseek-v4.1-flash:low
+      - openrouter/qwen/qwen3.8-flash:low
     tiny:
+      - opencode-go/qwen3.8-flash:minimal
       - openrouter/deepseek/deepseek-v4.1-flash:low
+      - openrouter/qwen/qwen3.8-flash:minimal
     advisor:
+      - opencode-go/glm-5.3-flash:high
       - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
 {{- end }}

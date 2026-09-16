@@ -19,7 +19,7 @@
     "websearch": "{{ if eq .machine "work" }}deny{{ else }}allow{{ end }}",
     "webfetch": "{{ if eq .machine "work" }}deny{{ else }}allow{{ end }}"
   },
-  // Model traffic falls back through 9Router (chat/smart/agentic combos).
+  // Model traffic falls back through 9Router (chat/smart combos).
   // The API key lives in ~/.local/share/opencode/auth.json (never in this
   // public repo); authenticate with `opencode auth login` for provider
   // 9router or write the auth.json entry manually.
@@ -32,8 +32,7 @@
       },
       "models": {
         "chat": { "name": "chat" },
-        "smart": { "name": "smart" },
-        "agentic": { "name": "agentic" }
+        "smart": { "name": "smart" }
       }
     }
   },

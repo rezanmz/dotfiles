@@ -19,6 +19,24 @@
     "websearch": "{{ if eq .machine "work" }}deny{{ else }}allow{{ end }}",
     "webfetch": "{{ if eq .machine "work" }}deny{{ else }}allow{{ end }}"
   },
+  // Model traffic falls back through 9Router (chat/smart/agentic combos).
+  // The API key lives in ~/.local/share/opencode/auth.json (never in this
+  // public repo); authenticate with `opencode auth login` for provider
+  // 9router or write the auth.json entry manually.
+  "provider": {
+    "9router": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "9Router",
+      "options": {
+        "baseURL": "https://router.reza.network/v1"
+      },
+      "models": {
+        "chat": { "name": "chat" },
+        "smart": { "name": "smart" },
+        "agentic": { "name": "agentic" }
+      }
+    }
+  },
   "lsp": true,
   "plugin": [
     "oh-my-opencode-slim@2.2.15"

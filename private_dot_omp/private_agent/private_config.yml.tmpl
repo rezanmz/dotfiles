@@ -35,16 +35,19 @@ modelRoles:
   task: github-copilot/gpt-5.6-terra:high
   advisor: github-copilot/grok-4.6:high
 {{- else }}
-  default: opencode-go/qwen3.8-flash:high
-  slow: openrouter/deepseek/deepseek-v4.1-flash:max
-  smol: opencode-go/deepseek-v4-flash
-  vision: opencode-go/qwen3.8-flash:high
-  plan: openrouter/deepseek/deepseek-v4.1-flash:max
-  designer: opencode-go/qwen3.8-flash:high
-  commit: opencode-go/deepseek-v4-flash:low
-  tiny: opencode-go/deepseek-v4-flash:minimal
-  task: opencode-go/qwen3.8-flash:high
-  advisor: opencode-go/qwen3.8-flash:high
+  # All personal roles run through the 9Router combos (chat = everyday
+  # flash tier, smart = heavy reasoning tier). The previous direct-model
+  # primaries head each role's fallback chain below.
+  default: 9router/chat:high
+  slow: 9router/smart:xhigh
+  smol: 9router/chat
+  vision: 9router/smart:high
+  plan: 9router/smart:xhigh
+  designer: 9router/smart:high
+  commit: 9router/chat:low
+  tiny: 9router/chat:minimal
+  task: 9router/chat:high
+  advisor: 9router/smart:high
 {{- end }}
 advisor:
   enabled: false
@@ -98,56 +101,56 @@ retry:
       - github-copilot/claude-sonnet-5:high
       - github-copilot/gpt-5.6-terra:high
 {{- else }}
-    # 9Router combos first: chat (everyday flash tier) for coding/cheap
-    # roles, smart (heavy reasoning tier) for the rest. Existing
-    # direct-provider entries retained as deeper fallbacks.
+    # The 9Router combo is now the role primary (modelRoles above); each
+    # chain starts with the role's previous direct primary, then the
+    # older direct-provider fallbacks.
     default:
-      - 9router/chat:high
+      - opencode-go/qwen3.8-flash:high
       - opencode-go/glm-5.3-flash:high
       - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     slow:
-      - 9router/smart:high
+      - openrouter/deepseek/deepseek-v4.1-flash:max
       - opencode-go/qwen3.8-max:high
       - openrouter/qwen/qwen3.8-max:xhigh
       - openrouter/moonshotai/kimi-k3:max
     plan:
-      - 9router/smart:high
+      - openrouter/deepseek/deepseek-v4.1-flash:max
       - opencode-go/qwen3.8-max:high
       - openrouter/qwen/qwen3.8-max:xhigh
       - openrouter/moonshotai/kimi-k3:max
     smol:
-      - 9router/chat
+      - opencode-go/deepseek-v4-flash
       - opencode-go/qwen3.8-flash
       - openrouter/deepseek/deepseek-v4.1-flash
       - openrouter/qwen/qwen3.8-flash
     task:
-      - 9router/chat:high
+      - opencode-go/qwen3.8-flash:high
       - opencode-go/glm-5.3-flash:high
       - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     vision:
-      - 9router/smart:high
+      - opencode-go/qwen3.8-flash:high
       - opencode-go/glm-5.3-flash:high
       - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     designer:
-      - 9router/smart:high
+      - opencode-go/qwen3.8-flash:high
       - opencode-go/glm-5.3-flash:high
       - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high
     commit:
-      - 9router/chat:low
+      - opencode-go/deepseek-v4-flash:low
       - opencode-go/qwen3.8-flash:low
       - openrouter/deepseek/deepseek-v4.1-flash:low
       - openrouter/qwen/qwen3.8-flash:low
     tiny:
-      - 9router/chat:minimal
+      - opencode-go/deepseek-v4-flash:minimal
       - opencode-go/qwen3.8-flash:minimal
       - openrouter/deepseek/deepseek-v4.1-flash:low
       - openrouter/qwen/qwen3.8-flash:minimal
     advisor:
-      - 9router/smart:high
+      - opencode-go/qwen3.8-flash:high
       - opencode-go/glm-5.3-flash:high
       - openrouter/qwen/qwen3.8-flash:high
       - openrouter/z-ai/glm-5.3-flash:high

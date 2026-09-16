@@ -3,6 +3,15 @@
 # value lives in ~/.omp/agent/.env (local, untracked, alongside the auth
 # store), mirroring the key already held in opencode's auth.json for the
 # opencode CLI.
+#
+# Limits are the MINIMUM across each combo's members (a request can land
+# on any member, so omp must not plan beyond the weakest):
+#   chat:  deepseek-flash, glm-5.3-flash (both 1M ctx, vision, out>=131K)
+#          + openrouter twins
+#   smart: glm-5.3 (1M, NO vision, 131K out), grok-4.6 (500K, vision),
+#          qwen3.8-max (1M, vision, 131K out) + openrouter twins
+# Vision/designer roles through smart lose images while glm-5.3 leads the
+# combo; reorder members or use chat for those to gain real vision.
 providers:
   9router:
     baseUrl: https://router.reza.network/v1
@@ -15,12 +24,12 @@ providers:
       - id: chat
         name: 9Router chat (everyday flash combo)
         reasoning: true
-        input: [text]
-        contextWindow: 131072
-        maxTokens: 8192
+        input: [text, image]
+        contextWindow: 1000000
+        maxTokens: 131072
       - id: smart
         name: 9Router smart (heavy reasoning combo)
         reasoning: true
         input: [text]
-        contextWindow: 131072
-        maxTokens: 8192
+        contextWindow: 500000
+        maxTokens: 131072

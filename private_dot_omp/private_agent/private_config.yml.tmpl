@@ -174,7 +174,12 @@ checkpoint:
 secrets:
   enabled: true
 compaction:
-  idleEnabled: true
+  # Upstream default is false. Enabling it silently rewrites the live
+  # session's model context 5 minutes after you stop typing whenever the
+  # context is above idleThresholdTokens (200k) — far below the ~850k
+  # normal auto-compaction threshold on a 1M window — so walking away
+  # from a mid-size session destroys the conversation the model sees.
+  idleEnabled: false
   handoffSaveToDisk: true
 display:
   showTokenUsage: true

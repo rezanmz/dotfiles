@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "shared-memory": {
+      "type": "http",
+      "url": "https://memory.reza.network/mcp/shared/",
+      "headers": {
+        "Authorization": "!printf 'Bearer %s' \"$(grep -m1 '^HINDSIGHT_MCP_TOKEN=' ~/.omp/agent/.env | cut -d= -f2-)\""
+      }
+    }
+  }
+}

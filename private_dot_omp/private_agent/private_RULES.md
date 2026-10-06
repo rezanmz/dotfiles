@@ -14,3 +14,10 @@
   works", "tests pass", or "verified" without having just run the check.
 - Commits: one-line imperative messages prefixed with the area (`omp: ...`,
   `git: ...`, `zsh: ...`). Commits must be signed via the git config; never
+
+## Shared long-term memory
+
+A shared Hindsight bank (`shared-memory` MCP) holds durable cross-session
+facts. At task start, query it for relevant context; after learning
+something durable (environment facts, preferences, decisions, incident
+lessons), retain it tagged `source:omp`.

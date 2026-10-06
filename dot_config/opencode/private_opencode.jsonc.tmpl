@@ -34,6 +34,21 @@
         "chat": { "name": "chat" },
         "smart": { "name": "smart" }
       }
+    },
+    "test": {
+      "name": "test",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://router.reza.network/v1"
+      },
+      "models": {
+        "chat": {
+          "name": "Chat"
+        },
+        "smart": {
+          "name": "Smart"
+        }
+      }
     }
   },
   "lsp": true,
@@ -47,5 +62,6 @@
     "general": {
       "disable": true
     }
-  }
+  },
+  "disabled_providers": []
 }

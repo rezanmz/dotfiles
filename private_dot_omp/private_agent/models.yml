@@ -27,6 +27,12 @@ providers:
         input: [text, image]
         contextWindow: 1000000
         maxTokens: 131072
+      - id: auto
+        name: 9Router auto (high-quota automation lane)
+        reasoning: true
+        input: [text, image]
+        contextWindow: 1000000
+        maxTokens: 131072
       - id: smart
         name: 9Router smart (heavy reasoning combo)
         reasoning: true

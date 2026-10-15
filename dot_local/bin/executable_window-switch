@@ -12,9 +12,9 @@
 #       while the picker was open, we simply do nothing rather than focus the
 #       wrong window (the bounds check at the bottom).
 #
-#   main.hide-before-typing=no
-#       The app launcher hides its list until you type (see fuzzel.ini), but
-#       switching windows is a browsing task: the list must be there on open.
+# Neither is set in fuzzel.ini, because that is [main] and would apply to the
+# launcher too. Defaults are what this script wants: the list shows on open.
+#
 set -eu
 
 # Index -> window address, resolved at selection time so a closing window can
@@ -47,7 +47,6 @@ for c in json.load(sys.stdin):
 
 choice=$(hyprctl clients -j | python3 -c "$list_windows" |
     fuzzel --dmenu \
-        --override main.hide-before-typing=no \
         --override dmenu.mode=index \
         --prompt 'win❯ ' --placeholder 'Switch window' \
         --lines 10 --width 46) || exit 0

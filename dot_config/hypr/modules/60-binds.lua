@@ -14,7 +14,10 @@
 local mainMod = "SUPER"
 
 local terminal    = "kitty"
-local launcher    = "fuzzel"
+-- The launcher opens on a clean prompt and reveals entries once you type. This
+-- is per-invocation, NOT in fuzzel.ini: [main] would also hide the list for
+-- every --dmenu helper (exit-menu, clipboard-pick, notif-history, dunst).
+local launcher    = "fuzzel --hide-before-typing"
 local fileManager = "kitty yazi"
 local lockCmd     = "hyprlock"
 

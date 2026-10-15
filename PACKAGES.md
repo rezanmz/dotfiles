@@ -34,3 +34,10 @@
 #       pulls bun, cargo, cmake, rust and clang and recompiles on every upgrade,
 #       and omp ships roughly daily. -bin has no build() step at all and takes
 #       seconds. Both install /usr/bin/omp and conflict with each other.
+
+# --- Kernels ---------------------------------------------------------------
+# linux          (mainline — the default; boots first in GRUB)
+# linux-lts      (fallback; picked from the GRUB menu)
+#   Both installed as UKIs in /boot/EFI/Linux/. See README.md for the GRUB
+#   + UKI layout, which ignores /etc/grub.d/10_linux on purpose.
+# amd-ucode      (microcode, embedded into each UKI)

@@ -88,6 +88,78 @@ sudo /usr/lib/systemd/system-generators/zram-generator /tmp/zg /tmp/zg /tmp/zg
 ls /tmp/zg          # expect dev-zram0.swap + systemd-zram-setup@zram0.service.d
 ```
 
+### Default kernel: mainline first, LTS as fallback
+
+Two kernels are installed: `linux` (mainline, newer) and `linux-lts`. This
+machine boots the **mainline** kernel by default and keeps LTS as a menu
+fallback.
+
+**The boot setup is GRUB + UKIs, not classic GRUB entries.** archinstall
+installed this layout, which is easy to misread:
+
+- `/etc/grub.d/10_linux` is **deliberately non-executable**, so GRUB does not
+  generate `vmlinuz`/`initramfs` entries at all.
+- `/etc/grub.d/15_uki` emits a runtime `uki` command.
+- `uki` (GRUB's `blsuki` module) scans `/boot/EFI/Linux/*.efi` at boot time and
+  builds the menu from those UKIs.
+- Each kernel's UKI is named after its preset's `default_uki`.
+
+**Consequence:** the menu is not in `grub.cfg`. Editing `grub.cfg` by hand does
+nothing useful, and `GRUB_DEFAULT=0` does not mean "the first kernel" in any
+stable sense.
+
+`blsuki` orders entries by filename, descending (`filevercmp`), so with both
+UKIs installed the order is:
+
+| index | file | title |
+|---|---|---|
+| 0 | `arch-linux-lts.efi` | Arch Linux (LTS fallback) |
+| 1 | `arch-linux.efi` | Arch Linux |
+
+Selecting by number is therefore fragile. The default is set by **name**
+instead, which `get_entry_number()` accepts because a UKI entry's id is its
+filename:
+
+```
+GRUB_DEFAULT="arch-linux.efi"
+```
+
+If that name ever stops matching, GRUB falls back to index 0, which is LTS — a
+safe failure direction. **To boot LTS deliberately**, set
+`GRUB_DEFAULT="arch-linux-lts.efi"` in `/etc/default/grub` and re-run
+`sudo grub-mkconfig -o /boot/grub/grub.cfg`.
+
+Both entries previously read just "Arch Linux", so the fallback was impossible
+to pick out in the menu. The LTS preset now passes a distinct
+`--osrelease` (see below), giving it the title `Arch Linux (LTS fallback)`.
+
+Files involved (all machine setup, none chezmoi-managed):
+
+`/etc/default/grub` — `GRUB_DEFAULT` selects the mainline UKI by filename.
+
+`/etc/kernel/osrelease-lts` — a copy of `/usr/lib/os-release` with only
+`PRETTY_NAME` changed. GRUB uses `PRETTY_NAME` as the menu title. This file must
+stay well-formed: GRUB **skips** a UKI whose `.osrel` it cannot parse, which
+would silently remove the fallback entry.
+
+`/etc/mkinitcpio.d/linux-lts.preset` — adds `--osrelease /etc/kernel/osrelease-lts`
+to `default_options`. The flag is ignored by the plain-initramfs build, so it is
+safe alongside `default_image`.
+
+UKIs are rebuilt automatically on kernel upgrades by
+`/usr/share/libalpm/hooks/90-mkinitcpio-install.hook`. Rebuild everything by
+hand with `sudo mkinitcpio -P`; the ESP is 1022 MiB and each UKI is ~70 MiB, so
+there is room but not for many more.
+
+Verify the default without rebooting:
+
+```sh
+grep '^set default' /boot/grub/grub.cfg        # expect arch-linux.efi
+ls -v -r /boot/EFI/Linux/*.efi | nl            # index 1 is what boots
+objcopy -O binary --only-section=.osrel \
+    /boot/EFI/Linux/arch-linux-lts.efi /tmp/o && cat /tmp/o | grep PRETTY_NAME
+```
+
 ### Wi-Fi: 5 GHz, power saving, and bufferbloat
 
 The AP (`TP-Link_9271`) advertises the **same SSID on 2.4 GHz and 5 GHz**. With

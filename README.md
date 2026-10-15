@@ -14,7 +14,7 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/hypr/modules/00-theme.lua` | Dracula palette and the `dra()` colour helper |
 | `dot_config/hypr/modules/10-monitors.lua` | Output modes (Dell U3225QE, 3840x2160@120) |
 | `dot_config/hypr/modules/20-env.lua` | Wayland/Electron/Firefox environment variables |
-| `dot_config/hypr/modules/30-autostart.lua` | Empty: systemd user units own startup |
+| `dot_config/hypr/modules/30-autostart.lua` | App autostart (Thunderbird on workspace 10) |
 | `dot_config/hypr/modules/40-look.lua` | Gaps, borders, shadows, blur, animations |
 | `dot_config/hypr/modules/50-input.lua` | Keyboard layout, pointer settings |
 | `dot_config/hypr/modules/60-binds.lua` | Keybindings |
@@ -87,6 +87,16 @@ takes effect on reboot. Verify the generator's output without rebooting:
 sudo /usr/lib/systemd/system-generators/zram-generator /tmp/zg /tmp/zg /tmp/zg
 ls /tmp/zg          # expect dev-zram0.swap + systemd-zram-setup@zram0.service.d
 ```
+
+### Mail on workspace 10
+
+Thunderbird autostarts at login into workspace 10, an ordinary workspace reached
+with `SUPER+0` exactly like `SUPER+1..9`. It is not floated or pinned, so it
+tiles normally and mail is always loaded when you switch to it.
+
+An earlier design put mail on a special/scratchpad workspace. That was replaced:
+`toggle_special` only *overlays* the current workspace rather than switching to
+it, which is a different experience from every other workspace keybinding.
 
 ### Display manager (ly) must launch the uwsm session
 

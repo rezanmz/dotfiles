@@ -59,16 +59,11 @@ hl.workspace_rule({
     default   = true,
 })
 
--- Thunderbird on the special workspace ("scratchpad"), opened with SUPER+0 and
--- available on every workspace. Autostarted into workspace 0 by 30-autostart.lua
--- so the window already exists and SUPER+0 only has to toggle visibility.
+-- Thunderbird belongs on workspace 10, which is a normal workspace (SUPER+0).
+-- It is deliberately not floated or pinned: it behaves like any other window,
+-- so it tiles normally and SUPER+0 switches to it exactly like SUPER+1..9.
 hl.window_rule({
-    name      = "thunderbird-scratchpad",
-    match     = { class = "^(org\\.mozilla\\.Thunderbird|scratchpad-mail)$" },
-    workspace = "special:scratchpad",
-    float     = true,
-    size      = { 1400, 1000 },
-    center    = true,
-    -- No `tile = true` here: it contradicts `float` and wins, which would make
-    -- the mail window fill the screen instead of floating.
+    name      = "thunderbird-workspace-10",
+    match     = { class = "^org\\.mozilla\\.Thunderbird$" },
+    workspace = "10",
 })

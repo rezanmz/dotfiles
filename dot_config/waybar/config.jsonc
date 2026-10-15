@@ -17,7 +17,12 @@
 
     "modules-left": ["hyprland/workspaces", "hyprland/window", "hyprland/language"],
     "modules-center": [],
-    "modules-right": ["idle_inhibitor", "mpris", "pulseaudio", "network", "custom/speed", "bluetooth", "cpu", "memory", "temperature", "disk", "clock", "tray"],
+    // The tray goes FIRST (leftmost) in the right cluster on purpose. As the
+    // last module it sits flush against the right edge, so each newly
+    // registered icon widens the cluster and pushes every other module
+    // leftward. First means icons accumulate into free space to their right
+    // and the modules you actually read never move.
+    "modules-right": ["tray", "idle_inhibitor", "mpris", "pulseaudio", "network", "custom/speed", "bluetooth", "cpu", "memory", "temperature", "disk", "clock"],
 
     // Workspaces are listed as they exist: only workspaces that actually have a
     // window appear, so there is no empty clutter. (An invalid "num-workspaces"

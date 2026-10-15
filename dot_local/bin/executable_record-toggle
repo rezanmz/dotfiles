@@ -1,0 +1,36 @@
+#!/bin/sh
+# Toggle screen recording with wf-recorder.
+#
+#   not recording -> pick a region and start recording to ~/Videos/Recordings
+#   recording     -> stop the current recording
+#
+# wf-recorder has no built-in toggle, so the running process is the state.
+set -eu
+
+DIR="${XDG_VIDEOS_DIR:-$HOME/Videos}/Recordings"
+mkdir -p "$DIR"
+
+notify() {
+    command -v notify-send >/dev/null 2>&1 && notify-send -a "recording" "$1" "$2" || true
+}
+
+if pgrep -x wf-recorder >/dev/null 2>&1; then
+    # SIGINT makes wf-recorder finalise the file cleanly.
+    pkill -INT -x wf-recorder
+    sleep 1
+    notify "Recording saved" "$(ls -t "$DIR"/*.mp4 2>/dev/null | head -1)"
+    exit 0
+fi
+
+geometry=$(slurp) || exit 0
+out="$DIR/$(date +%Y-%m-%d_%H-%M-%S).mp4"
+
+setsid wf-recorder -g "$geometry" -f "$out" >/dev/null 2>&1 &
+sleep 1
+
+if pgrep -x wf-recorder >/dev/null 2>&1; then
+    notify "Recording started" "$(basename "$out") — press SUPER+SHIFT+R to stop"
+else
+    notify "Recording failed" "wf-recorder did not start"
+    exit 1
+fi

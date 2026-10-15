@@ -22,10 +22,33 @@
     // Workspaces are listed as they exist: only workspaces that actually have a
     // window appear, so no empty 6/7/8/9 clutter. (An invalid "num-workspaces"
     // key was here before; waybar silently ignored it.)
+    // Workspaces are listed as they exist: only workspaces that actually have a
+    // window appear, so no empty clutter. (An invalid "num-workspaces" key was
+    // here before; waybar silently ignored it.)
+    //
+    // Workspace 10 is the mail workspace, labelled "mail" instead of "10".
+    // Workspaces are listed as they exist: only workspaces that actually have
+    // a window appear, so there is no empty clutter.
+    //
+    // format-icons only substitutes {icon}, so the format must USE {icon}.
+    // Unnamed workspaces are 1..10; 10 is the mail workspace and gets a label.
     "hyprland/workspaces": {
-        "format": "{name}",
+        "format": "{icon}",
         "on-click": "activate",
-        "all-outputs": true
+        "all-outputs": true,
+        "format-icons": {
+            "1": "1",
+            "2": "2",
+            "3": "3",
+            "4": "4",
+            "5": "5",
+            "6": "6",
+            "7": "7",
+            "8": "8",
+            "9": "9",
+            "10": "mail",
+            "default": ""
+        }
     },
 
     "hyprland/window": {

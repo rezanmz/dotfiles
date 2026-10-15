@@ -41,4 +41,13 @@ fi
 # apps like Thunderbird from rendering light when the theme's dark assets exist.
 gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
 
+# Cursor: Bibata ships via bibata-cursor-theme-bin (AUR). Same guard pattern as
+# the themes above: only point at it if it is actually installed.
+if [ -d /usr/share/icons/Bibata-Modern-Classic ]; then
+    gsettings set org.gnome.desktop.interface cursor-theme 'Bibata-Modern-Classic'
+    gsettings set org.gnome.desktop.interface cursor-size 28
+else
+    echo "Bibata cursor not installed; leaving cursor-theme unchanged" >&2
+fi
+
 echo "GTK theme applied: $(gsettings get org.gnome.desktop.interface gtk-theme) / $(gsettings get org.gnome.desktop.interface color-scheme)"

@@ -95,9 +95,42 @@ if (( $+commands[fastfetch] )); then
   add-zsh-hook precmd _fastfetch_banner
 fi
 
-# System-provided zsh completions (from the zsh-completions package), if present.
-if [[ -d /usr/share/zsh/site-functions ]]; then
-  fpath=(/usr/share/zsh/site-functions $fpath)
+# --- Completion system ---------------------------------------------------
+# compinit MUST run, or Tab completion does nothing at all: fpath alone only
+# makes the functions *findable*. oh-my-zsh used to call compinit for us; when
+# this config stopped sourcing it (see the Powerlevel10k block above) that call
+# was lost, which is why `sudo systemc<Tab>` did not complete.
+fpath=(/usr/share/zsh/site-functions /usr/share/zsh/functions/Completion/* $fpath)
+autoload -Uz compinit
+# -C skips the security check on an existing dump file (much faster startup);
+# regenerate with `rm -f ~/.zcompdump* && exec zsh` if completions look stale.
+compinit -C
+
+# Case-insensitive, menu-style matching: partial-word and substring matching
+# make `systemc<Tab>` work even without typing the full word.
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*' menu select
+zstyle ':completion:*' list-colors ''
+# Complete sudo's arguments as if the prefix were not there, so
+# `sudo systemctl <Tab>` offers systemctl's own completions.
+zstyle ':completion:*:sudo:*' command-path /usr/sbin /usr/bin /sbin /bin
+# Grouping + descriptions in the menu.
+zstyle ':completion:*' group-name ''
+zstyle ':completion:*:descriptions' format '%F{yellow}-- %d --%f'
+setopt MENU_COMPLETE
+
+# --- Suggestions and highlighting ----------------------------------------
+# zsh-autosuggestions: grey inline suggestions from history (Right/End accepts).
+if [[ -r /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh ]]; then
+  source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+  ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+fi
+
+# zsh-syntax-highlighting MUST be sourced last: it wraps the line editor, and
+# anything sourced after it would not be highlighted. It also declares the
+# zsh-users/zsh-autosuggestions compatibility strategy above.
+if [[ -r /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
+  source /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 fi
 
 # History shared across terminals.

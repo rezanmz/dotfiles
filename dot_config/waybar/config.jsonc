@@ -15,7 +15,7 @@
     "margin-right": 10,
     "fixed-center": true,
 
-    "modules-left": ["hyprland/workspaces", "hyprland/window"],
+    "modules-left": ["hyprland/workspaces", "hyprland/window", "hyprland/language"],
     "modules-center": [],
     "modules-right": ["idle_inhibitor", "mpris", "pulseaudio", "network", "custom/speed", "bluetooth", "cpu", "memory", "temperature", "disk", "clock", "tray"],
 
@@ -37,6 +37,26 @@
             "(.*) - Google Chrome": "$1",
             "(.*) - Chromium": "$1"
         }
+    },
+
+    // Active keyboard layout (US / Persian). Read-only indicator; the layouts
+    // are switched with Ctrl+Space by XKB's grp:ctrl_space_toggle, set in
+    // 50-input.lua.
+    //
+    // The format-<key> suffixes must be XKB's shortDescription, not the layout
+    // code: "us" has shortDescription "en" and "ir" has "fa". Using
+    // format-us/format-ir silently falls through to the bare "format", which
+    // is why the bar showed the raw layout name before.
+    // "format" is positional here: when a format-<key> override matches, waybar
+    // formats "format" with that override's value as the first argument. A
+    // named placeholder like {short} makes waybar log "argument not found" and
+    // DISABLE the whole module on 0.15.0.
+    "hyprland/language": {
+        "format": "{}",
+        "format-en": "EN",
+        "format-fa": "FA",
+        "tooltip-format": "{long} ({variant})",
+        "on-click": ""
     },
 
     "clock": {

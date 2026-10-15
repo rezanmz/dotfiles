@@ -61,14 +61,24 @@ if [ "$mode" = "output" ] || ! command -v satty >/dev/null 2>&1; then
     exit 0
 fi
 
-# Annotate. satty copies to the clipboard on Enter and exits.
-satty \
+# Annotate with satty.
+#   Enter   -> copy the annotated image to the clipboard, save it, then exit
+#   Escape  -> discard (exit only; nothing is written)
+# Saving to file is what produces $out, so a copy is deliberately NOT forced
+# after escape — copying there would silently place an unannotated image on the
+# clipboard.
+if satty \
     --filename "$tmp" \
     --output-filename "$out" \
     --copy-command wl-copy \
     --early-exit \
     --actions-on-enter save-to-clipboard \
-    --actions-on-escape save-to-clipboard
-
-[ -f "$out" ] || cp "$tmp" "$out"
-notify "Screenshot saved" "$out"
+    --actions-on-enter save-to-file \
+    --actions-on-escape exit
+then
+    if [ -f "$out" ]; then
+        notify "Screenshot saved" "$out"
+    else
+        notify "Screenshot copied" "in clipboard (no file saved)"
+    fi
+fi

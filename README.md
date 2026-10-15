@@ -137,6 +137,42 @@ dispatcher script (`/etc/NetworkManager/dispatcher.d/90-fq_codel`). A
 dispatcher is used because a bare `tc` command is lost on every interface reset
 and reboot.
 
+### GeForce NOW
+
+Installed as NVIDIA's official Flatpak, from NVIDIA's own signed remote — not
+from the AUR, so it is the same build NVIDIA ships:
+
+```sh
+sudo flatpak remote-add --if-not-exists GeForceNOW \
+    https://international.download.nvidia.com/GFNLinux/flatpak/geforcenow.flatpakrepo
+sudo flatpak install GeForceNOW com.nvidia.geforcenow
+```
+
+Launch with `flatpak run com.nvidia.geforcenow`. NVIDIA's `.bin` installer does
+the same thing, but checks for a Debian base first, so the Flatpak is used
+directly here.
+
+**The Linux client is still labelled beta.** Prerequisites verified on this
+machine:
+
+| Requirement | Status |
+|---|---|
+| AMD/Intel GPU → Wayland session | Hyprland, `XDG_SESSION_TYPE=wayland` |
+| Mesa ≥ 24.2.8 | 26.2.4 |
+| Vulkan H.264/H.265 decode | both extensions present (RADV) |
+| Disk space | ample |
+
+**Hardware caveat: this box has no discrete GPU.** The renderer is the Ryzen
+7800X3D's integrated Radeon 610M, which is fine for *decoding* a stream but
+leaves no headroom. GeForce NOW's system requirements are all about decode
+support, not rendering power — the game runs in NVIDIA's datacenter. Expect
+1080p to be comfortable; the 4K/240 FPS tiers also need a Premium membership.
+
+**Networking caveat.** Streaming requires 25 Mbps sustained for 1080p60 and
+under 80 ms of latency to an NVIDIA datacenter. See the Wi-Fi section above:
+bufferbloat on the router pushes latency to ~140 ms under load, which will
+degrade a stream. A wired connection is what NVIDIA recommends.
+
 ### Google Drive
 
 Mounted with rclone at `~/GoogleDrive` by the `gdrive.service` user unit

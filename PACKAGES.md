@@ -22,3 +22,8 @@
 #
 # Not package-managed: ~/.local/share/wallpapers/current.png (wallpaper) and
 # ~/.ssh/allowed_signers (commit signing). See README.md.
+
+# --- Cloud gaming ----------------------------------------------------------
+# flatpak                  (hosts NVIDIA's official GeForce NOW build)
+# vulkan-tools             (verifies VK_KHR_video_decode_h264/h265 for GFN)
+# iw                       (Wi-Fi link diagnostics: band, rate, power save)

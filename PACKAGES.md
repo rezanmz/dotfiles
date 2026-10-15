@@ -41,3 +41,9 @@
 #   Both installed as UKIs in /boot/EFI/Linux/. See README.md for the GRUB
 #   + UKI layout, which ignores /etc/grub.d/10_linux on purpose.
 # amd-ucode      (microcode, embedded into each UKI)
+
+# --- Notes ----------------------------------------------------------------
+# obsidian                 (vault at ~/Vault, synced by Syncthing)
+# syncthing                (2.1.6, matches the cluster container version)
+#   Syncthing runs as a user service with linger enabled, so it keeps syncing
+#   while logged out. The peer is the k3s pod, not the beelink host.

@@ -332,6 +332,56 @@ Two gotchas worth knowing:
   `hyprctl dispatch 'hl.dsp.focus({workspace=2})'` and
   `hyprctl dispatch 'hl.dsp.window.move({workspace=2})'`.
 
+### Obsidian vault, synced with the home cluster
+
+Obsidian opens the vault at `~/Vault`, which Syncthing keeps in step with the
+cluster. Both are in the official `extra` repo, no AUR or Flatpak involved:
+`obsidian` and `syncthing` (2.1.6, the same version the cluster container runs).
+
+**Syncthing runs as a k3s pod, not on the beelink host.** It is a
+linuxserver/syncthing container in the `network-services` namespace, with its
+data on an NFS-backed PVC. `pgrep syncthing` on beelink therefore finds
+nothing, and the host has no `/vault`; the folder lives at `/data/vault` inside
+the pod. Reach it with:
+
+```sh
+ssh beelink
+sudo k3s kubectl -n network-services get pods | grep syncthing
+sudo k3s kubectl -n network-services exec <pod> -c syncthing -- ls /data/vault
+```
+
+The folder is `mbjfk-vepmo` (label "Vault"), shared with the other peers:
+MacBook Pro, Galaxy S24, BOOX, BASF Laptop, Legion Y700 and hermes-vm. This
+machine is registered as the device `workstation`
+(`H5VTQE3-…-USHE6QQ`).
+
+**Both ends are configured through the REST API**, which is the reproducible
+path — the GUI wizards are easier to get subtly wrong. Note that the cluster's
+GUI has TLS on, so its API is `https://` with `curl -k`; a plain `http://` call
+returns 307 and looks like a permissions failure.
+
+Local side:
+
+```sh
+API=$(grep -oP '(?<=<apikey>)[^<]+' ~/.local/state/syncthing/config.xml)
+curl -s -X POST -H "X-API-Key: $API" http://127.0.0.1:8384/rest/config/devices -d '{...}'
+curl -s -X POST -H "X-API-Key: $API" http://127.0.0.1:8384/rest/config/folders -d '{...}'
+```
+
+**Linger is enabled** (`loginctl enable-linger reza`). Without it the
+`syncthing.service` user unit dies at logout, so the vault would stop syncing
+whenever no session is open — which is the whole point of a background sync.
+
+Obsidian's vault list is `~/.config/obsidian/obsidian.json`; it is written by
+the app, not by chezmoi. To register a vault without the first-run wizard, stop
+Obsidian, add an entry under `vaults` with a 16-hex id and
+`{"path": "...", "ts": <ms>, "open": true}`, then start it.
+
+The vault carries its own `.obsidian/` config from the cluster, which includes
+several `workspace-mobile.sync-conflict-*.json` files — normal Syncthing
+artifacts from phones editing the same workspace concurrently. They are safe to
+delete.
+
 ### Mail on workspace 10
 
 Thunderbird autostarts at login into workspace 10, an ordinary workspace reached

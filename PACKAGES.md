@@ -27,3 +27,10 @@
 # flatpak                  (hosts NVIDIA's official GeForce NOW build)
 # vulkan-tools             (verifies VK_KHR_video_decode_h264/h265 for GFN)
 # iw                       (Wi-Fi link diagnostics: band, rate, power save)
+
+# --- Coding agent ----------------------------------------------------------
+# oh-my-pi-bin            (AUR: PREBUILT release binary)
+#       Use the -bin package, never the source `oh-my-pi`: the source package
+#       pulls bun, cargo, cmake, rust and clang and recompiles on every upgrade,
+#       and omp ships roughly daily. -bin has no build() step at all and takes
+#       seconds. Both install /usr/bin/omp and conflict with each other.

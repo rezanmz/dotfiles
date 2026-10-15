@@ -173,6 +173,43 @@ under 80 ms of latency to an NVIDIA datacenter. See the Wi-Fi section above:
 bufferbloat on the router pushes latency to ~140 ms under load, which will
 degrade a stream. A wired connection is what NVIDIA recommends.
 
+### omp: use the prebuilt AUR package
+
+Install `oh-my-pi-bin`, **not** the source package `oh-my-pi`.
+
+omp releases roughly daily (seven releases in the five days to 2026-10-15). The
+source package's `makedepends` are `bun cargo cmake clang`, and its `build()`
+heavily recompiles, so every upgrade means a long, CPU-heavy build. The `-bin`
+package has **no `build()` step at all** — only `package()` — so an upgrade just
+downloads and repacks the release binary. Measured here: about two seconds.
+
+Both packages install `/usr/bin/omp` and `conflicts` with each other, so
+switching is `paru -S oh-my-pi-bin` and confirming the conflict.
+
+The `-bin` package and omp's own website installer fetch the **same artifact**:
+the PKGBUILD's `sha256sums_x86_64` matches the published
+`omp-linux-x64` release binary. Verifying they agree is the check that the
+doubled install was redundant:
+
+```sh
+sha256sum /usr/bin/omp    # expect bf1e86a9... at 18.11.1
+```
+
+Installing omp twice — website plus package — leaves the website copy in
+`~/.local/bin/omp`, which shadows `/usr/bin/omp` because `~/.local/bin` comes
+first on `PATH`. Remove it, or the package's upgrades appear to do nothing. It
+is not chezmoi-managed; only the scripts under `dot_local/bin/` are.
+
+After switching, the build-only dependencies (`bun`, `cargo`, `cmake`, `rust`,
+`clang`) become orphans and can be removed. Confirm nothing else needs them
+first, because `~/.bun` and `~/.cargo` are general-purpose directories that may
+hold unrelated work:
+
+```sh
+pacman -Qdtq                     # orphan list
+sudo pacman -Rns bun cargo cmake rust clang
+```
+
 ### Google Drive
 
 Mounted with rclone at `~/GoogleDrive` by the `gdrive.service` user unit

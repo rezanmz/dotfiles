@@ -85,12 +85,19 @@ export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
 {{- end }}
 
 if (( $+commands[fastfetch] )); then
-  # Defer fastfetch until after p10k's instant prompt finishes, otherwise
-  # stdout is redirected during init and fastfetch drops colors.
+  # Run the banner on the first prompt so it does not steal the instant prompt.
+  #
+  # --pipe false is required, not decorative. While p10k's instant prompt is
+  # active, fd 1 points at its capture file (/tmp/p10k-instant-prompt-output-*)
+  # rather than the terminal, so deferring to precmd is not enough: fastfetch
+  # sees a non-tty stdout, applies --pipe, and prints the logo with no colors.
+  # Verified by having the hook read `readlink /proc/$$/fd/1`. Forcing color
+  # here matches running fastfetch by hand, which looks right only because by
+  # then p10k has finished and stdout is the real terminal again.
   autoload -Uz add-zsh-hook
   _fastfetch_banner() {
     add-zsh-hook -d precmd _fastfetch_banner
-    fastfetch
+    fastfetch --pipe false
   }
   add-zsh-hook precmd _fastfetch_banner
 fi

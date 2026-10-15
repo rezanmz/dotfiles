@@ -1,0 +1,75 @@
+#!/bin/sh
+# Set the desktop wallpaper from any image file.
+#
+# Why: hyprpaper's config points at a fixed path
+# (~/.local/share/wallpapers/current.png), so "changing the wallpaper" means
+# putting a file at that exact name and reloading. Doing that by hand needs the
+# conversion, the fixed destination and the IPC call every time. This wraps it.
+#
+# Usage:
+#   set-wallpaper ~/Downloads/photo.jpg
+#   set-wallpaper --fit contain ~/Pictures/banner.png
+#
+# Args after the image are passed to hyprpaper (fit_mode, preload, etc.).
+
+set -eu
+
+case "${1:-}" in
+    ""|-h|--help)
+        echo "usage: $(basename "$0") [--fit mode] <image> [extra hyprpaper args]" >&2
+        exit 2
+        ;;
+esac
+
+fit=cover
+if [ "$1" = "--fit" ]; then
+    fit=${2:?--fit needs a mode}
+    shift 2
+fi
+
+src=${1:?need an image path}
+shift
+
+if [ ! -f "$src" ]; then
+    echo "not a file: $src" >&2
+    exit 1
+fi
+
+dest="${XDG_DATA_HOME:-$HOME/.local/share}/wallpapers/current.png"
+mkdir -p "$(dirname "$dest")"
+
+# hyprpaper is configured with the literal name current.png, and PNG avoids any
+# question of whether the JPEG reader handles progressive/CMYK variants. Pillow
+# converts in-process; ImageMagick's convert is the fallback if it is missing.
+if command -v python3 >/dev/null 2>&1; then
+    python3 - "$src" "$dest" <<'PY'
+import sys
+from PIL import Image
+src, dest = sys.argv[1], sys.argv[2]
+im = Image.open(src)
+im.load()
+if im.mode not in ("RGB", "L"):
+    im = im.convert("RGB")
+im.save(dest, "PNG", optimize=True)
+PY
+elif command -v convert >/dev/null 2>&1; then
+    convert "$src" "$dest"
+else
+    echo "need python3-with-Pillow or ImageMagick to convert the image" >&2
+    exit 1
+fi
+
+echo "wallpaper written: $dest ($(stat -c %s "$dest") bytes)"
+
+# The IPC command differs across hyprpaper versions. Prefer the modern form and
+# fall back so this keeps working either way.
+if hyprctl hyprpaper wallpaper ",$dest" >/dev/null 2>&1; then
+    echo "applied via hyprctl"
+elif systemctl --user restart hyprpaper.service >/dev/null 2>&1; then
+    echo "reloaded hyprpaper service"
+else
+    echo "could not tell hyprpaper to reload — restart hyprpaper manually" >&2
+    exit 1
+fi
+
+hyprctl hyprpaper listactive 2>/dev/null | sed 's/^/  /' || true

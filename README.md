@@ -232,6 +232,34 @@ gdrive-export "Employment Reference Letter.docx" ~/Documents
 It runs `rclone copy`, which performs the export properly. To find which files
 are affected: `find ~/GoogleDrive -type f -size 0`.
 
+### Wallpaper
+
+`hyprpaper.conf` points at one fixed path, so changing the wallpaper means
+putting an image there and reloading. `set-wallpaper` does both:
+
+```sh
+set-wallpaper ~/Downloads/photo.jpg
+set-wallpaper --fit contain ~/Pictures/banner.png
+```
+
+It converts the image to PNG at `~/.local/share/wallpapers/current.png` (Pillow,
+falling back to ImageMagick), then tells hyprpaper to reload.
+
+**The image itself is machine-local and never committed** — it is a photo, not
+config. `~/.local/share/wallpapers/SOURCE.txt` records where the current one
+came from and under what licence.
+
+Two gotchas worth knowing:
+
+- `hyprpaper` is a systemd **user service** started at login. Overwriting
+  `current.png` fails to show up if the process cached the old image, which is
+  why the helper reloads rather than only replacing the file.
+- Hyprland here is configured in **Lua**, so `hyprctl dispatch` parses its
+  argument as a Lua call. The classic `hyprctl dispatch workspace 2` form fails
+  with a Lua syntax error; the working forms are
+  `hyprctl dispatch 'hl.dsp.focus({workspace=2})'` and
+  `hyprctl dispatch 'hl.dsp.window.move({workspace=2})'`.
+
 ### Mail on workspace 10
 
 Thunderbird autostarts at login into workspace 10, an ordinary workspace reached

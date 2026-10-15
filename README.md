@@ -56,6 +56,41 @@ polkit agent run as `graphical-session.target` user units. Enable them once:
 systemctl --user enable --now waybar hyprpaper hypridle cliphist hyprpolkitagent wl-clip-persist
 ```
 
+## System tuning (not chezmoi-managed)
+
+chezmoi only manages files under `$HOME`. The following `/etc` files are
+machine setup and must be recreated by hand on a new install:
+
+`/etc/systemd/zram-generator.conf` — 32 GiB RAM yields a 15.25 GiB zstd swap:
+
+```ini
+[zram0]
+zram-size = ram/2
+compression-algorithm = zstd
+swap-priority = 100
+```
+
+`/etc/sysctl.d/99-zram.conf` — tuning for zram-only swap (the defaults assume a
+seek-costly disk):
+
+```ini
+vm.swappiness = 180
+vm.page-cluster = 0
+vm.watermark_boost_factor = 0
+vm.watermark_scale_factor = 125
+```
+
+Apply the sysctl values immediately with `sudo sysctl --system`; the zram size
+takes effect on reboot. Verify the generator's output without rebooting:
+
+```sh
+sudo /usr/lib/systemd/system-generators/zram-generator /tmp/zg /tmp/zg /tmp/zg
+ls /tmp/zg          # expect dev-zram0.swap + systemd-zram-setup@zram0.service.d
+```
+
+The display manager (`ly`) defaults to the `hyprland-uwsm` session; that choice
+lives in `~/.config/uwsm/default-id`.
+
 ## First machine
 
 Install chezmoi using the operating system's trusted package manager, then initialize without applying so the generated plan can be reviewed:

@@ -3,12 +3,25 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# Oh My Zsh and Powerlevel10k.
+# Oh My Zsh, when present (macOS and machines that install it).
 export ZSH="$HOME/.oh-my-zsh"
 ZSH_THEME="powerlevel10k/powerlevel10k"
 plugins=(git)
 if [[ -r "$ZSH/oh-my-zsh.sh" ]]; then
   source "$ZSH/oh-my-zsh.sh"
+fi
+
+# Powerlevel10k without oh-my-zsh. Arch ships the theme via
+# zsh-theme-powerlevel10k, installed to this path. Keep this after the
+# oh-my-zsh block so the "direct" source wins when oh-my-zsh is absent, and
+# skip it when oh-my-zsh already loaded the theme.
+if [[ ! -r "$ZSH/oh-my-zsh.sh" ]]; then
+  for _p10k in \
+      /usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme \
+      "$HOME/.local/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme"; do
+    [[ -r "$_p10k" ]] && { source "$_p10k"; break; }
+  done
+  unset _p10k
 fi
 
 # Keep the useful colorized, time-sorted alias on both macOS and Linux.

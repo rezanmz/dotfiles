@@ -1,0 +1,55 @@
+#!/bin/sh
+# Apply the wireless tuning that the NetworkManager profile cannot carry on its
+# own, because the profile file lives in /etc, is root-owned and embeds the
+# network PSK, so it is deliberately not tracked in this repo.
+#
+# What it does, to a Wi-Fi connection:
+#   1. pins it to the 5 GHz band
+#   2. disables Wi-Fi power saving
+#
+# Why 5 GHz: the AP advertises the same SSID on 2.4 GHz and 5 GHz. With no band
+# preference NetworkManager picks on signal strength, and the 2.4 GHz BSS is
+# stronger, so it silently lands on the slower band. Measured link rate went
+# from 259 Mbit/s at 2422 MHz to 648 Mbit/s at 5745 MHz once pinned.
+#
+# Why power saving off: it adds wake-up latency to every frame. Measured
+# minimum ping to the gateway dropped from 19.0 ms to 3.6 ms with it disabled.
+#
+# Usage:
+#   wifi-tune                  # tune the connection currently in use
+#   wifi-tune TP-Link_9271     # tune a named connection
+#
+# The fq_codel queue discipline is handled separately, by the root dispatcher
+# installed from run_onchange_after_install-fq-codel-dispatcher.sh.
+
+set -eu
+
+if ! command -v nmcli >/dev/null 2>&1; then
+    echo "nmcli not found; is NetworkManager installed?" >&2
+    exit 1
+fi
+
+name=${1:-}
+if [ -z "$name" ]; then
+    # The connection on the active Wi-Fi device, so the default needs no argument.
+    name=$(nmcli -t -f GENERAL.CONNECTION device show 2>/dev/null \
+        | awk -F: '$1=="GENERAL.CONNECTION"{print $2}' | head -n1)
+fi
+
+if [ -z "$name" ]; then
+    echo "no active Wi-Fi connection found; pass a name explicitly" >&2
+    exit 1
+fi
+
+if ! nmcli -t -f NAME connection show | grep -Fxq "$name"; then
+    echo "no such connection: $name" >&2
+    exit 1
+fi
+
+nmcli connection modify "$name" 802-11-wireless.band a
+nmcli connection modify "$name" 802-11-wireless.powersave 2
+
+echo "tuned '$name':"
+printf '  band      %s\n' "$(nmcli -t -f 802-11-wireless.band connection show "$name" | cut -d: -f2-)"
+printf '  powersave %s\n' "$(nmcli -t -f 802-11-wireless.powersave connection show "$name" | cut -d: -f2-)"
+echo "reconnect to apply: nmcli connection up '$name'"

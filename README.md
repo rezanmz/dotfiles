@@ -88,6 +88,55 @@ sudo /usr/lib/systemd/system-generators/zram-generator /tmp/zg /tmp/zg /tmp/zg
 ls /tmp/zg          # expect dev-zram0.swap + systemd-zram-setup@zram0.service.d
 ```
 
+### Wi-Fi: 5 GHz, power saving, and bufferbloat
+
+The AP (`TP-Link_9271`) advertises the **same SSID on 2.4 GHz and 5 GHz**. With
+no band preference, NetworkManager picks on signal strength, and the 2.4 GHz
+radio is stronger, so a Wi-Fi 6E card silently lands on the slower band.
+
+`wifi-tune` pins a connection to 5 GHz and disables power saving:
+
+```sh
+wifi-tune                  # the connection currently in use
+wifi-tune TP-Link_9271     # or by name
+nmcli connection up TP-Link_9271   # to apply
+```
+
+These settings live in the NetworkManager profile under
+`/etc/NetworkManager/system-connections/`, which is **not tracked here**: it is
+root-owned and embeds the network PSK. Re-apply with `wifi-tune` on a new
+machine.
+
+Measured, `iw dev wlp8s0 link` and `ping 192.168.1.1`:
+
+| Setting | Link rate | Gateway ping (min) |
+|---|---|---|
+| 2.4 GHz, power save on | 259 Mbit/s @ 2422 MHz | 19.0 ms |
+| 5 GHz, power save off | 648 Mbit/s @ 5745 MHz | 3.6 ms |
+
+**Bufferbloat is a separate, larger problem and is only half-fixed here.** A
+Steam download saturates the link at ~430 Mbit/s and drives gateway latency
+from ~7 ms to ~140 ms — for *all* devices on the network, and for the router's
+own LAN hop, which should be single-digit milliseconds.
+
+Measured on this machine, ping to the gateway:
+
+| Condition | avg |
+|---|---|
+| idle | 6.8 ms |
+| loaded, no qdisc | 148.5 ms |
+| loaded, with fq_codel | 138.8 ms |
+
+So this machine's qdisc is not the bottleneck — the queue that fills is in the
+router, on the downstream path. **Enable SQM (fq_codel or CAKE) on the router**;
+that is what actually restores low latency under load.
+
+What is applied locally is `fq_codel` on the Wi-Fi interface, installed by
+`run_onchange_after_install-fq-codel-dispatcher.sh` as a NetworkManager
+dispatcher script (`/etc/NetworkManager/dispatcher.d/90-fq_codel`). A
+dispatcher is used because a bare `tc` command is lost on every interface reset
+and reboot.
+
 ### Google Drive
 
 Mounted with rclone at `~/GoogleDrive` by the `gdrive.service` user unit

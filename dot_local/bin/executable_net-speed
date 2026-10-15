@@ -1,0 +1,55 @@
+#!/bin/sh
+# Live network throughput for the waybar custom/speed module.
+#
+# waybar's built-in {bandwidthDownBytes} can only appear inside the network
+# module's own format; this script gives a standalone readout that shows
+# DOWN/UP at a glance and stays compact when idle.
+#
+# Reads byte counters twice, so it needs to exit — waybar calls it on an
+# interval and uses the first line of stdout.
+set -eu
+
+# Default route interface: works for wifi and ethernet alike.
+iface=$(ip route show default 2>/dev/null | awk '/default/ {print $5; exit}')
+[ -n "$iface" ] || { echo "off"; exit 0; }
+
+stats="/sys/class/net/$iface/statistics"
+[ -r "$stats/rx_bytes" ] || { echo "off"; exit 0; }
+
+read_rx_tx() {
+    read -r rx < "$stats/rx_bytes"
+    read -r tx < "$stats/tx_bytes"
+    echo "$rx $tx"
+}
+
+set -- $(read_rx_tx)
+rx1=$1; tx1=$2
+sleep 1
+set -- $(read_rx_tx)
+rx2=$1; tx2=$2
+
+human() {
+    # $1 = bytes, $2 = direction glyph
+    awk -v b="$1" -v g="$2" 'BEGIN {
+        split("B KiB MiB GiB TiB", u, " ");
+        i = 1;
+        while (b >= 1024 && i < 5) { b /= 1024; i++ }
+        if (b >= 100)      printf "%s %3.0f %s", g, b, u[i];
+        else if (b >= 10)  printf "%s %4.1f %s", g, b, u[i];
+        else               printf "%s %4.2f %s", g, b, u[i];
+    }'
+}
+
+down=$(( rx2 - rx1 ))
+up=$(( tx2 - tx1 ))
+# Counters can wrap/reset (interface flap); clamp instead of printing negatives.
+[ "$down" -lt 0 ] && down=0
+[ "$up" -lt 0 ] && up=0
+
+# Below ~1 KiB/s show a quiet glyph rather than "0 B" noise.
+if [ "$down" -lt 1024 ] && [ "$up" -lt 1024 ]; then
+    echo "idle"
+    exit 0
+fi
+
+printf '%s %s\n' "$(human "$down" "↓")" "$(human "$up" "↑")"

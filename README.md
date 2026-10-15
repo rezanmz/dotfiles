@@ -88,6 +88,28 @@ sudo /usr/lib/systemd/system-generators/zram-generator /tmp/zg /tmp/zg /tmp/zg
 ls /tmp/zg          # expect dev-zram0.swap + systemd-zram-setup@zram0.service.d
 ```
 
+### Google Drive
+
+Mounted with rclone at `~/GoogleDrive` by the `gdrive.service` user unit
+(`~/.config/systemd/user/gdrive.service`). The OAuth token lives in
+`~/.config/rclone/rclone.conf`, which is **deliberately git-ignored** — it is a
+refresh token for the whole Drive.
+
+**Google-native files read as 0 bytes through the mount.** Docs, Sheets and
+Slides have no stored bytes; Drive serves them only via export. The mount lists
+them with a sensible name (`.docx`, `.xlsx`) but an empty body, so `cp` or a
+GUI file manager will copy nothing. Uploaded binary files (PDFs, images, zips)
+work normally.
+
+Use the helper for anything Google-native:
+
+```sh
+gdrive-export "Employment Reference Letter.docx" ~/Documents
+```
+
+It runs `rclone copy`, which performs the export properly. To find which files
+are affected: `find ~/GoogleDrive -type f -size 0`.
+
 ### Mail on workspace 10
 
 Thunderbird autostarts at login into workspace 10, an ordinary workspace reached

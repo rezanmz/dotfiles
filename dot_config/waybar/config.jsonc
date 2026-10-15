@@ -17,7 +17,7 @@
 
     "modules-left": ["hyprland/workspaces", "hyprland/window"],
     "modules-center": [],
-    "modules-right": ["idle_inhibitor", "mpris", "pulseaudio", "network", "bluetooth", "cpu", "memory", "temperature", "disk", "clock", "tray"],
+    "modules-right": ["idle_inhibitor", "mpris", "pulseaudio", "network", "custom/speed", "bluetooth", "cpu", "memory", "temperature", "disk", "clock", "tray"],
 
     // Workspaces are listed as they exist: only workspaces that actually have a
     // window appear, so there is no empty clutter. (An invalid "num-workspaces"
@@ -74,12 +74,29 @@
     },
 
     "network": {
-        "interval": 5,
+        // interval drives the bandwidth figures, so it is the sample window:
+        // every 2s the module computes delta-bytes/elapsed. Shorter = snappier
+        // but more IPC traffic.
+        "interval": 2,
         "format-wifi": "{signalStrength}% \uf1eb",
         "format-ethernet": "eth \uf6ff",
         "format-disconnected": "offline \uf127",
-        "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}",
-        "tooltip-format-ethernet": "{ifname}\n{ipaddr}",
+        // Throughput only appears when it is worth looking at: a placeholder
+        // that resolves to an empty string (below 1 KiB/s) leaves no gap.
+        "format-linked": "{ifname} \uf6ff {bandwidthDownBytes:>} \uf0ab {bandwidthUpBytes:>}",
+        "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}\n\u2193 {bandwidthDownBytes}  \u2191 {bandwidthUpBytes}",
+        "tooltip-format-ethernet": "{ifname}\n{ipaddr}\n\u2193 {bandwidthDownBytes}  \u2191 {bandwidthUpBytes}",
+        "on-click": "kitty -e nmtui"
+    },
+
+    // Dedicated throughput readout, so "what is my speed right now" is visible
+    // without hovering. Its own interval keeps the bar refresh independent of
+    // the signal-strength module above.
+    "custom/speed": {
+        "exec": "~/.local/bin/net-speed",
+        "interval": 2,
+        "format": "{}",
+        "tooltip": false,
         "on-click": "kitty -e nmtui"
     },
 

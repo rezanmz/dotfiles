@@ -1,0 +1,34 @@
+#!/bin/sh
+# Fetch a Google-native Drive file (Docs/Sheets/Slides) as a real file.
+#
+# Why this exists: Google-native files have no bytes of their own — Drive only
+# serves them through an *export*. rclone exposes them in the mount with the
+# right name but as 0-byte entries, so `cp ~/GoogleDrive/file.docx` silently
+# copies nothing. `rclone copy` performs the export correctly, so this wraps it.
+#
+# Usage:
+#   gdrive-export "Employment Reference Letter.docx"
+#   gdrive-export "Folder/Sheet.xlsx" ~/Documents
+
+set -eu
+
+[ $# -ge 1 ] || { echo "usage: $(basename "$0") <remote-path> [dest-dir]" >&2; exit 2; }
+
+remote_path=$1
+dest=${2:-$HOME/Downloads}
+
+if [ ! -d "$dest" ]; then
+    echo "destination is not a directory: $dest" >&2
+    exit 2
+fi
+
+mkdir -p "$dest"
+
+# --drive-export-formats decides the on-disk format; keep it in step with the
+# mount unit so names and contents agree.
+rclone copy "gdrive:$remote_path" "$dest/" \
+    --drive-export-formats docx,xlsx,pptx,svg \
+    --progress
+
+echo
+echo "written to: $dest/$(basename "$remote_path")"

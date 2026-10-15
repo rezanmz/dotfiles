@@ -2,6 +2,7 @@
 -- SUPER is the main modifier, matching the i3 config this replaces.
 --
 --   SUPER+RETURN  terminal          SUPER+D  launcher
+--   SUPER+SHIFT+D displays          SUPER+B  bluetooth
 --   SUPER+Q       close window      SUPER+E  file manager
 --   SUPER+L       lock              SUPER+M  exit menu
 --   SUPER+1..0    workspaces        SUPER+SHIFT+1..0  move window to workspace
@@ -24,6 +25,8 @@ hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + D",      hl.dsp.exec_cmd(launcher))
 hl.bind(mainMod .. " + E",      hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
+-- Display management GUI (scale, position, multi-monitor alignment).
+hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("nwg-displays"))
 
 -- Session
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())

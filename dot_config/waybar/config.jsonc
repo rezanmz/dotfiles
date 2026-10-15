@@ -17,7 +17,7 @@
 
     "modules-left": ["hyprland/workspaces", "hyprland/window"],
     "modules-center": [],
-    "modules-right": ["pulseaudio", "network", "bluetooth", "cpu", "memory", "temperature", "disk", "clock", "tray"],
+    "modules-right": ["idle_inhibitor", "mpris", "pulseaudio", "network", "bluetooth", "cpu", "memory", "temperature", "disk", "clock", "tray"],
 
     // Workspaces are listed as they exist: only workspaces that actually have a
     // window appear, so no empty 6/7/8/9 clutter. (An invalid "num-workspaces"
@@ -92,6 +92,38 @@
         "tooltip-format-connected": "{controller_alias}\t{controller_address}\n\n{device_enumerate}",
         "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
         "on-click": "kitty -e bluetui"
+    },
+
+    "mpris": {
+        // Only appears while a player is active, so the bar stays clean.
+        "format": "{player} {status_icon} {dynamic}",
+        "format-paused": "{player} {dynamic}",
+        "dynamic-len": 40,
+        "dynamic-order": "title artist album",
+        "dynamic-importance-order": "title artist album",
+        "status-icons": {
+            "playing": "▶",
+            "paused": "❚❚",
+            "stopped": "■"
+        },
+        "max-length": 60,
+        "on-click": "playerctl play-pause",
+        "on-click-right": "playerctl next",
+        "on-scroll-up": "playerctl previous",
+        "on-scroll-down": "playerctl next"
+    },
+
+    "idle_inhibitor": {
+        // Toggle: click to stop hypridle locking the screen (e.g. watching a
+        // long video). Readable word instead of a Nerd Font glyph, since a
+        // missing glyph would silently render as a blank module.
+        "format": "{icon}",
+        "format-icons": {
+            "activated": "hold",
+            "deactivated": "idle"
+        },
+        "tooltip-format-activated": "idle lock is INHIBITED (click to allow)",
+        "tooltip-format-deactivated": "idle lock is ACTIVE (click to inhibit)"
     },
 
     "temperature": {

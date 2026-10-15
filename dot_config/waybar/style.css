@@ -71,6 +71,8 @@ tooltip label {
 #memory,
 #temperature,
 #disk,
+#mpris,
+#idle_inhibitor,
 #pulseaudio,
 #network,
 #bluetooth,
@@ -79,6 +81,24 @@ tooltip label {
     margin: 0;
     background: transparent;
     color: #f8f8f2;
+}
+
+#idle_inhibitor {
+    color: #6272a4;
+}
+
+/* Inhibiting the idle lock is a deliberate state worth seeing at a glance. */
+#idle_inhibitor.activated {
+    color: #50fa7b;
+}
+
+#mpris {
+    color: #f1fa8c;
+    font-style: italic;
+}
+
+#mpris.paused {
+    color: #6272a4;
 }
 
 #clock {

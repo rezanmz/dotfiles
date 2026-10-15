@@ -1,8 +1,14 @@
 -- Autostart.
+--
 -- uwsm-managed services (waybar, hyprpaper, hypridle, cliphist, polkit agent)
--- are started by systemd user units at graphical-session.target. Only things
--- that have no unit go here.
+-- are started by systemd user units at graphical-session.target, so they are
+-- deliberately NOT duplicated here.
 
--- The session is launched as `Hyprland (uwsm-managed)`, so the units above are
--- enabled with `systemctl --user` instead of being duplicated here.
--- See README.md in the dotfiles for the enable list.
+-- Thunderbird: launched into the special workspace "scratchpad" so that
+-- SUPER+0 simply toggles it. The companion window rule lives in 70-rules.lua.
+-- No --name flag: it would overwrite the window class and stop the rule in
+-- 70-rules.lua from matching. Thunderbird already enforces a single instance
+-- through its profile lock.
+hl.on("hyprland.start", function()
+    hl.exec_cmd("thunderbird")
+end)

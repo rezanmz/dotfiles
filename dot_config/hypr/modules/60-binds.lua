@@ -6,7 +6,7 @@
 --   SUPER+Q       close window      SUPER+E  file manager
 --   SUPER+L       lock              SUPER+M  exit menu
 --   SUPER+1..0    workspaces        SUPER+SHIFT+1..0  move window to workspace
---   SUPER+S       scratchpad
+--   SUPER+S       scratchpad (magic)   SUPER+0  Thunderbird
 --   SUPER+arrows / h j k l  focus  SUPER+SHIFT+...  move window
 --   PRINT         region screenshot SUPER+SHIFT+PRINT  full screenshot
 
@@ -66,14 +66,19 @@ hl.bind(mainMod .. " + CTRL + up",    hl.dsp.window.resize({ x = 0, y = -40, rel
 hl.bind(mainMod .. " + CTRL + down",  hl.dsp.window.resize({ x = 0, y = 40,  relative = true }), { repeating = true })
 
 -- Workspaces
-for i = 1, 10 do
-    local key = i % 10
-    hl.bind(mainMod .. " + " .. key,         hl.dsp.focus({ workspace = i }))
-    hl.bind(mainMod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }))
+-- Workspaces 1-9. SUPER+0 is reserved for the Thunderbird scratchpad below,
+-- so workspace 10 is reached with SUPER+CTRL+0 instead.
+for i = 1, 9 do
+    hl.bind(mainMod .. " + " .. i,       hl.dsp.focus({ workspace = i }))
+    hl.bind(mainMod .. " + SHIFT + " .. i, hl.dsp.window.move({ workspace = i }))
 end
+hl.bind(mainMod .. " + CTRL + 0", hl.dsp.focus({ workspace = 10 }))
 
 hl.bind(mainMod .. " + S",         hl.dsp.workspace.toggle_special("magic"))
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
+
+-- Thunderbird lives on its own scratchpad so SUPER+0 toggles it from anywhere.
+hl.bind(mainMod .. " + 0",         hl.dsp.workspace.toggle_special("scratchpad"))
 hl.bind(mainMod .. " + C", hl.dsp.exec_cmd(helpers .. "/clipboard-pick"))
 -- Cycle through workspaces with SUPER + scroll
 hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))

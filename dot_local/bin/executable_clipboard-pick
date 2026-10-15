@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Pick a clipboard-history entry (cliphist) with fuzzel and restore it.
+set -eu
+
+pick="$(cliphist list | fuzzel --dmenu --prompt 'clip> ' --width 80)" || exit 0
+[ -n "$pick" ] || exit 0
+
+printf '%s' "$pick" | cliphist decode | wl-copy

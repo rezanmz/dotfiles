@@ -1,10 +1,15 @@
-# Linux X11 desktop configuration is never applied on macOS or other systems.
+# Linux desktop configuration is never applied on macOS or other systems.
 {{- if ne .chezmoi.os "linux" }}
-.config/i3/
-.config/i3status-rust/
-.config/picom/
-.config/rofi/
+.config/hypr/
+.config/waybar/
+.config/dunst/
+.config/fuzzel/
 .config/fontconfig/
+.config/gtk-3.0/
+.config/gtk-4.0/
+.config/chrome-flags.conf
+.config/systemd/
+.local/bin/
 {{- end }}
 
 # Repository metadata and automation are not home-directory files.
@@ -19,3 +24,4 @@
 .pre-commit-config.yaml
 README.md
 .slim/
+PACKAGES.md

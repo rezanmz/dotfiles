@@ -1,6 +1,7 @@
-# The following lines were added by Docker Desktop to add commands to your PATH.
-export PATH="$PATH:/Users/rezanmz/.docker/bin"
-# End of Docker Desktop section.
+# Docker Desktop was installed on macOS; its PATH entry does not apply on Linux.
+if [[ "$OSTYPE" == darwin* ]]; then
+  export PATH="$PATH:/Users/rezanmz/.docker/bin"
+fi
 
 # Initialize Homebrew only on supported macOS architectures and when installed.
 if [[ "$OSTYPE" == darwin* ]]; then
@@ -15,4 +16,9 @@ if [[ "$OSTYPE" == darwin* ]]; then
     eval "$(brew shellenv)"
   fi
   unset _brew_bin
+fi
+
+# User-local binaries (omp, helper scripts) come first for interactive shells.
+if [[ -d "$HOME/.local/bin" ]]; then
+  export PATH="$HOME/.local/bin:$PATH"
 fi

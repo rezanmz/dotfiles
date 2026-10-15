@@ -1,0 +1,24 @@
+# Host-specific packages are installed manually; chezmoi never installs
+# packages. This list is the reference for the Arch desktop.
+#
+# --- Desktop stack (Wayland/Hyprland) -------------------------------------
+# hyprland, hyprpaper, hypridle, hyprlock, hyprpolkitagent,
+# xdg-desktop-portal-hyprland, waybar, fuzzel, dunst, wl-clipboard,
+# wl-clip-persist, cliphist, grim, slurp, satty, yazi
+#
+# --- Shell -----------------------------------------------------------------
+# zsh, zsh-completions
+#
+# --- Fonts -----------------------------------------------------------------
+# ttf-hack-nerd            (terminal + waybar glyphs)
+# noto-fonts, noto-fonts-emoji, noto-fonts-cjk
+# vazirmatn-fonts          (AUR: Persian)
+#
+# --- Themes ----------------------------------------------------------------
+# dracula-gtk-theme (AUR), papirus-icon-theme
+#
+# --- xdg dirs / audio / bluetooth -----------------------------------------
+# xdg-user-dirs, pipewire, wireplumber, pavucontrol, bluez, bluez-utils, bluetui
+#
+# Not package-managed: ~/.local/share/wallpapers/current.png (wallpaper) and
+# ~/.ssh/allowed_signers (commit signing). See README.md.

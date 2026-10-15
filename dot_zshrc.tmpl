@@ -81,3 +81,14 @@ if (( $+commands[fastfetch] )); then
   }
   add-zsh-hook precmd _fastfetch_banner
 fi
+
+# System-provided zsh completions (from the zsh-completions package), if present.
+if [[ -d /usr/share/zsh/site-functions ]]; then
+  fpath=(/usr/share/zsh/site-functions $fpath)
+fi
+
+# History shared across terminals.
+HISTFILE="${HISTFILE:-$HOME/.zsh_history}"
+HISTSIZE=50000
+SAVEHIST=50000
+setopt HIST_IGNORE_ALL_DUPS HIST_REDUCE_BLANKS SHARE_HISTORY

@@ -1,0 +1,122 @@
+/* Waybar styling — Dracula palette.
+ * Colors mirror dot_config/hypr/modules/00-theme.lua and the terminal themes. */
+
+* {
+    border: none;
+    border-radius: 0;
+    font-family: "Hack Nerd Font", "Noto Sans", sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    min-height: 0;
+}
+
+window#waybar {
+    background: rgba(40, 42, 54, 0.92);
+    color: #f8f8f2;
+    border-bottom: 1px solid #44475a;
+}
+
+tooltip {
+    background: #44475a;
+    border: 1px solid #6272a4;
+    border-radius: 6px;
+}
+
+tooltip label {
+    color: #f8f8f2;
+}
+
+/* Workspaces */
+#workspaces {
+    margin: 0 6px;
+}
+
+#workspaces button {
+    padding: 0 8px;
+    margin: 4px 2px;
+    background: transparent;
+    color: #6272a4;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+#workspaces button:hover {
+    background: #44475a;
+    color: #f8f8f2;
+}
+
+#workspaces button.active {
+    background: #bd93f9;
+    color: #282a36;
+}
+
+#workspaces button.urgent {
+    background: #ff5555;
+    color: #f8f8f2;
+}
+
+/* Focused window title */
+#window {
+    margin: 0 6px;
+    color: #6272a4;
+}
+
+#window.empty {
+    background: transparent;
+}
+
+/* Shared module look */
+#clock,
+#cpu,
+#memory,
+#pulseaudio,
+#network,
+#bluetooth,
+#tray {
+    padding: 0 9px;
+    margin: 4px 0;
+    background: transparent;
+    color: #f8f8f2;
+}
+
+#clock {
+    color: #8be9fd;
+    font-weight: 600;
+}
+
+#cpu {
+    color: #50fa7b;
+}
+
+#memory {
+    color: #f1fa8c;
+}
+
+#pulseaudio {
+    color: #bd93f9;
+}
+
+#pulseaudio.muted {
+    color: #6272a4;
+}
+
+#network {
+    color: #8be9fd;
+}
+
+#network.disconnected {
+    color: #ff5555;
+}
+
+#bluetooth {
+    color: #ff79c6;
+}
+
+#bluetooth.disabled,
+#bluetooth.off {
+    color: #6272a4;
+}
+
+#tray {
+    padding-right: 10px;
+}

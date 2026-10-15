@@ -1,0 +1,17 @@
+[Unit]
+Description=Wayland clipboard persistence (keeps clipboard after the owning app exits)
+Documentation=https://github.com/Linus789/wl-clip-persist
+PartOf=graphical-session.target
+After=graphical-session.target
+Requisite=graphical-session.target
+
+[Service]
+Type=simple
+# Regular mode keeps the clipboard contents alive for both normal and
+# "primary" selections so cliphist can still read them later.
+ExecStart=/usr/bin/wl-clip-persist --clipboard both
+Restart=on-failure
+Slice=session.slice
+
+[Install]
+WantedBy=graphical-session.target

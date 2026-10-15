@@ -1,8 +1,52 @@
 # rezanmz dotfiles
 
-A public [chezmoi](https://www.chezmoi.io/) source repository for a personal or work machine. The source is intentionally credentials-free and supports macOS plus an optional Linux X11 desktop profile.
+A public [chezmoi](https://www.chezmoi.io/) source repository for a personal or work machine. The source is intentionally credentials-free and supports macOS plus a Linux Wayland/Hyprland desktop profile.
 
 Managed editor configuration includes the preserved Vim setup at `~/.vimrc`; chezmoi source path `dot_vimrc` restores it on every profile.
+
+## Linux desktop profile
+
+The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is split by role:
+
+| Source path | Purpose |
+| --- | --- |
+| `dot_config/hypr/hyprland.lua` | Entry point; `require`s the modules below |
+| `dot_config/hypr/modules/00-theme.lua` | Dracula palette and the `dra()` colour helper |
+| `dot_config/hypr/modules/10-monitors.lua` | Output modes (Dell U3225QE, 3840x2160@120) |
+| `dot_config/hypr/modules/20-env.lua` | Wayland/Electron/Firefox environment variables |
+| `dot_config/hypr/modules/30-autostart.lua` | Empty: systemd user units own startup |
+| `dot_config/hypr/modules/40-look.lua` | Gaps, borders, shadows, blur, animations |
+| `dot_config/hypr/modules/50-input.lua` | Keyboard layout, pointer settings |
+| `dot_config/hypr/modules/60-binds.lua` | Keybindings |
+| `dot_config/hypr/modules/70-rules.lua` | Window and workspace rules |
+| `dot_config/hypr/hyprpaper.conf` | Wallpaper (`wallpaper { }` blocks) |
+| `dot_config/hypr/hypridle.conf` | DPMS off, lock, and suspend timers |
+| `dot_config/hypr/hyprlock.conf` | Lock screen |
+| `dot_config/waybar/` | Status bar config and Dracula stylesheet |
+| `dot_config/dunst/dunstrc` | Notifications |
+| `dot_config/fuzzel/fuzzel.ini` | Launcher; also driven via `--dmenu` |
+| `dot_config/systemd/user/` | `wl-clip-persist.service` |
+| `dot_local/bin/executable_*` | `screenshot`, `clipboard-pick`, `exit-menu` |
+| `dot_config/gtk-3.0`, `dot_config/gtk-4.0` | GTK theme, icons, cursor |
+| `dot_config/chrome-flags.conf` | Forces Chrome onto the native Wayland backend |
+
+`PACKAGES.md` lists package prerequisites; chezmoi never installs packages.
+
+Hyprland 0.55+ reads `hyprland.lua` in preference to `hyprland.conf`, and
+`require("modules.x")` resolves relative to the directory holding the main
+config file. Validate a change before applying it:
+
+```sh
+Hyprland --verify-config -c ~/.config/hypr/hyprland.lua
+```
+
+The session must start through `uwsm` (the "Hyprland (uwsm-managed)" entry in
+the display manager) so that waybar, hyprpaper, hypridle, cliphist and the
+polkit agent run as `graphical-session.target` user units. Enable them once:
+
+```sh
+systemctl --user enable --now waybar hyprpaper hypridle cliphist hyprpolkitagent wl-clip-persist
+```
 
 ## First machine
 
@@ -36,9 +80,9 @@ This is a public repository. Never add passwords, API keys, bearer values, OAuth
 
 ## Profiles and optional fonts
 
-`machine=work` is the conservative profile: personal-only integrations and private mounts are not managed, and network access remains opt-in. `machine=personal` may opt into the MCP booleans explicitly. Linux i3, i3status-rust, picom, rofi, and fontconfig files are gated by `.chezmoiignore` outside Linux.
+`machine=work` is the conservative profile: personal-only integrations and private mounts are not managed, and network access remains opt-in. `machine=personal` may opt into the MCP booleans explicitly. The Linux Hyprland, waybar, dunst, fuzzel, GTK, fontconfig, systemd-user, and `.local/bin` files are gated by `.chezmoiignore` outside Linux.
 
-Fonts are not vendored. Install Hack Nerd Font through the platform package manager if desired. B Nazanin is an optional local font; install it independently and never commit the font file.
+Fonts are not vendored. Install Hack Nerd Font (`ttf-hack-nerd`) through the platform package manager; waybar and the terminals need its glyphs. The wallpaper at `~/.local/share/wallpapers/current.png` is machine-local and not vendored. B Nazanin is an optional local font; install it independently and never commit the font file.
 
 ## OMP model routing
 

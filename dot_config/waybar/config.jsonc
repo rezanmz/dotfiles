@@ -1,0 +1,101 @@
+// Waybar: Dracula, one row, right-anchored status cluster.
+// Nerd Font glyphs live in the Unicode private use area. They are written here
+// as JSON \u escapes so the file itself stays plain ASCII and cannot be mangled
+// by tooling; waybar decodes them at parse time. With the Nerd Font installed
+// (ttf-hack-nerd) these render as icons; without it they fall back to the text
+// labels below.
+
+{
+    "layer": "top",
+    "position": "top",
+    "height": 34,
+    "spacing": 8,
+    "margin-top": 0,
+    "margin-left": 10,
+    "margin-right": 10,
+    "fixed-center": true,
+
+    "modules-left": ["hyprland/workspaces", "hyprland/window"],
+    "modules-center": [],
+    "modules-right": ["pulseaudio", "network", "bluetooth", "cpu", "memory", "clock", "tray"],
+
+    "hyprland/workspaces": {
+        "format": "{name}",
+        "on-click": "activate",
+        "all-outputs": true,
+        "persistent-workspaces": {
+            "*": 5
+        }
+    },
+
+    "hyprland/window": {
+        "format": "{title}",
+        "max-length": 70,
+        "separate-outputs": true,
+        "rewrite": {
+            "(.*) — Mozilla Firefox": "$1",
+            "(.*) - Google Chrome": "$1",
+            "(.*) - Chromium": "$1"
+        }
+    },
+
+    "clock": {
+        "format": "{:%a %d %b  %H:%M}",
+        "tooltip-format": "<tt>{calendar}</tt>",
+        "calendar": {
+            "mode": "month",
+            "format": {
+                "today": "<span color='#ff79c6'><b>{}</b></span>"
+            }
+        }
+    },
+
+    "cpu": {
+        "interval": 5,
+        "format": "cpu {usage}%",
+        "on-click": "kitty -e htop"
+    },
+
+    "memory": {
+        "interval": 10,
+        "format": "ram {percentage}%",
+        "tooltip-format": "{used:0.1f}G / {total:0.1f}G"
+    },
+
+    "pulseaudio": {
+        "format": "{volume}% {icon}",
+        "format-muted": "muted \uf026",
+        "format-icons": {
+            "default": ["\uf026", "\uf027", "\uf028"]
+        },
+        "scroll-step": 5,
+        "on-click": "pavucontrol",
+        "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+    },
+
+    "network": {
+        "interval": 5,
+        "format-wifi": "{signalStrength}% \uf1eb",
+        "format-ethernet": "eth \uf6ff",
+        "format-disconnected": "offline \uf127",
+        "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}",
+        "tooltip-format-ethernet": "{ifname}\n{ipaddr}",
+        "on-click": "kitty -e nmtui"
+    },
+
+    "bluetooth": {
+        "interval": 10,
+        "format": "\uf293 {num_connections}",
+        "format-disabled": "\uf293 off",
+        "format-connected": "\uf293 {num_connections}",
+        "tooltip-format": "{controller_alias}\t{controller_address}",
+        "tooltip-format-connected": "{controller_alias}\t{controller_address}\n\n{device_enumerate}",
+        "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
+        "on-click": "kitty -e bluetui"
+    },
+
+    "tray": {
+        "icon-size": 16,
+        "spacing": 8
+    }
+}

@@ -63,7 +63,12 @@ hl.workspace_rule({
 -- It is deliberately not floated or pinned: it behaves like any other window,
 -- so it tiles normally and SUPER+0 switches to it exactly like SUPER+1..9.
 hl.window_rule({
-    name      = "thunderbird-workspace-10",
-    match     = { class = "^org\\.mozilla\\.Thunderbird$" },
-    workspace = "10",
+    name             = "thunderbird-workspace-10",
+    match            = { class = "^org\\.mozilla\\.Thunderbird$" },
+    workspace        = "10",
+    -- Without these, mail starting at login drags the active workspace to 10,
+    -- so the session begins on mail instead of workspace 1. Thunderbird
+    -- activates itself on startup, so the "activate" request is suppressed too.
+    no_initial_focus = true,
+    suppress_event   = "activate",
 })

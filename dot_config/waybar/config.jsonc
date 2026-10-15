@@ -19,13 +19,13 @@
     "modules-center": [],
     "modules-right": ["pulseaudio", "network", "bluetooth", "cpu", "memory", "clock", "tray"],
 
+    // Workspaces are listed as they exist: only workspaces that actually have a
+    // window appear, so no empty 6/7/8/9 clutter. (An invalid "num-workspaces"
+    // key was here before; waybar silently ignored it.)
     "hyprland/workspaces": {
         "format": "{name}",
         "on-click": "activate",
-        "all-outputs": true,
-        "persistent-workspaces": {
-            "*": 5
-        }
+        "all-outputs": true
     },
 
     "hyprland/window": {

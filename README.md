@@ -94,6 +94,12 @@ Thunderbird autostarts at login into workspace 10, an ordinary workspace reached
 with `SUPER+0` exactly like `SUPER+1..9`. It is not floated or pinned, so it
 tiles normally and mail is always loaded when you switch to it.
 
+The window rule carries `no_initial_focus = true` and `suppress_event =
+"activate"`. Both are required: Thunderbird asks for activation as it starts, so
+without them the session opens on workspace 10 instead of workspace 1. The
+`activate` suppression does not prevent focusing the window later — switching to
+workspace 10 still focuses mail normally.
+
 An earlier design put mail on a special/scratchpad workspace. That was replaced:
 `toggle_special` only *overlays* the current workspace rather than switching to
 it, which is a different experience from every other workspace keybinding.

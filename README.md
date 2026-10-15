@@ -88,8 +88,67 @@ sudo /usr/lib/systemd/system-generators/zram-generator /tmp/zg /tmp/zg /tmp/zg
 ls /tmp/zg          # expect dev-zram0.swap + systemd-zram-setup@zram0.service.d
 ```
 
-The display manager (`ly`) defaults to the `hyprland-uwsm` session; that choice
-lives in `~/.config/uwsm/default-id`.
+### Display manager (ly) must launch the uwsm session
+
+Six desktop units (waybar, hyprpaper, hypridle, cliphist, wl-clip-persist,
+hyprpolkitagent) declare `Requisite=graphical-session.target`, which uwsm sets
+up. Launched from a plain `Hyprland` session they **cannot** start at all, so
+the desktop comes up without a bar, wallpaper, lock timers, clipboard history or
+polkit agent.
+
+`~/.config/uwsm/default-id` only affects `uwsm start default`; it does **not**
+change what ly launches. ly stores its choice by *index* into a list it builds
+at runtime, and in ly 1.4.1 that list is:
+
+| index | entry |
+| --- | --- |
+| 0 | shell (`shell = true` in `/etc/ly/config.ini`) |
+| 1 | `/usr/share/wayland-sessions/hyprland-uwsm.desktop` |
+| 2 | `/usr/share/wayland-sessions/hyprland.desktop` |
+
+The Wayland entries are added in raw `readdir()` order, which is not
+deterministic, and ly clamps an out-of-range saved index to the last entry. A
+stale `reza:3` therefore silently selects plain Hyprland. Pin it explicitly with
+a dedicated session directory holding exactly one entry:
+
+```sh
+sudo mkdir -p /etc/ly/wayland-sessions
+sudo ln -sf /usr/share/wayland-sessions/hyprland-uwsm.desktop \
+            /etc/ly/wayland-sessions/hyprland-uwsm.desktop
+sudo sed -i 's|^waylandsessions = .*|waylandsessions = /etc/ly/wayland-sessions|' /etc/ly/config.ini
+```
+
+This makes the list `0` = shell, `1` = hyprland-uwsm. `/etc/ly/save.txt` then
+reads `1` / `root:0` / `reza:1`. ly rewrites that file on every login, so the
+file heals itself after one correct login. Confirm the result with:
+
+```sh
+tr '\0' ' ' < /proc/$(pgrep -x Hyprland | head -1)/cmdline   # want a uwsm wrapper, not "Hyprland --watchdog-fd"
+systemctl --user is-active graphical-session.target            # want: active
+```
+
+### Bluetooth input
+
+BlueZ only reconnects to **paired and bonded** devices, so trust alone is not
+enough. `/etc/bluetooth/main.conf` sets an explicit retry policy:
+
+```ini
+[Policy]
+ReconnectAttempts=10
+ReconnectIntervals=1,2,4,8,16,32,64,128,256,512
+```
+
+`FastConnectable=true` additionally keeps the controller page-scanning, which
+shortens the connect window at boot.
+
+Pair a keyboard once over Bluetooth (it must be *paired*, not just trusted) and
+BlueZ will bring it back automatically from then on, including while ly is
+showing — ly runs inside the same systemd session as the `bluetooth.service`
+daemon, so the keyboard is already available before any compositor starts.
+A device that is only ever used over USB (as the Keychron K8 Pro is here)
+cannot auto-reconnect over Bluetooth until it is paired on that transport.
+
+
 
 ## First machine
 

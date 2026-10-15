@@ -1,0 +1,60 @@
+#!/bin/sh
+# Window switcher: list Hyprland windows with fuzzel and focus the chosen one.
+# Bound to SUPER+SHIFT+T.
+#
+# Two choices worth keeping in sync with the code below:
+#
+#   dmenu.mode=index
+#       fuzzel prints the row NUMBER, not the row text. The window address is
+#       therefore never shown — rows read "class — title" instead of leaking a
+#       0x address — and selection maps the index back to a freshly-read client
+#       list. Index mode is also why stale rows are safe: if a window closed
+#       while the picker was open, we simply do nothing rather than focus the
+#       wrong window (the bounds check at the bottom).
+#
+#   main.hide-before-typing=no
+#       The app launcher hides its list until you type (see fuzzel.ini), but
+#       switching windows is a browsing task: the list must be there on open.
+set -eu
+
+# Index -> window address, resolved at selection time so a closing window can
+# not shift rows underneath the cursor.
+resolve_index='
+import json, sys
+try:
+    idx = int(sys.argv[1])
+    clients = [c for c in json.load(sys.stdin)
+               if c.get("mapped", True)
+               and ((c.get("title") or "").strip() or (c.get("class") or "").strip())]
+    if 0 <= idx < len(clients):
+        print(clients[idx]["address"])
+except Exception:
+    pass
+'
+
+# One row per window: class, an em dash, then the title (truncated).
+list_windows='
+import json, sys
+for c in json.load(sys.stdin):
+    if not c.get("mapped", True):
+        continue
+    title = (c.get("title") or "").strip()
+    cls = (c.get("class") or "").strip()
+    if not title and not cls:
+        continue
+    print(cls + "  —  " + title[:80])
+'
+
+choice=$(hyprctl clients -j | python3 -c "$list_windows" |
+    fuzzel --dmenu \
+        --override main.hide-before-typing=no \
+        --override dmenu.mode=index \
+        --prompt 'win❯ ' --placeholder 'Switch window' \
+        --lines 10 --width 46) || exit 0
+
+[ -n "$choice" ] || exit 0
+
+addr=$(hyprctl clients -j | python3 -c "$resolve_index" "$choice")
+[ -n "$addr" ] || exit 0
+
+hyprctl dispatch "hl.dsp.focus({ window = \"address:$addr\" })" >/dev/null

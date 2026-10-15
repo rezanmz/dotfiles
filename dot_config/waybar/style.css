@@ -5,7 +5,7 @@
     border: none;
     border-radius: 0;
     font-family: "Hack Nerd Font", "Noto Sans", sans-serif;
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
     min-height: 0;
 }
@@ -32,8 +32,8 @@ tooltip label {
 }
 
 #workspaces button {
-    padding: 0 8px;
-    margin: 4px 2px;
+    padding: 0 10px;
+    margin: 5px 3px;
     background: transparent;
     color: #6272a4;
     border-radius: 6px;
@@ -69,12 +69,14 @@ tooltip label {
 #clock,
 #cpu,
 #memory,
+#temperature,
+#disk,
 #pulseaudio,
 #network,
 #bluetooth,
 #tray {
-    padding: 0 9px;
-    margin: 4px 0;
+    padding: 0 11px;
+    margin: 0;
     background: transparent;
     color: #f8f8f2;
 }
@@ -90,6 +92,33 @@ tooltip label {
 
 #memory {
     color: #f1fa8c;
+}
+
+#temperature {
+    color: #8be9fd;
+}
+
+/* Thresholds mirror warning/critical in config.jsonc (75/90 °C). */
+#temperature.warning {
+    color: #ffb86c;
+}
+
+#temperature.critical {
+    color: #ff5555;
+    animation: blink 1s steps(12) infinite;
+}
+
+#disk {
+    color: #f1fa8c;
+}
+
+/* Nearly full root filesystem deserves attention, but only when it matters. */
+#disk.warning {
+    color: #ffb86c;
+}
+
+#disk.critical {
+    color: #ff5555;
 }
 
 #pulseaudio {

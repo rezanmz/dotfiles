@@ -8,7 +8,7 @@
 {
     "layer": "top",
     "position": "top",
-    "height": 34,
+    "height": 44,
     "spacing": 8,
     "margin-top": 0,
     "margin-left": 10,
@@ -17,7 +17,7 @@
 
     "modules-left": ["hyprland/workspaces", "hyprland/window"],
     "modules-center": [],
-    "modules-right": ["pulseaudio", "network", "bluetooth", "cpu", "memory", "clock", "tray"],
+    "modules-right": ["pulseaudio", "network", "bluetooth", "cpu", "memory", "temperature", "disk", "clock", "tray"],
 
     // Workspaces are listed as they exist: only workspaces that actually have a
     // window appear, so no empty 6/7/8/9 clutter. (An invalid "num-workspaces"
@@ -94,8 +94,30 @@
         "on-click": "kitty -e bluetui"
     },
 
+    "temperature": {
+        // hwmon-path-abs pins the CPU sensor by PCI path: plain hwmonN numbering
+        // is assigned in probe order and changes between boots.
+        "hwmon-path-abs": "/sys/devices/pci0000:00/0000:00:18.3/hwmon",
+        "input-filename": "temp1_input",
+        "interval": 5,
+        "format": "{temperatureC}°C",
+        "tooltip-format": "CPU (Tctl): {temperatureC}°C",
+        "warning-threshold": 75,
+        "critical-threshold": 90
+    },
+
+    "disk": {
+        // Root is a single LVM/btrfs volume, so one entry is enough. Note the
+        // space in the mount point has to be escaped in the JSON key.
+        "interval": 30,
+        "format": "{used}",
+        "tooltip-format": "root: {used} / {total} ({percentage_used}%)",
+        "path": "/",
+        "unit": "GiB"
+    },
+
     "tray": {
-        "icon-size": 16,
+        "icon-size": 18,
         "spacing": 8
     }
 }

@@ -77,8 +77,10 @@ hl.bind(mainMod .. " + CTRL + 0", hl.dsp.focus({ workspace = 10 }))
 hl.bind(mainMod .. " + S",         hl.dsp.workspace.toggle_special("magic"))
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
 
--- Thunderbird lives on its own scratchpad so SUPER+0 toggles it from anywhere.
-hl.bind(mainMod .. " + 0",         hl.dsp.workspace.toggle_special("scratchpad"))
+-- Thunderbird lives on its own scratchpad. mail-toggle starts it if it is not
+-- running, otherwise toggles the scratchpad: a bare toggle_special is a no-op
+-- when the app is closed (the screen just dims on an empty workspace).
+hl.bind(mainMod .. " + 0", hl.dsp.exec_cmd(helpers .. "/mail-toggle"))
 hl.bind(mainMod .. " + C", hl.dsp.exec_cmd(helpers .. "/clipboard-pick"))
 -- Cycle through workspaces with SUPER + scroll
 hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))

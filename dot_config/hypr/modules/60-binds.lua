@@ -3,7 +3,7 @@
 --
 --   SUPER+RETURN  terminal          SUPER+D  launcher
 --   SUPER+SHIFT+D displays          SUPER+B  bluetooth
---   SUPER+SHIFT+T window switcher
+--   SUPER+Tab      window switcher
 --   SUPER+Q       close window      SUPER+E  file manager
 --   SUPER+L       lock              SUPER+M  exit menu
 --   SUPER+1..0    workspaces        SUPER+SHIFT+1..0  move window to workspace
@@ -27,7 +27,7 @@ hl.bind(mainMod .. " + D",      hl.dsp.exec_cmd(launcher))
 hl.bind(mainMod .. " + E",      hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 -- Window switcher: list open windows and focus the chosen one.
-hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd(helpers .. "/window-switch"))
+hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd(helpers .. "/window-switch"))
 -- Display management GUI (scale, position, multi-monitor alignment).
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("nwg-displays"))
 

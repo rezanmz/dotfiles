@@ -32,13 +32,21 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 
 `PACKAGES.md` lists package prerequisites; chezmoi never installs packages.
 
-Hyprland 0.55+ reads `hyprland.lua` in preference to `hyprland.conf`, and
-`require("modules.x")` resolves relative to the directory holding the main
-config file. Validate a change before applying it:
+Hyprland 0.55+ reads `hyprland.lua` in preference to `hyprland.conf`. Note that
+Hyprland's Lua `require()` resolves against the **current working directory**
+(`./modules/...`), not the directory holding the main config, so submodules are
+loaded with `loadfile()` and an absolute path built from `$XDG_CONFIG_HOME`.
+
+`Hyprland --verify-config` does **not** reproduce that resolution, so it can
+report `config ok` for a config the running compositor will reject. Treat a live
+reload as the real check:
 
 ```sh
-Hyprland --verify-config -c ~/.config/hypr/hyprland.lua
+hyprctl reload && hyprctl configerrors   # must print nothing
 ```
+
+Run `Hyprland --verify-config -c ~/.config/hypr/hyprland.lua` from
+`~/.config/hypr` as a quick syntax check only.
 
 The session must start through `uwsm` (the "Hyprland (uwsm-managed)" entry in
 the display manager) so that waybar, hyprpaper, hypridle, cliphist and the

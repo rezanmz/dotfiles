@@ -32,23 +32,27 @@
  *    height and grows DOWNWARD from y=864 — it is not recentred as the results
  *    change.
  *
- *    The practical consequence: the box top edge is fixed at half the screen
- *    height and the list grows down from there. Whether that matters is a
- *    taste call, but it has to be a deliberate one — hence y: Fraction(0.34)
- *    below rather than the 0.5 that a "centred" value would suggest.
- * 2. THERE IS NO SCROLLING.
+ *    The practical consequence: the box top edge is set by a computed margin and
+ *    the list grows down from there. Hence the derived `y` below rather than a
+ *    naive 0.5 — that field's own comment has the arithmetic.
  *
- *    anyrun contains no ScrolledWindow (grep confirms: neither app.rs nor
- *    plugin_box.rs creates one), and `max_entries: None` puts no cap on rows.
- *    So a long list does not scroll and does not shrink: it is simply laid out
- *    at full natural height, which on this screen runs off the bottom edge and
- *    becomes unreachable.
+ * 2. THERE IS NO SCROLLING, UPSTREAM.
  *
- *    The fix is a cap, not a scroll area: `max_entries: Some(10)` below. Ten rows at
- *    ~32px plus the input line and padding is about 470px, comfortably inside
- *    the space between the top-margin position and the waybar-free bottom edge.
- *    Rows beyond the cap are still reachable by typing — narrowing the query is
- *    how you reach them, which is the intended way to use a launcher.
+ *    anyrun contains no ScrolledWindow (checked in source: neither app.rs nor
+ *    plugin_box.rs creates one). This is a known upstream gap, not a setting:
+ *
+ *      #29  "Support for scrollable menu?"            open
+ *      #114 "Bug: Can't show all items correctly"     open
+ *      #319 "feat: mouse scrolling"                   open PR, unmerged
+ *
+ *    PR #319 is the fix, and it is not merged — the `min_results_height` /
+ *    `max_results_height` options it adds are absent from both v26.6.1 and
+ *    current master. It also only covers the mouse wheel.
+ *
+ *    So with no cap the list simply runs off the bottom of the screen and the
+ *    rows past the edge cannot be reached at all. The cap below is the
+ *    workaround: rows past it are reached by narrowing the query, which is the
+ *    normal way to use a launcher.
  */
 
 Config(

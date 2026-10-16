@@ -4,7 +4,8 @@
 # --- Desktop stack (Wayland/Hyprland) -------------------------------------
 # hyprland, hyprpaper, hypridle, hyprlock, hyprpolkitagent,
 # xdg-desktop-portal-hyprland, waybar, anyrun (AUR), dunst, wl-clipboard,
-# wl-clip-persist, cliphist, grim, slurp, satty, yazi
+# wl-clip-persist, cliphist, grim, slurp, satty, yazi,
+# udisks2, udiskie, libayatana-appindicator (udiskie tray icon)
 #
 # --- Shell -----------------------------------------------------------------
 # zsh, zsh-completions

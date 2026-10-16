@@ -25,7 +25,8 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/waybar/` | Status bar config and Dracula stylesheet |
 | `dot_config/dunst/dunstrc` | Notifications |
 | `dot_config/anyrun/` | Launcher (applications, calculator, actions, symbols); `stdin` mode replaces `dmenu` |
-| `dot_config/systemd/user/` | `wl-clip-persist.service` |
+| `dot_config/systemd/user/` | `wl-clip-persist.service`, `udiskie.service` |
+| `dot_config/udiskie/` | Removable-drive automount (USB sticks, SD cards) |
 | `dot_local/bin/executable_*` | `screenshot`, `clipboard-pick`, `window-switch`, `notif-history` |
 | `dot_config/gtk-3.0`, `dot_config/gtk-4.0` | GTK theme, icons, cursor |
 | `dot_config/chrome-flags.conf` | Forces Chrome onto the native Wayland backend |
@@ -53,7 +54,7 @@ the display manager) so that waybar, hyprpaper, hypridle, cliphist and the
 polkit agent run as `graphical-session.target` user units. Enable them once:
 
 ```sh
-systemctl --user enable --now waybar hyprpaper hypridle cliphist hyprpolkitagent wl-clip-persist
+systemctl --user enable --now waybar hyprpaper hypridle cliphist hyprpolkitagent wl-clip-persist udiskie
 ```
 
 ## System tuning (not chezmoi-managed)
@@ -400,8 +401,8 @@ it, which is a different experience from every other workspace keybinding.
 
 ### Display manager (ly) must launch the uwsm session
 
-Six desktop units (waybar, hyprpaper, hypridle, cliphist, wl-clip-persist,
-hyprpolkitagent) declare `Requisite=graphical-session.target`, which uwsm sets
+Seven desktop units (waybar, hyprpaper, hypridle, cliphist, wl-clip-persist,
+udiskie, hyprpolkitagent) declare `Requisite=graphical-session.target`, which uwsm sets
 up. Launched from a plain `Hyprland` session they **cannot** start at all, so
 the desktop comes up without a bar, wallpaper, lock timers, clipboard history or
 polkit agent.

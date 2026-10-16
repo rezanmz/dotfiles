@@ -1,19 +1,40 @@
 /*
- * hyprswitch theme — Dracula, matching dot_config/hypr/modules/00-theme.lua and
- * the anyrun stylesheet.
+ * hyprswitch theme — Dracula, matching dot_config/hypr/modules/00-theme.lua,
+ * the anyrun stylesheet and the window borders.
  *
- * hyprswitch's GUI is a GTK4 app styled entirely through CSS variables declared
- * on :root, so this file overrides them rather than restyling every class. The
- * variable set is fixed (see upstream src/daemon/gui/defaults.css): seven
- * variables, and that is all the GUI exposes.
+ * Loaded by the daemon:
+ *   hyprswitch init --show-title --custom-css ~/.config/hyprswitch/style.css
+ * so this file is read once at daemon start — editing it needs the daemon
+ * restarted, not just the GUI reopened.
  *
- * Colours are the Dracula values used everywhere else:
- *   bg #282a36   current #44475a   fg #f8f8f2   purple #bd93f9   pink #ff79c6
+ * ---------------------------------------------------------------------------
+ * HOW hyprswitch'S SELECTION ACTUALLY WORKS (the thing that made the first
+ * attempt look broken)
  *
- * Loaded by the daemon via:
- *   hyprswitch init --custom-css ~/.config/hyprswitch/style.css
- * so the path is declared once, at daemon start, and changing this file needs
- * the daemon restarted to take effect.
+ * The stylesheet is a fixed set of classes and seven :root variables, and the
+ * SELECTED state is expressed *only* by swapping the border colour:
+ *
+ *     .client_active  { border: var(--border-size) solid var(--border-color-active); }
+ *     .workspace_active { border: var(--border-size) solid var(--border-color-active); }
+ *     .monitor_active { border: var(--border-size) solid var(--border-color-active); }
+ *
+ * There is no background change, no scale, no glow — upstream ships a 3px
+ * outline and nothing else. At 3px (and 2px, as the first version of this file
+ * had it) that is a hairline on a dark card: measured 5.90:1 against the card,
+ * which sounds fine as a contrast ratio but is an extremely small area of
+ * colour, so it does not read as "selected" at a glance.
+ *
+ * The fix is to stop relying on the variables alone and style the _active
+ * classes explicitly: a thick border PLUS a filled background, so selection is
+ * a solid block rather than an outline. That is what the rules at the bottom of
+ * this file do.
+ *
+ * Class inventory (from the binary's embedded stylesheet, for reference):
+ *   .workspace .workspace_active .workspace_special
+ *   .monitor .monitor_active
+ *   .client .client_active .client-image
+ *   .index
+ * ---------------------------------------------------------------------------
  */
 
 * {
@@ -21,37 +42,107 @@
 }
 
 :root {
-    /* Card behind each window preview. Slightly translucent so the wallpaper
-     * reads through, matching the anyrun card. */
-    --bg-color: rgba(40, 42, 54, 0.92);
+    /* Card behind each window preview / workspace group. Nearly opaque so the
+     * cards read as solid panels against the wallpaper; the 0.92-ish alpha in
+     * anyrun works there because its card is large, but here the cards are
+     * small and translucency made them look washed out. */
+    --bg-color: rgba(40, 42, 54, 0.97);
 
-    /* Hovered (not selected) preview: Dracula's "current line" grey, which is
-     * the same step the terminals use for a selection background. */
-    --bg-color-hover: rgba(68, 71, 90, 0.95);
+    /* Hover = Dracula's "current line" grey, the same step the terminals use
+     * for a selection background. */
+    --bg-color-hover: rgba(68, 71, 90, 0.99);
 
-    /* Idle border: muted, so the selected window is the only bright thing. */
-    --border-color: rgba(98, 114, 164, 0.65);
+    /* Idle border. Brighter than upstream's rgba(90,90,120,0.4) so the cards
+     * have a visible edge at all — the "no border" complaint was partly this:
+     * a 40%-alpha grey on a dark card is nearly invisible. */
+    --border-color: rgba(98, 114, 164, 0.85);
 
-    /* Selected border: the same purple->pink accent as the Hyprland active
-     * border (40-look.lua) and anyrun's selection. Single colour here because
-     * the variable takes one value, not a gradient. */
+    /* Selected border. Full-strength Dracula purple, matching the Hyprland
+     * active window border in 40-look.lua. */
     --border-color-active: rgba(189, 147, 249, 1);
 
-    /* The little index badge on each preview. Pink, so it does not compete with
-     * the purple selection border next to it. */
-    --index-border-color: rgba(255, 121, 198, 0.85);
+    /* Index badge outline. Pink so it does not compete with the purple
+     * selection colour sitting next to it. */
+    --index-border-color: rgba(255, 121, 198, 0.9);
 
-    /* Rounded to match the anyrun card (16px) and the window borders (8px);
-     * 12px sits between the two and reads as the same family. */
+    /* Rounded to match the anyrun card (16px) and window borders (8px). */
     --border-radius: 12px;
 
-    /* Thin. 3px (upstream default) reads as a heavy outline against a dark card
-     * where the border is the main colour signal. */
-    --border-size: 2px;
+    /* Raised from 2px to 4px. This variable is the *idle* border thickness on
+     * .client/.workspace/.index, and the selected thickness on the _active
+     * classes, so it is the single biggest lever on how visible the frame is.
+     * The first version set this to 2 (upstream default is 3) which made the
+     * outline even harder to see — the wrong direction. */
+    --border-size: 4px;
 }
 
-/* Preview card text. Anything not covered by a variable has to be styled by
- * class, which is what the two rules below exist for. */
+/* ------------------------------------------------------------------ cards */
+
 .window {
     color: #f8f8f2;
+}
+
+/* Idle window preview. */
+.client {
+    color: #f8f8f2;
+}
+
+/* Hovered, not selected: lighten the fill only, so hovering never looks the
+ * same as being selected. */
+.client:hover {
+    background-color: var(--bg-color-hover);
+}
+
+/*
+ * SELECTED window — the whole point of this file.
+ *
+ * Thick purple border *and* a filled background. Two cues instead of one, so
+ * the selection is unmistakable at a glance rather than a hairline the eye has
+ * to hunt for. The fill is a purple-tinted dark (not full purple) because the
+ * window title text sits on top of it and has to stay readable: #f8f8f2 on
+ * rgba(68,58,92) measures about 8.6:1.
+ */
+.client_active {
+    border: 4px solid var(--border-color-active);
+    background-color: rgba(68, 58, 92, 0.98);
+}
+
+/* Workspace label for the group the selection is in, so it is clear which
+ * workspace the highlighted window belongs to. */
+.workspace_active {
+    border: 4px solid var(--border-color-active);
+    background-color: rgba(68, 58, 92, 0.98);
+}
+
+/* The monitor frame around the whole group, when it holds the selection. */
+.monitor_active {
+    border: 4px solid var(--border-color-active);
+}
+
+/* --------------------------------------------------------------- chrome */
+
+.workspace {
+    color: #f8f8f2;
+    font-weight: bold;
+}
+
+.workspace:hover {
+    background-color: var(--bg-color-hover);
+}
+
+/* Special (scratchpad) workspaces, e.g. the "magic" workspace in 60-binds.lua.
+ * Upstream uses a green border; kept but made a touch brighter so a scratchpad
+ * is distinguishable from an ordinary workspace at a glance. */
+.workspace_special {
+    border: 4px solid rgba(80, 250, 123, 0.75);
+}
+
+/* The number badge for direct switching (1..N). Larger and bolder than
+ * upstream so the index is legible without leaning in. */
+.index {
+    font-size: 24px;
+    font-weight: bold;
+    color: #f8f8f2;
+    padding: 3px 7px;
+    margin: 4px;
 }

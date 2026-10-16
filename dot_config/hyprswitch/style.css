@@ -178,17 +178,32 @@ window {
     border-color: rgba(139, 233, 253, 0.70);
 }
 
-/* The group holding the selection. Purple border to tie it to the selected
- * card, but a much subtler fill than the card itself — the card is the
- * highlight, the group is only context. */
+/*
+ * The group holding the selection.
+ *
+ * IMPORTANT: with `--switch-type workspace` (the bind in 60-binds.lua) TAB
+ * selects a WORKSPACE, not a window, so THIS is the element that carries the
+ * highlight — `.client_active` never appears. The first version of this rule
+ * was a subtle tint (measured background difference from an idle group: rgb(60,
+ * 52, 92) vs rgb(42, 44, 56), barely distinguishable on screen).
+ *
+ * It is now styled as strongly as the selected card: purple gradient fill, a
+ * thick purple border, and a glow. The selected group should be the brightest
+ * thing on screen, because it is what TAB is choosing.
+ */
 .workspace_active {
-    border: 2px solid rgba(189, 147, 249, 0.85);
+    border: 3px solid var(--dr-purple);
     background-image: linear-gradient(
-        170deg,
-        rgba(60, 52, 92, 0.55) 0%,
-        rgba(40, 36, 58, 0.60) 100%
+        165deg,
+        rgba(122, 98, 178, 0.90) 0%,
+        rgba(84, 68, 128, 0.92) 45%,
+        rgba(58, 48, 88, 0.95) 100%
     );
-    box-shadow: 0 0 18px rgba(189, 147, 249, 0.18);
+    box-shadow:
+        0 0 0 1px rgba(189, 147, 249, 0.35),
+        0 8px 30px rgba(189, 147, 249, 0.35),
+        0 3px 10px rgba(0, 0, 0, 0.5);
+    color: #ffffff;
 }
 
 /* Scratchpad ("magic") workspaces — Dracula green, dimmed so it is a marker

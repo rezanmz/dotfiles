@@ -1,0 +1,106 @@
+/* rofi theme for the calculator overlay.
+ *
+ * Deliberately mirrors dot_config/fuzzel/fuzzel.ini: same Dracula surface,
+ * same purple border and selection wash, so the calc overlay does not look
+ * like it belongs to a different desktop than the launcher.
+ *
+ * rofi reads .rasi (its own CSS-like language), not CSS, and `@import` is the
+ * only way to pull in another file. Colours are written literally here rather
+ * than via variables because rofi resolves @theme/@import relative to the
+ * config directory and a broken import makes rofi exit silently with no window.
+ */
+
+* {
+    /* Dracula, matching 00-theme.lua and the terminal themes. */
+    bg:      #282a36f0;
+    fg:      #f8f8f2ff;
+    purple:  #bd93f9ff;
+    cyan:    #8be9fdff;
+    green:   #50fa7bff;
+    comment: #6272a4ff;
+
+    background-color: transparent;
+    text-color:       @fg;
+    font:             "Hack Nerd Font Mono 13";
+    margin:           0;
+    padding:          0;
+    spacing:          0;
+}
+
+window {
+    background-color: @bg;
+    border:           2px;
+    border-color:     @purple;
+    border-radius:    14px;
+    width:            44%;
+    padding:          18px;
+}
+
+/* The query line: "calc: 2+2*10" */
+inputbar {
+    children:   [ prompt, entry ];
+    background-color: transparent;
+    padding:    4px 0 10px 0;
+    spacing:    8px;
+}
+
+prompt {
+    /* Muted, so the expression you are typing is the brightest thing. */
+    text-color: @comment;
+    padding:    0 4px 0 0;
+}
+
+entry {
+    text-color: @fg;
+    placeholder: "Type an expression";
+    placeholder-color: @comment;
+}
+
+/* "Result: 2 + (2 * 10) = 22" — the line that updates as you type. */
+element-text {
+    text-color: @fg;
+    vertical-align: 0.5;
+}
+
+element {
+    padding: 6px 8px;
+    border-radius: 10px;
+}
+
+element.selected {
+    background-color: #bd93f9a6;
+}
+
+element.selected element-text {
+    text-color: @fg;
+}
+
+element.urgent {
+    background-color: #ff5555a6;
+}
+
+/* "Add to history" / "Calculator" rows. */
+element normal.normal {
+    background-color: transparent;
+    text-color: @fg;
+}
+
+listview {
+    background-color: transparent;
+    lines:      3;
+    columns:    1;
+    spacing:    4px;
+    scrollbar:  false;
+    padding:    6px 0 0 0;
+}
+
+scrollbar {
+    handle-width: 6px;
+    handle-color: @purple;
+    background-color: transparent;
+}
+
+/* Result highlighting: rofi-calc marks the computed value with this. */
+element-text.highlight {
+    text-color: @green;
+}

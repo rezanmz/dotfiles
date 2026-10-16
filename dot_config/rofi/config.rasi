@@ -1,0 +1,24 @@
+/* rofi configuration.
+ *
+ * Only used by the calculator overlay (SUPER+SPACE); the application launcher
+ * is fuzzel. Kept minimal on purpose — everything visual lives in calc.rasi so
+ * there is one place to change the look.
+ *
+ * The recommended rofi-calc invocation is:
+ *     rofi -show calc -modi calc -no-show-match -no-sort
+ * -no-show-match keeps rofi from filtering the single result row as you type
+ * (which would make the live answer flicker), and -no-sort keeps the result on
+ * top. See hypr/modules/60-binds.lua for the binding.
+ */
+
+configuration {
+    modi:       "calc:rofi-calc";
+    show-icons: false;
+    /* Do not let rofi grab the keyboard on the whole session: this is an
+     * overlay, so losing focus should dismiss it. */
+    steal-focus: true;
+    /* Dismiss on Escape or on clicking away. */
+    click-to-exit: true;
+    /* The calc result is a single line; a taller list only adds noise. */
+    fixed-num-lines: true;
+}

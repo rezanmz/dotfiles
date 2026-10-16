@@ -33,6 +33,16 @@ hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd(helpers .. "/window-switch"))
 -- Display management GUI (scale, position, multi-monitor alignment).
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("nwg-displays"))
+-- Calculator overlay: type an expression, see the result live. Deliberately
+-- SUPER+SPACE, the same chord as Spotlight on macOS.
+--
+-- -no-show-match stops rofi filtering the result row against your input (which
+-- makes the answer flicker as you type) and -no-sort keeps it on top. rofi is
+-- X11-only, so it appears through XWayland as a layer surface; that works, but
+-- it means rofi needs XWayland running, unlike fuzzel.
+hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(
+    "rofi -show calc -modi calc -no-show-match -no-sort -theme ~/.config/rofi/calc.rasi"
+))
 
 -- Session
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())

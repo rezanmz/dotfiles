@@ -27,7 +27,8 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/anyrun/` | Launcher (applications, calculator, actions, symbols); `stdin` mode replaces `dmenu` |
 | `dot_config/systemd/user/` | `wl-clip-persist.service`, `udiskie.service` |
 | `dot_config/udiskie/` | Removable-drive automount (USB sticks, SD cards) |
-| `dot_local/bin/executable_*` | `screenshot`, `clipboard-pick`, `window-switch`, `notif-history` |
+| `dot_local/bin/executable_*` | `screenshot`, `clipboard-pick`, `notif-history`, `gpu-usage`, `ly-theme` |
+| `dot_config/hyprswitch/` | Window switcher theme (SUPER+Tab) |
 | `dot_config/gtk-3.0`, `dot_config/gtk-4.0` | GTK theme, icons, cursor |
 | `dot_config/chrome-flags.conf` | Forces Chrome onto the native Wayland backend |
 

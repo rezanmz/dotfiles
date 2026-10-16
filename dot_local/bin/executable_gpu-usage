@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+# Live iGPU usage for the waybar custom/gpu module.
+#
+# WHY A SCRIPT AND NOT A BUILT-IN MODULE
+# waybar 0.15 has no GPU-usage module. It has `memory` (system RAM), `cpu`, and
+# `temperature` (any hwmon). None reports GPU utilisation, so this reads the
+# amdgpu driver directly.
+#
+# WHERE THE NUMBERS COME FROM
+#   /sys/class/drm/card0/device/gpu_busy_percent  - GPU busy % (0-100)
+#   .../mem_info_vram_used                        - dedicated VRAM in use
+#   .../mem_info_vram_total                       - dedicated VRAM size
+#   .../mem_info_gtt_used                         - system RAM borrowed via GTT
+#   .../mem_info_gtt_total                        - GTT aperture size
+#
+# WHY GTT MATTERS ON THIS MACHINE
+# The Radeon 610M is an APU with only 512 MiB of dedicated VRAM. Anything larger
+# (a game, a browser compositor) spills into GTT, carved from system RAM - 16 GiB
+# of it here. VRAM alone would show a permanent 512 MiB wall and hide the memory
+# that actually grows, so both are reported in the tooltip.
+#
+# WHY card0 IS HARDCODED
+# Exactly one GPU here (Radeon 610M; no discrete card), so card0 is unambiguous.
+# If a discrete GPU is added the amdgpu card index shifts and this would report
+# the wrong device. Deliberately NOT auto-detected: scanning for "the amdgpu
+# card" would silently switch which device is displayed.
+#
+# WHY PYTHON AND NOT SHELL
+# The output is waybar JSON, and the tooltip needs \r as a line separator. Doing
+# that in shell means emitting a JSON escape sequence from a language where "\r"
+# is already a two-character literal, so the backslash gets escaped twice and
+# waybar receives a literal "\r" instead of a line break. json.dumps gets the
+# escaping right by construction and cannot drift.
+#
+# OUTPUT: waybar JSON, one line
+# The module is declared with "return-type": "json", which is the documented
+# contract (waybar-custom(5)). Note that emitting plain text and putting a
+# tooltip on *stderr* does NOT work - waybar takes the tooltip from this same
+# single-line payload, not from stderr.
+#
+# The `text` field is fixed width: "gpu " + 3-digit percentage + "%" = 8 chars,
+# always. waybar re-renders on every poll, and any width change shoves every
+# module to its left sideways.
+#
+# Plain "gpu" text rather than a Nerd Font glyph, matching this bar's existing
+# numeric modules ("cpu 12%", "ram 23%", "49°C"). Only pulseaudio/network/
+# bluetooth use glyphs here; following the text convention keeps the four
+# numeric readouts visually parallel.
+
+import json
+import sys
+from pathlib import Path
+
+DRM = Path("/sys/class/drm/card0/device")
+
+
+def read_int(name: str) -> int | None:
+    """Read a single integer from the DRM device dir, or None if unavailable."""
+    try:
+        return int((DRM / name).read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def human(n: int) -> str:
+    """Bytes -> compact string. Binary units, to match how the driver
+    reports these values and how `free`/htop present memory."""
+    step = 1024.0
+    val = float(n)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if val < step or unit == "TiB":
+            # Bytes and KiB stay integral; larger units get one decimal so
+            # "1.5 GiB" does not read as "1 GiB" or "2 GiB".
+            return f"{val:.0f} {unit}" if unit in ("B", "KiB") else f"{val:.1f} {unit}"
+        val /= step
+    return f"{val:.1f} TiB"
+
+
+def emit(text: str, tooltip: str | None = None) -> None:
+    payload = {"text": text}
+    if tooltip:
+        payload["tooltip"] = tooltip
+    # One line, compact separators: waybar requires the whole object on a
+    # single line.
+    print(json.dumps(payload, separators=(",", ":")))
+
+
+busy = read_int("gpu_busy_percent")
+
+if busy is None:
+    # Fixed width, same as the live value, so a missing driver cannot change
+    # the bar's width either.
+    emit("gpu ---", f"iGPU unavailable\n{DRM} not readable".replace("\n", "\r"))
+    sys.exit(0)
+
+vram_used = read_int("mem_info_vram_used") or 0
+vram_total = read_int("mem_info_vram_total") or 0
+gtt_used = read_int("mem_info_gtt_used") or 0
+gtt_total = read_int("mem_info_gtt_total") or 0
+
+# \r separates tooltip lines, per waybar-custom(5). json.dumps encodes it as the
+# \r escape, which decodes back to a carriage return on waybar's side.
+tooltip = "\r".join(
+    (
+        "iGPU (Radeon 610M)",
+        f"busy   {busy}%",
+        f"VRAM   {human(vram_used)} / {human(vram_total)}",
+        f"GTT    {human(gtt_used)} / {human(gtt_total)}",
+    )
+)
+
+# Fixed width: "gpu " (4) + %3d (3) + "%" (1) = 8 characters, always.
+emit(f"gpu {busy:3d}%", tooltip)

@@ -34,7 +34,7 @@
     // registered icon widens the cluster and pushes every other module
     // leftward. First means icons accumulate into free space to their right
     // and the modules you actually read never move.
-    "modules-right": ["tray", "idle_inhibitor", "mpris", "pulseaudio", "network", "custom/speed", "bluetooth", "cpu", "memory", "temperature", "disk", "clock"],
+    "modules-right": ["tray", "idle_inhibitor", "mpris", "pulseaudio", "network", "custom/speed", "bluetooth", "cpu", "custom/gpu", "memory", "temperature", "disk", "clock"],
 
     // Workspaces are listed as they exist: only workspaces that actually have a
     // window appear, so there is no empty clutter. (An invalid "num-workspaces"
@@ -135,6 +135,25 @@
         "format": "{}",
         "tooltip": false,
         "on-click": "kitty -e nmtui"
+    },
+
+    // iGPU utilisation. waybar has no built-in GPU module, so this is a custom
+    // module reading the amdgpu driver. Placed between cpu and memory so the
+    // three compute/memory readouts sit together.
+    //
+    // return-type json because the tooltip carries VRAM and GTT figures, and
+    // that is the only supported way to attach a tooltip to a custom module's
+    // output (waybar does not read stderr for tooltips). The script emits one
+    // line of JSON with \r-separated tooltip rows.
+    //
+    // tooltip is left enabled (no "tooltip": false) unlike custom/speed, since
+    // the whole point of this module is the hover detail.
+    "custom/gpu": {
+        "exec": "~/.local/bin/gpu-usage",
+        "return-type": "json",
+        "interval": 2,
+        "format": "{}",
+        "on-click": "kitty -e btop"
     },
 
     "bluetooth": {

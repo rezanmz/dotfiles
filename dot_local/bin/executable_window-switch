@@ -4,7 +4,7 @@
 #
 # UPDATED for anyrun. The picker is now
 #
-#   hyprctl clients -j | <format rows> | anyrun --plugins libstdin.so
+#   hyprctl clients -j | <format rows> | anyrun --plugins libstdin.so --show-results-immediately true
 #
 # `--plugins` overrides config.ron so only stdin loads and the list is nothing
 # but windows — the anyrun equivalent of `rofi -dmenu`.
@@ -54,7 +54,7 @@ for c in json.load(sys.stdin):
 '
 
 choice=$(hyprctl clients -j | python3 -c "$list_windows" |
-    anyrun --plugins libstdin.so) || exit 0
+    anyrun --plugins libstdin.so --show-results-immediately true) || exit 0
 
 [ -n "$choice" ] || exit 0
 

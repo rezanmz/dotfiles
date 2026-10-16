@@ -4,7 +4,7 @@
 #
 # UPDATED for anyrun: the picker is now
 #
-#   cliphist list | anyrun --plugins libstdin.so
+#   cliphist list | anyrun --plugins libstdin.so --show-results-immediately true
 #
 # `--plugins` overrides the plugin list from config.ron for this one run, so
 # only the stdin plugin loads and the picker shows nothing but the clipboard
@@ -19,7 +19,7 @@
 # and scramble the history.
 set -eu
 
-pick="$(cliphist list | anyrun --plugins libstdin.so)" || exit 0
+pick="$(cliphist list | anyrun --plugins libstdin.so --show-results-immediately true)" || exit 0
 [ -n "$pick" ] || exit 0
 
 printf '%s' "$pick" | cliphist decode | wl-copy

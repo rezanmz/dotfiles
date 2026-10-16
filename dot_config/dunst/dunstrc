@@ -49,7 +49,7 @@
     # --plugins overrides config.ron for this run so only stdin loads: dunst
     # feeds a list of actions in and expects the chosen line back, so the
     # applications and calculator plugins must not contribute rows.
-    dmenu = anyrun --plugins libstdin.so
+    dmenu = anyrun --plugins libstdin.so --show-results-immediately true
     browser = /usr/bin/xdg-open
     always_run_script = true
     title = Dunst

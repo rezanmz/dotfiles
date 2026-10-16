@@ -42,18 +42,9 @@ hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 --     appeared to do nothing. Stepping by workspace makes every step a visible
 --     change, and matches the SUPER+1..0 workspace keys right below.
 --
--- --sort-recent
---     Order by most-recently-used rather than layout order, so one TAB goes to
---     the thing you were looking at before. This is what Alt-Tab habits expect.
---
 -- --include-special-workspaces
 --     The "magic" scratchpad (SUPER+S) is otherwise invisible to the switcher,
 --     which means a window parked there could never be reached from SUPER+Tab.
---
--- --hide-active-window-border
---     The GUI draws its own border around the window that currently has focus;
---     with the purple selection styling in style.css it reads as two competing
---     highlights. Off is one clear highlight instead of two ambiguous ones.
 --
 -- --max-switch-offset 9
 --     Number badges 1..9. The default of 6 cannot address a 7th+ entry, and
@@ -92,9 +83,7 @@ hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd(
     .. " --mod-key SUPER_L --key TAB"
     .. " --close mod-key-release --reverse-key mod=shift"
     .. " --switch-type workspace"
-    .. " --sort-recent"
     .. " --include-special-workspaces"
-    .. " --hide-active-window-border"
     .. " --max-switch-offset 9"
 ))
 -- Display management GUI (scale, position, multi-monitor alignment).

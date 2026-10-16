@@ -1,11 +1,11 @@
 -- Keybindings.
 -- SUPER is the main modifier, matching the i3 config this replaces.
 --
---   SUPER+RETURN  terminal          SUPER+D / SUPER+SPACE  unified menu
+--   SUPER+RETURN  terminal          SUPER+SPACE  unified menu
 --   SUPER+SHIFT+D displays          SUPER+B  bluetooth
 --   SUPER+Tab      window switcher (anyrun, stdin mode)
 --   SUPER+Q       close window      SUPER+E  file manager
---   SUPER+L       lock              SUPER+M  session actions
+--   SUPER+L       lock
 --   SUPER+1..0    workspaces        SUPER+SHIFT+1..0  move window to workspace
 --   SUPER+S       scratchpad (magic)   SUPER+0  workspace 10 (mail)
 --   SUPER+arrows / h j k l  focus  SUPER+SHIFT+...  move window
@@ -29,25 +29,29 @@ local helpers = os.getenv("HOME") .. "/.local/bin"
 
 -- Applications
 hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal))
-hl.bind(mainMod .. " + D",      hl.dsp.exec_cmd(launcher))
 hl.bind(mainMod .. " + E",      hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 -- Window switcher: list open windows and focus the chosen one.
 hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd(helpers .. "/window-switch"))
 -- Display management GUI (scale, position, multi-monitor alignment).
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("nwg-displays"))
--- The same menu, reached from the Spotlight chord. SUPER+D and SUPER+SPACE do
--- the same thing on purpose: SUPER+D is the habit from this config's history
--- and from i3, SUPER+SPACE is the macOS habit.
+--
+-- The unified menu has EXACTLY ONE chord: SUPER+SPACE, the Spotlight habit.
+--
+-- SUPER+D and SUPER+M deliberately carry no launcher binding. SUPER+D used to
+-- be a second launcher chord and SUPER+M opened an actions-only anyrun run
+-- (anysrun --plugins libactions.so); both were dropped because a single entry
+-- point is less to remember, and nothing is lost by it: the power actions are
+-- already in config.ron's plugin list, so typing "reboot" or "lock" from the
+-- one menu reaches them directly. SUPER+D and SUPER+M are therefore free for
+-- anything else.
 hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(launcher))
 
 -- Session
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd(lockCmd))
--- Session actions live inside the unified menu (search "reboot"), so this opens
--- the menu filtered to the actions plugin rather than a separate list. The old
--- exit-menu (fuzzel) and rofi-session scripts are both gone.
-hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("anyrun --plugins libactions.so"))
+-- SUPER+M is intentionally unbound. It used to open an actions-only anyrun run;
+-- those actions are in the unified menu now, so the chord is free.
 hl.bind(mainMod .. " + SHIFT + Q", hl.dsp.exit())
 
 -- Window management

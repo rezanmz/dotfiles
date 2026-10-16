@@ -1,164 +1,156 @@
-/* anyrun stylesheet — Dracula, matching 00-theme.lua and the terminals.
+/* anyrun stylesheet — Dracula, with depth.
  *
- * Widget names are the ones anyrun itself uses; see its bundled
- * anyrun/res/style.css for the authoritative list. The selectors below are
- * that set, recoloured:
+ * Widget names are anyrun's own; see its bundled anyrun/res/style.css for the
+ * authoritative list. The selectors used here:
  *
- *   window            the layer-shell surface — always transparent, the blur
- *                     and rounding live on box.main
- *   box.main          the visible card
+ *   window            the layer-shell surface — always transparent
+ *   box.main          the card
  *   text              the input field
- *   box.matches       the results container (one "box" holds all plugins)
- *   list.plugin       the per-plugin list of rows inside it
- *   .match            one row
- *   label.match       the row's main text
- *   label.match.description  the dimmer second line
- *   label.plugin.info the plugin name on the right of a row
+ *   box.matches       results container (one box holds all plugins)
+ *   list.plugin       the per-plugin list of rows
+ *   .match            one row (ListBoxRow AND the inner Box both carry it)
+ *   label.match.title       the row's main text
+ *   label.match.description second line
+ *   label.plugin.info       plugin name on the right
  *
- * Colours are the same Dracula values as dot_config/hypr/modules/00-theme.lua:
- * bg #282a36, fg #f8f8f2, purple #bd93f9, pink #ff79c6, comment #6272a4.
+ * Colours are the Dracula values from dot_config/hypr/modules/00-theme.lua:
+ * bg #282a36, fg #f8f8f2, purple #bd93f9, pink #ff79c6.
  *
- * box.main is deliberately translucent (0.72) — that is what lets the Hyprland
- * layer rule `blur` show through. A fully opaque background makes the blur
- * invisible because there is nothing behind it to sample.
+ * Two deliberate departures from the plain Dracula flat look:
  *
- * One consequence of the full-screen surface (see config.ron's close_on_click)
- * is that every pixel this file paints sits over the desktop, so nothing here
- * may be opaque beyond the card itself.
+ *   - The card is 0.92 alpha, not 0.72, and carries a gradient plus a purple
+ *     glow. The previous value was translucent enough that desktop content
+ *     showed through the text and competed with it; 0.92 keeps the Hyprland
+ *     `blur` visible at the edges while making the text sit on a calm surface.
+ *   - Selected rows invert to a purple-to-pink gradient with dark text, which
+ *     is the same high-contrast treatment the terminals use for a selection.
+ *
+ * Every property below was checked against GTK4's parser. Properties that GTK4
+ * does NOT support are absent on purpose — notably `valign` (rejected), and the
+ * GTK3 text-selection pair (also rejected).
  */
 
 @define-color bg-color #282a36;
 @define-color fg-color #f8f8f2;
 @define-color accent #bd93f9;
 @define-color accent-alt #ff79c6;
-@define-color dim #6272a4;
+@define-color surface-hi #3a3d4f;
+@define-color surface-lo #1b1c24;
 
-/* The layer surface. Must stay transparent: rounding and the background
- * belong to box.main, otherwise the corners of the surface square off. */
+/* The layer surface. Must stay transparent: rounding, background and glow all
+ * belong to box.main, otherwise the surface's square corners clip them. */
 window {
     background: transparent;
 }
 
-/*
- * The visible card.
- *
- * margin is deliberately 0. anyrun positions this widget by setting its GTK
- * margins itself (`set_margin_start/top/end/bottom` in app.rs, derived from
- * config.ron's x/y/width/height) — a margin here would be overwritten and would
- * also break the intended geometry, since the widget is laid out with the
- * surface as its parent. Spacing inside the card comes from `padding`.
- *
- * The background is translucent so the Hyprland `blur` layer rule has something
- * to sample; an opaque colour would make the blur a no-op.
- */
+/* The card. */
 box.main {
-    border-radius: 14px;
-    background-color: alpha(@bg-color, 0.72);
-    border: 2px solid @accent;
-    padding: 14px;
+    border-radius: 16px;
+
+    /* Layered: a flat base colour, then a diagonal gradient over it, so the
+     * top-left reads as lit and the bottom-right recedes. */
+    background-color: alpha(@bg-color, 0.92);
+    background-image: linear-gradient(150deg,
+        alpha(@surface-hi, 0.55) 0%,
+        alpha(@bg-color, 0.92) 42%,
+        alpha(@surface-lo, 0.95) 100%);
+
+    /* Hairline accent edge plus an outer glow, which is what stops a dark card
+     * from looking like a hole cut in the desktop. */
+    border: 1px solid alpha(@accent, 0.45);
+    box-shadow: 0 18px 50px 4px alpha(#000000, 0.60);
+
+    padding: 16px;
+
+    /* anyrun positions this widget by writing its own GTK margins (app.rs), so
+     * a margin here would be overwritten and break the geometry. */
     margin: 0;
 }
 
-/* The input line. */
+/* The input line: a recessed well, so the card reads as having a field in it
+ * rather than a label on it. */
 text {
-    font-size: 1.15rem;
-    background: transparent;
-    border: none;
-    border-radius: 10px;
-    padding: 8px 10px;
-    min-height: 38px;
-    margin-bottom: 10px;
+    font-size: 1.25rem;
+    color: @fg-color;
     caret-color: @accent;
-    color: @fg-color;
+
+    background-color: alpha(@surface-lo, 0.55);
+    border: 1px solid alpha(@accent, 0.30);
+    border-radius: 12px;
+    padding: 11px 14px;
+    min-height: 40px;
+    margin-bottom: 12px;
 }
 
-/* Results list. */
-list.matches {
+/* Results container. */
+box.matches {
     background-color: transparent;
-    border-radius: 10px;
-}
-
-/*
- * One row.
- *
- * min-height is set because anyrun calls set_height_request(32) on the row in
- * plugin_box.rs, and a CSS min-height overrides that request. Declaring it here
- * keeps the row from collapsing to the label height.
- */
-.match {
-    background: transparent;
-    border-radius: 8px;
-    padding: 4px 8px;
-    min-height: 32px;
-    font-size: 1.05rem;
-}
-
-/* Nested labels inherit tight spacing so rows stay compact. */
-.match * {
-    margin: 0;
-    padding: 0;
-}
-
-/* Selected row: solid accent with the background colour as the text, which
- * gives the same high-contrast inversion as the terminals' selection. */
-.match:selected,
-.match:hover {
-    background-color: @accent;
-    color: @bg-color;
-}
-
-.match:selected label.match,
-.match:hover label.match {
-    color: @bg-color;
-}
-
-.match:selected label.match.description,
-.match:hover label.match.description {
-    color: alpha(@bg-color, 0.9);
-}
-
-.match:selected label.plugin.info,
-.match:hover label.plugin.info {
-    color: alpha(@bg-color, 0.9);
-}
-
-/* Row text. */
-label.match {
-    color: @fg-color;
-}
-
-/*
- * Second line of a row (desktop entry comment, calculator description, …), and
- * the plugin name.
- *
- * alpha(@fg-color, 0.7) rather than @dim (#6272a4). Measured: @dim is 3.03:1
- * against the card, below the 4.5:1 WCAG AA floor for body text — and the card
- * is translucent over an arbitrary wallpaper, so the real ratio is worse than
- * that already-failing figure. 0.7 alpha gives 7.34:1 and still reads as
- * secondary next to the 13.36:1 title.
- */
-label.match.description {
-    font-size: 0.82rem;
-    color: alpha(@fg-color, 0.7);
-}
-
-/* Plugin name. Same contrast reasoning as the description above. */
-label.plugin.info {
-    font-size: 0.85rem;
-    color: alpha(@fg-color, 0.7);
-    min-width: 130px;
-}
-
-/* Plugin grouping box. */
-box.plugin:first-child {
-    margin-top: 0;
 }
 
 list.plugin {
     background-color: transparent;
 }
 
-/* Fade the selected row in, matching the compositor's layer animations. */
+/* One row. min-height is set because anyrun calls set_height_request(32) on the
+ * row and a CSS min-height takes precedence, keeping rows uniform. */
+.match {
+    background: transparent;
+    border-radius: 10px;
+    padding: 5px 10px;
+    min-height: 34px;
+    font-size: 1.05rem;
+}
+
+/* Nested labels: tight, so the two-line row stays compact. */
+.match * {
+    margin: 0;
+    padding: 0;
+}
+
+/* Selected / hovered row — the terminals' selection colours, inverted. */
+.match:selected,
+.match:hover {
+    background-image: linear-gradient(90deg,
+        alpha(@accent, 1.0) 0%,
+        alpha(@accent-alt, 0.95) 100%);
+    color: @bg-color;
+    box-shadow: 0 2px 14px alpha(@accent, 0.30);
+}
+
+/* Row text. */
+label.match {
+    color: @fg-color;
+    font-weight: 600;
+}
+
+label.match.title {
+    color: @fg-color;
+}
+
+/* Second line of a row (desktop entry comment, calculator result detail, …).
+ *
+ * alpha(@fg-color, 0.72) rather than @dim (#6272a4). Measured: @dim is 3.03:1
+ * against the card — below the 4.5:1 WCAG AA floor for body text. */
+label.match.description {
+    font-size: 0.82rem;
+    color: alpha(@fg-color, 0.72);
+    font-weight: 400;
+}
+
+/* Plugin name. Same contrast reasoning as the description. */
+label.plugin.info {
+    font-size: 0.82rem;
+    color: alpha(@fg-color, 0.66);
+    min-width: 118px;
+}
+
+/* Both the row and its inner box carry `match`; only the row needs a selected
+ * treatment, and :selected only matches the ListBoxRow. */
+box.plugin:first-child {
+    margin-top: 0;
+}
+
+/* Fade the newly selected row, matching the compositor's layer animations. */
 @keyframes fade {
     0% {
         opacity: 0;

@@ -4,76 +4,128 @@
 //
 // anyrun reads config.ron and style.css from its config directory, and each
 // plugin reads its own <plugin>.ron from the same directory. Plugin paths in
-// `plugins` may be bare library names, which are resolved against anyrun's
-// plugin directory, or absolute paths.
+// `plugins` may be bare library names, resolved against anyrun's plugin
+// directory, or absolute paths.
 //
-// Plugin order defines result priority: applications first, then the power
-// actions, then the calculator. Actions sit above the calculator so that
-// typing "lock" or "reboot" reaches them without having to out-rank a
-// mathematical reading of the same words.
-//
-// Position and size are measured from the rofi window this replaces, so the
-// switch does not move the runner on screen.
-//
-// rofi, with no location set, centred its window horizontally *and* vertically.
-// Measured on this machine with a live run: x=830 y=845 w=1413 h=82 on a
-// 3072x1728 logical screen under a 44px exclusive zone.
-//
-// anyrun resolves Fraction() against the FULL monitor geometry — app.rs passes
-// `monitor.geometry()`, not the usable area — so the fractions below are
-// proportions of 3072x1728:
-//
-//     width: 0.46  -> 1413px                    (rofi: 1413)
-//     x:     0.5   -> 1536 - 1413/2 = 830px     (rofi: 830)
-//
-// Rounding the width to 0.5 would make it 1536px and shift the left edge to
-// 768, a visible 62px jump.
+// Plugin order defines result priority: applications, then the power actions,
+// then the calculator. Actions sit above the calculator so that typing "lock"
+// or "reboot" reaches them without having to out-rank a mathematical reading of
+// the same words.
+
+/*
+ * Geometry
+ * ========
+ *
+ * Two things anyrun's layout does here, both learned by measuring a live run
+ * rather than reading the code, because neither is obvious:
+ *
+ * 1. VERTICAL POSITION IS TOP-ANCHORED, NOT CENTRED.
+ *
+ *    app.rs anchors the layer surface to the top and left edges, then places
+ *    the card with fixed margins computed as
+ *
+ *        margin_top = y - height/2      margin_bottom = mon_height - margin_top - height
+ *
+ *    With y: Fraction(0.5) and height: Absolute(1) that is margin_top = 864 and
+ *    margin_bottom = 863 on a 1728px screen. The card is then laid out inside
+ *    those margins with `height: 1px` of allowance, so it takes its natural
+ *    height and grows DOWNWARD from y=864 — it is not recentred as the results
+ *    change.
+ *
+ *    The practical consequence: the box top edge is fixed at half the screen
+ *    height and the list grows down from there. Whether that matters is a
+ *    taste call, but it has to be a deliberate one — hence y: Fraction(0.34)
+ *    below rather than the 0.5 that a "centred" value would suggest.
+ * 2. THERE IS NO SCROLLING.
+ *
+ *    anyrun contains no ScrolledWindow (grep confirms: neither app.rs nor
+ *    plugin_box.rs creates one), and `max_entries: None` puts no cap on rows.
+ *    So a long list does not scroll and does not shrink: it is simply laid out
+ *    at full natural height, which on this screen runs off the bottom edge and
+ *    becomes unreachable.
+ *
+ *    The fix is a cap, not a scroll area: `max_entries: Some(10)` below. Ten rows at
+ *    ~32px plus the input line and padding is about 470px, comfortably inside
+ *    the space between the top-margin position and the waybar-free bottom edge.
+ *    Rows beyond the cap are still reachable by typing — narrowing the query is
+ *    how you reach them, which is the intended way to use a launcher.
+ */
 
 Config(
     // Centred horizontally, which is rofi's own default.
     x: Fraction(0.5),
 
-    // Centred vertically. rofi's centre was 845 rather than 864 because it
-    // centres inside the usable area and subtracts half its height; anyrun
-    // centres on the full geometry and subtracts half of `height` (1px). The
-    // ~19px difference is the one detectable change and is cosmetic.
-    y: Fraction(0.5),
+    /*
+     * Top edge at 34% of the screen height.
+     *
+     * Not 0.5. With the top-anchored layout described above, 0.5 pins the top
+     * edge to the exact vertical middle, so the card hangs entirely below the
+     * centre line and reads as bottom-heavy. 0.34 puts it just below the middle
+     * of the upper half, which is where a launcher is conventionally read from
+     * and leaves maximum room for a long list before it approaches the bottom
+     * edge.
+     */
+    y: Fraction(0.34),
 
-    // 0.46 of 3072 = 1413px, matching the rofi window exactly.
-    width: Fraction(0.46),
+    /*
+     * Width: 0.38 of 3072 = 1167px.
+     *
+     * This was 0.46 to match the old rofi window (1413px). That was the right
+     * call for preserving the previous look, but it is too wide to read a short
+     * launcher in: the eye has to travel the full width of the screen to reach
+     * the right-hand plugin labels. 1167px still fits the longest application
+     * name plus its description at the current font size.
+     */
+    width: Fraction(0.38),
 
-    // Minimum height. 1px means "shrink to fit the entries" — with Absolute(0)
-    // the window would never shrink again after expanding.
-    height: Absolute(1),
+    /*
+     * Minimum height, in pixels, of the card.
+     *
+     * Small but not 1: the value is a floor, and the card still grows with its
+     * content. Raising it from 1 removes the hairline-height flash on the first
+     * frame and gives the input line some body before results arrive.
+     */
+    height: Absolute(44),
 
     // Keep the Nerd Font plugin icons; they are what makes the rows scannable.
     hide_icons: false,
     hide_plugin_info: false,
 
-
     /*
      * Respect the exclusive zone. This MUST stay false.
      *
      * Waybar reserves 44px at the top of this monitor (`reserved=[0, 44, 0, 0]`)
-     * and rofi honoured that. With `true` anyrun would be free to draw over the
-     * bar, and because it is vertically centred its click-outside-to-close
-     * surface would sit across the bar and swallow clicks on it. `false` keeps
-     * the runner inside the usable area exactly as rofi was.
+     * and rofi honoured that. With `true` anyrun is free to draw over the bar,
+     * and because its click-outside-to-close surface spans the monitor, that
+     * surface would swallow clicks on the bar. `false` keeps the runner inside
+     * the usable area.
      */
     ignore_exclusive_zones: false,
 
     layer: Overlay,
 
-    // Clicking outside the box closes it, matching the rofi behaviour.
+    // Click outside the card to close, as rofi did.
     close_on_click: true,
 
-    // Nothing is shown until something is typed. This matters because the
-    // symbols plugin matches very broadly and would otherwise open the runner
-    // on a wall of glyphs.
+    // Nothing is shown until something is typed: the symbols plugin matches very
+    // broadly and would otherwise open the runner onto a wall of glyphs.
     show_results_immediately: false,
 
-    max_entries: None,
+    /*
+     * Hard cap on rows shown at once.
+     *
+     * This is the overflow fix — see the header comment. anyrun cannot scroll,
+     * so an uncapped list runs off the bottom of the screen. Ten rows is roughly
+     * 470px including the input line and padding, which fits below the 0.34
+     * anchor with room to spare. Narrowing the query is how you reach the rest.
+     */
+    max_entries: Some(10),
 
+    /*
+     * Plugin order = priority. Applications first so an app name is never beaten
+     * by a calculator reading of it; actions above rink so "reboot" and "lock"
+     * reach the power menu.
+     */
     plugins: [
         "libapplications.so",
         "libactions.so",

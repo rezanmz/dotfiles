@@ -72,12 +72,19 @@ Config(
      *     y = (584 + 44/2) / 1728 = 0.351
      *
      * 0.351 rather than 0.5 because of that -height/2 term: passing 0.5 would
-     * place the top edge at 864 - 22 = 842px, i.e. 258px below centre. Previous
-     * values (0.34, then 0.17) were eyeballed; this one puts the card's midpoint
-     * on the screen's midpoint. If the fixed height in style.css changes, this
-     * number must be recomputed — see that file's min-height comment.
+     * place the top edge at 864 - 22 = 842px, i.e. 258px below centre.
+     *
+     * 0.319, not 0.351: the formula above assumes the layer surface starts at
+     * y=0, but it actually starts below the waybar's 44px exclusive zone, so the
+     * computed 0.351 rendered the card with its midpoint 69px BELOW the screen
+     * midpoint (measured live: card top 770, bottom 1528, midpoint 1149 vs 1080).
+     * Subtracting that offset in the same units gives 0.351 - 69/2160 = 0.319,
+     * which is what is used here.
+     *
+     * If the fixed height in style.css or the waybar reserve changes, this number
+     * must be recomputed — see that file's min-height comment.
      */
-    y: Fraction(0.351),
+    y: Fraction(0.319),
 
     /*
      * Width: 0.30 of 3072 = 921px.

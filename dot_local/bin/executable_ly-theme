@@ -4,7 +4,7 @@
 # Needs root: ly only reads /etc/ly/config.ini, which is root-owned. chezmoi
 # only manages $HOME, so this cannot be automated by chezmoi.
 #
-#   sudo sh ~/.local/share/chezmoi/dot_config/ly/apply-theme.sh
+#   sudo ~/.local/bin/ly-theme
 #
 # Every sed pattern is anchored (^key = ), so it can only ever rewrite the exact
 # line it names. Nothing else in the file is touched. Verified against a copy of

@@ -36,11 +36,21 @@ hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 -- Hold SUPER and tap TAB to step through windows; release SUPER to switch to
 -- the highlighted one (or press Escape to abort). Shift+TAB steps backwards.
 --
--- `--close mod-key-release` is the load-bearing flag. hyprswitch defaults to
--- `--close default`, which requires pressing Enter to commit — exactly the
--- behaviour this bind exists to avoid. The release-to-switch behaviour comes
--- from a Hyprland submap whose binds carry `release = true`, which is why
--- hyprswitch can see the modifier come up at all.
+-- `--mod-key SUPER_L`, NOT `SUPER`. This is subtle and was a real bug here:
+-- hyprswitch builds the submap with two different uses of the mod key. The
+-- CYCLE binds go through get_mod_from_mod_key(), which maps both SuperL and
+-- SuperR to the generic "SUPER" — so cycling works either way. But the
+-- RELEASE bind is generated from the literal string: bind(main_mod,
+-- mod_key.to_string(), "hyprswitch close", release=true). Passing "SUPER"
+-- therefore registers a release bind for a key name Hyprland never reports
+-- (the real key is SUPER_L), so letting go of Super did nothing the first
+-- time — the submap stayed open and only closed on the next attempt. Upstream
+-- issue #5 is exactly this, fixed by using the physical key name.
+--
+-- `--close mod-key-release` is the other load-bearing flag: hyprswitch defaults
+-- to `--close default`, which requires pressing Enter to commit — the opposite
+-- of the behaviour wanted here. Release-to-switch works at all because the
+-- submap binds carry `release = true`.
 --
 -- WHY NOT ANYRUN ANY MORE
 -- The previous switcher was `anyrun --plugins libstdin.so`. anyrun's window is a
@@ -50,7 +60,7 @@ hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 -- text input, so typed fuzzy window search on this chord is gone. SUPER+SPACE
 -- remains the unified menu.
 --
-hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd("hyprswitch gui --mod-key SUPER --key TAB --close mod-key-release --reverse-key mod=shift"))
+hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd("hyprswitch gui --mod-key SUPER_L --key TAB --close mod-key-release --reverse-key mod=shift"))
 -- Display management GUI (scale, position, multi-monitor alignment).
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("nwg-displays"))
 --

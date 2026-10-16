@@ -17,6 +17,24 @@ hl.layer_rule({
     ignore_alpha = true,
 })
 
+-- hyprswitch (the SUPER+Tab window switcher). Same pair as anyrun above, for
+-- the same reason: `blur` frosts the desktop behind the overview, and
+-- `ignore_alpha` keeps that blur confined to the pixels actually drawn rather
+-- than the whole full-screen layer surface.
+--
+-- The overview is the one place where frosted glass genuinely earns its keep —
+-- it is a transient overlay you look *through* while deciding where to go, so
+-- the windows behind should stay legible as shapes while being clearly
+-- out-of-focus. style.css keeps the outer frame translucent (0.62 alpha) so
+-- there is something for the blur to sample; an opaque frame would make this
+-- rule a no-op.
+hl.layer_rule({
+    name        = "hyprswitch-blur",
+    match       = { namespace = "^hyprswitch$" },
+    blur        = true,
+    ignore_alpha = true,
+})
+
 -- The daemon is started from 30-autostart.lua, not here; a layer rule for a
 -- surface that does not exist yet is harmless, but the ordering below the two
 -- rules matters more than this comment.

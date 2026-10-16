@@ -1,41 +1,82 @@
-// Actions plugin — replaces the old rofi-session script.
+// Actions plugin — the power/session menu, replacing the old rofi-session script.
 //
-// The built-in power actions are exactly the ones the rofi session menu
-// provided (lock, log out, power off, reboot, suspend), so they are left
-// enabled rather than redefined. The plugin's own defaults are already the
-// right commands:
+// WHY THE BUILT-INS ARE OFF
 //
-//   Lock      loginctl lock-session          (no confirm)
-//   Log out   loginctl terminate-session …   (confirm)
-//   Power off systemctl poweroff             (confirm)
-//   Reboot    systemctl reboot               (confirm)
-//   Suspend   systemctl suspend              (no confirm)
+// `enable_power_actions: true` ships Lock / Log out / Power off / Reboot /
+// Suspend / Hibernate with hardcoded titles, and the plugin matches on title and
+// description ONLY (Action::fuzzy_score — there is no keyword field to configure).
 //
-// Reboot and Power off carry a confirmation prompt, which is the guard the
-// hand-written script had to implement itself. Leaving `confirm` alone is
-// therefore deliberate: these are the destructive entries.
+// So typing "power" returned just "Power off", because fuzzy matching is
+// subsequence-based: the letters p-o-w-e-r appear in that title and in no other
+// one. "Reboot", "Suspend" and "Hibernate" are not power-related in any way the
+// matcher can see. No config option fixes that against the built-ins.
 //
-// Custom actions added below are the two things the old script did that the
-// built-ins do not cover, plus a couple of frequently used one-shots.
+// The workaround is to define the same actions here with a shared
+// "Power menu —" description. Now every one of them contains the word "power",
+// so a single query surfaces the whole group, and the prefix doubles as a
+// readable category hint in the result list. Descriptions are scored at half the
+// weight of titles, so "Power off" still ranks first for the query "power" —
+// which is the sensible ordering.
+//
+// Commands are the upstream ones, with one deliberate change: "Log out" uses
+// `uwsm stop` rather than `loginctl terminate-session`. This session is
+// uwsm-managed and the display manager is ly, so uwsm stop is what hands the tty
+// back cleanly; the loginctl form would not run the session teardown hooks.
+//
+// `confirm: true` on the four destructive entries keeps the guard that upstream
+// applies — note the confirmation lists "Proceed" first, so a stray second Enter
+// will go through with it.
 
 Config(
-    enable_power_actions: true,
+    enable_power_actions: false,
 
     custom_actions: [
         (
-            title: "Log out to ly",
-            // uwsm stops the graphical session and hands the tty back to ly,
-            // which is the display manager this machine uses. This is the same
-            // command the rofi session script ran.
+            title: "Lock",
+            command: "loginctl lock-session",
+            description: "Lock the session screen",
+            icon: "system-lock-screen",
+            confirm: false,
+        ),
+        (
+            title: "Log out",
             command: "uwsm stop",
-            description: "Stop the graphical session, return to ly",
+            description: "Power menu — end the session and return to ly",
             icon: "system-log-out",
             confirm: true,
         ),
         (
+            title: "Power off",
+            command: "systemctl poweroff || poweroff",
+            description: "Power menu — shut the system down",
+            icon: "system-shutdown",
+            confirm: true,
+        ),
+        (
+            title: "Reboot",
+            command: "systemctl reboot || reboot",
+            description: "Power menu — restart the system",
+            icon: "system-reboot",
+            confirm: true,
+        ),
+        (
+            title: "Suspend",
+            command: "systemctl suspend || pm-suspend",
+            description: "Power menu — suspend to RAM",
+            icon: "system-suspend",
+            confirm: false,
+        ),
+        (
+            title: "Hibernate",
+            command: "systemctl hibernate || pm-hibernate",
+            description: "Power menu — suspend to disk",
+            icon: "system-suspend-hibernate",
+            confirm: false,
+        ),
+        (
             title: "Reload Hyprland config",
             command: "hyprctl reload",
-            description: "Re-read hyprland.lua and the modules",
+            description: "Re-read hyprland.lua and its modules",
             icon: "view-refresh",
             confirm: false,
         ),

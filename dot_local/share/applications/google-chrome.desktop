@@ -1,0 +1,59 @@
+# User-level override of /usr/share/applications/google-chrome.desktop.
+# (Comment lines are ignored by the Desktop Entry parser, so this header block is
+# inert; the file has exactly one [Desktop Entry] group below.)
+#
+# WHY THIS EXISTS
+#
+# Chrome is unreachable by the words people actually type. The launcher scores an
+# entry on three fields only — Name, Comment and Keywords (anyrun's local
+# scrubber.rs has no generic_name field at all). Chrome ships:
+#
+#     Name=Google Chrome        so "chrome" works, but little else does
+#     GenericName=Web Browser   PARSED AND DISCARDED by the launcher
+#     Comment=Access the Internet
+#     (no Keywords= line at all)
+#
+# So typing "browser" matched nothing: the only field containing that word is
+# GenericName, which the launcher never reads.
+#
+# The fix is to put the word into a field the launcher DOES read. Keywords is the
+# right one — it never appears in the UI, so this stays invisible, and it is
+# scored as its own term alongside Name and Comment.
+#
+# The override mechanism is safe: the launcher reads
+# ~/.local/share/applications *after* /usr/share/applications and keys entries by
+# "name+icon", so this replaces the packaged entry rather than duplicating it.
+#
+# MAINTENANCE: this is a full copy, because a .desktop override replaces the
+# whole file. If a Chrome update changes Exec/actions/icons, this file must be
+# re-synced from /usr/share/applications/google-chrome.desktop — only the
+# Keywords line below is intentional. Localized Name[xx]/GenericName[xx] lines
+# are deliberately not copied; the launcher only needs the unlocalized keys.
+
+[Desktop Entry]
+Version=1.0
+Name=Google Chrome
+GenericName=Web Browser
+Comment=Access the Internet
+# The whole point of this file. Several spellings so a multi-word query also
+# hits: each keyword is scored independently and the best score wins.
+Keywords=browser;web browser;web;internet;chrome;google;
+StartupWMClass=Google-chrome
+Exec=/usr/bin/google-chrome-stable %U
+StartupNotify=true
+Terminal=false
+Icon=google-chrome
+Type=Application
+Categories=Network;WebBrowser;
+MimeType=application/pdf;application/rdf+xml;application/rss+xml;application/xhtml+xml;application/xhtml_xml;application/xml;image/gif;image/jpeg;image/png;image/webp;text/html;text/xml;x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/google-chrome;
+Actions=new-window;new-private-window;
+
+[Desktop Action new-window]
+Name=New Window
+StartupWMClass=Google-chrome
+Exec=/usr/bin/google-chrome-stable
+
+[Desktop Action new-private-window]
+Name=New Incognito Window
+StartupWMClass=Google-chrome
+Exec=/usr/bin/google-chrome-stable --incognito

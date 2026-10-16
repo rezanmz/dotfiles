@@ -1,8 +1,11 @@
 #!/usr/bin/env sh
-# Pick a clipboard-history entry (cliphist) with fuzzel and restore it.
+# Pick a clipboard-history entry (cliphist) with rofi and restore it.
 set -eu
 
-pick="$(cliphist list | fuzzel --dmenu --prompt 'clip> ' --width 80)" || exit 0
+# rofi -dmenu reads the list once and prints the chosen line, exactly like
+# fuzzel --dmenu did. -i makes matching case-insensitive, which is what you
+# want when hunting for a fragment of remembered text.
+pick="$(cliphist list | rofi -dmenu -i -p 'clip> ' -l 12 -theme-str 'window {width: 50%;}')" || exit 0
 [ -n "$pick" ] || exit 0
 
 printf '%s' "$pick" | cliphist decode | wl-copy

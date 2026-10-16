@@ -1,0 +1,43 @@
+#!/bin/sh
+# A "Calculator" entry inside the unified menu, so the combined menu can still
+# reach live maths.
+#
+# Why an entry at all: rofi-calc cannot evaluate inside combi — the result row
+# is never produced, only "Add to history". That is upstream issue #33
+# (svenstaro/rofi-calc), open since 2019; rofi's maintainer says combi support
+# is unlikely. Verified twice on this machine by measuring the pixels, not by
+# assumption: in combi the result band contains zero coloured glyphs, while in
+# `rofi -show calc` the same expression renders at 13.5:1 contrast.
+#
+# So selecting this entry closes the combined menu and reopens rofi in calc
+# mode, which does evaluate live. That is one extra keystroke, which is the
+# documented cost; it is the same workaround rofi-calc's own issue tracker
+# recommends.
+#
+# Copying: -calc-command fires on Ctrl+Return ONLY, not on plain Return (verified
+# on this machine: plain Return adds to history, Ctrl+Return runs the command).
+# Upstream documents it that way — "upon pressing Control+Return". The entry
+# label therefore says Ctrl+Enter, rather than promising a copy that plain
+# Return does not perform.
+#
+# Protocol: no argument means rofi wants the entry list; a chosen entry arrives
+# as $1. Printing on the second call would be read as a fresh list, so the
+# action branch prints nothing.
+
+set -eu
+
+case "${1:-}" in
+    "")
+        printf '%s\n' "Calculator  —  live maths, Ctrl+Enter copies result"
+        ;;
+    *)
+        # Kill the running menu first: rofi refuses to start inside rofi. The
+        # kill is backgrounded so it cannot take down this script, which is a
+        # child of the very process being killed. A short sleep is what makes
+        # the replacement reliably appear instead of exiting immediately.
+        pkill -x rofi &
+        sleep 0.3
+        exec rofi -show calc -modi calc -no-show-match -no-sort \
+            -calc-command 'echo -n "{result}" | wl-copy'
+        ;;
+esac

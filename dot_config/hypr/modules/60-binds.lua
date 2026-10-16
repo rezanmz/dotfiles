@@ -1,11 +1,11 @@
 -- Keybindings.
 -- SUPER is the main modifier, matching the i3 config this replaces.
 --
---   SUPER+RETURN  terminal          SUPER+D  launcher
+--   SUPER+RETURN  terminal          SUPER+D / SUPER+SPACE  unified menu
 --   SUPER+SHIFT+D displays          SUPER+B  bluetooth
---   SUPER+Tab      window switcher
+--   SUPER+Tab      window switcher (rofi, index mode)
 --   SUPER+Q       close window      SUPER+E  file manager
---   SUPER+L       lock              SUPER+M  exit menu
+--   SUPER+L       lock              SUPER+M  session actions
 --   SUPER+1..0    workspaces        SUPER+SHIFT+1..0  move window to workspace
 --   SUPER+S       scratchpad (magic)   SUPER+0  workspace 10 (mail)
 --   SUPER+arrows / h j k l  focus  SUPER+SHIFT+...  move window
@@ -14,10 +14,10 @@
 local mainMod = "SUPER"
 
 local terminal    = "kitty"
--- The launcher opens on a clean prompt and reveals entries once you type. This
--- is per-invocation, NOT in fuzzel.ini: [main] would also hide the list for
--- every --dmenu helper (exit-menu, clipboard-pick, notif-history, dunst).
-local launcher    = "fuzzel --hide-before-typing"
+-- The unified menu: applications, windows, calculator and session actions in
+-- ONE prompt. `combi` merges the modes declared in config.rasi, so typing
+-- "firefox" launches it, "7*6" answers 42, and "reboot" offers the action.
+local launcher    = "rofi -show combi"
 local fileManager = "kitty yazi"
 local lockCmd     = "hyprlock"
 
@@ -33,21 +33,18 @@ hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd(helpers .. "/window-switch"))
 -- Display management GUI (scale, position, multi-monitor alignment).
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("nwg-displays"))
--- Calculator overlay: type an expression, see the result live. Deliberately
--- SUPER+SPACE, the same chord as Spotlight on macOS.
---
--- -no-show-match stops rofi filtering the result row against your input (which
--- makes the answer flicker as you type) and -no-sort keeps it on top. rofi is
--- X11-only, so it appears through XWayland as a layer surface; that works, but
--- it means rofi needs XWayland running, unlike fuzzel.
-hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(
-    "rofi -show calc -modi calc -no-show-match -no-sort -theme ~/.config/rofi/calc.rasi"
-))
+-- The same menu, reached from the Spotlight chord. SUPER+D and SUPER+SPACE do
+-- the same thing on purpose: SUPER+D is the habit from this config's history
+-- and from i3, SUPER+SPACE is the macOS habit.
+hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(launcher))
 
 -- Session
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd(lockCmd))
-hl.bind(mainMod .. " + M", hl.dsp.exec_cmd(helpers .. "/exit-menu"))
+-- Session actions now live inside the unified menu (search "reboot"), so this
+-- opens the menu filtered to them rather than a separate list. The old
+-- exit-menu script was fuzzel-based and is gone.
+hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("rofi -show combi -combi-modes 'session' -modi 'session:rofi-session'"))
 hl.bind(mainMod .. " + SHIFT + Q", hl.dsp.exit())
 
 -- Window management
@@ -121,7 +118,7 @@ hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),       { locke
 hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
 
 -- Utilities.
--- Notification history: fuzzel fed by dunst's history, newest first.
+-- Notification history: rofi fed by dunst's history, newest first.
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd(helpers .. "/notif-history"))
 -- Colour picker (hyprpicker copies the picked colour to the clipboard).
 hl.bind(mainMod .. " + SHIFT + P", hl.dsp.exec_cmd("hyprpicker --autocopy"))

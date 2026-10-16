@@ -1,19 +1,16 @@
 #!/bin/sh
-# Window switcher: list Hyprland windows with fuzzel and focus the chosen one.
+# Window switcher: list Hyprland windows with rofi and focus the chosen one.
 # Bound to SUPER+SHIFT+T.
 #
 # Two choices worth keeping in sync with the code below:
 #
-#   dmenu.mode=index
-#       fuzzel prints the row NUMBER, not the row text. The window address is
-#       therefore never shown — rows read "class — title" instead of leaking a
-#       0x address — and selection maps the index back to a freshly-read client
-#       list. Index mode is also why stale rows are safe: if a window closed
-#       while the picker was open, we simply do nothing rather than focus the
-#       wrong window (the bounds check at the bottom).
-#
-# Neither is set in fuzzel.ini, because that is [main] and would apply to the
-# launcher too. Defaults are what this script wants: the list shows on open.
+#   -format i
+#       rofi prints the row INDEX, not the row text, so the window address is
+#       never shown — rows read "class — title" instead of leaking a 0x address
+#       — and selection maps the index back to a freshly-read client list.
+#       That is also why stale rows are safe: if a window closed while the
+#       picker was open, the bounds check at the bottom does nothing rather
+#       than focusing the wrong window.
 #
 set -eu
 
@@ -45,11 +42,13 @@ for c in json.load(sys.stdin):
     print(cls + "  —  " + title[:80])
 '
 
+# -format i makes rofi print the row INDEX rather than the row text, which is
+# what fuzzel's dmenu.mode=index used to do. The index is resolved back to a
+# freshly-read client list below, so a window closing while the picker is open
+# cannot make the selection land on the wrong window.
 choice=$(hyprctl clients -j | python3 -c "$list_windows" |
-    fuzzel --dmenu \
-        --override dmenu.mode=index \
-        --prompt 'win❯ ' --placeholder 'Switch window' \
-        --lines 10 --width 46) || exit 0
+    rofi -dmenu -i -format i -p 'win❯ ' -l 10 \
+        -theme-str 'window {width: 50%;}' -theme-str 'entry {placeholder: "Switch window";}') || exit 0
 
 [ -n "$choice" ] || exit 0
 

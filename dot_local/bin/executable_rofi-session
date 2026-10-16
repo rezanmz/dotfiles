@@ -1,0 +1,50 @@
+#!/bin/sh
+# Session actions for the unified rofi menu (SUPER+SPACE), replacing the old
+# fuzzel-based exit-menu script.
+#
+# rofi script-mode protocol: rofi runs this with no arguments to fetch the list
+# (one entry per line), then re-runs it with the chosen entry as $1. The script
+# must therefore be idempotent and must print nothing on the second call — rofi
+# would treat that output as a new list.
+#
+# It is a script mode rather than a plain `rofi -dmenu` call so the actions
+# appear inside the same combi menu as apps and windows. A separate dmenu
+# invocation would open a second window.
+#
+# Deliberately NOT part of combi's merged list: see combi-modes in config.rasi.
+# Session actions are destructive, so they are reached by pressing SUPER+M
+# (which filters the menu to this mode) rather than by typing near an app name.
+
+set -eu
+
+case "${1:-}" in
+    "")
+        cat <<'ENTRIES'
+Lock
+Suspend
+Log out to ly
+Reboot
+Power off
+ENTRIES
+        ;;
+    Lock)
+        exec hyprlock
+        ;;
+    Suspend)
+        exec systemctl suspend
+        ;;
+    "Log out to ly")
+        # uwsm stops the graphical session and hands the tty back to ly.
+        exec uwsm stop
+        ;;
+    Reboot)
+        exec systemctl reboot
+        ;;
+    "Power off")
+        exec systemctl poweroff
+        ;;
+    *)
+        # Unknown selection: do nothing rather than guess at a destructive action.
+        exit 0
+        ;;
+esac

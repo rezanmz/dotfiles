@@ -44,7 +44,9 @@
     icon_path = /usr/share/icons/Papirus/48x48/status/:/usr/share/icons/Papirus/48x48/devices/:/usr/share/icons/Papirus/48x48/apps/
     sticky_history = yes
     history_length = 20
-    dmenu = /usr/bin/fuzzel --dmenu --prompt "notify> " --lines 10
+    # rofi -dmenu replaces fuzzel --dmenu. Kept on one line because dunst
+    # treats the whole value as the command line.
+    dmenu = /usr/bin/rofi -dmenu -i -p "notify> " -l 10
     browser = /usr/bin/xdg-open
     always_run_script = true
     title = Dunst

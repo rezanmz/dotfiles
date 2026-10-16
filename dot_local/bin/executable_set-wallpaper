@@ -30,6 +30,15 @@ fi
 src=${1:?need an image path}
 shift
 
+# Accept a file:// URI (drag-and-drop, some file managers) as well as a plain
+# path. %XX escapes are decoded so names with spaces survive.
+case "$src" in
+    file://*)
+        src=${src#file://}
+        src=$(printf '%b' "$(printf '%s' "$src" | sed 's/%/\\x/g')")
+        ;;
+esac
+
 if [ ! -f "$src" ]; then
     echo "not a file: $src" >&2
     exit 1
@@ -61,9 +70,17 @@ fi
 
 echo "wallpaper written: $dest ($(stat -c %s "$dest") bytes)"
 
-# The IPC command differs across hyprpaper versions. Prefer the modern form and
-# fall back so this keeps working either way.
-if hyprctl hyprpaper wallpaper ",$dest" >/dev/null 2>&1; then
+# hyprpaper's IPC silently ignores an empty monitor selector — `wallpaper
+# ",path"` returns success but reloads nothing. Set the wallpaper explicitly on
+# every active monitor instead, and restart the service if that fails.
+applied=0
+for mon in $(hyprctl monitors 2>/dev/null | sed -n 's/^Monitor \([^ ]*\) .*/\1/p'); do
+    if hyprctl hyprpaper wallpaper "$mon,$dest" >/dev/null 2>&1; then
+        applied=1
+    fi
+done
+
+if [ "$applied" = 1 ]; then
     echo "applied via hyprctl"
 elif systemctl --user restart hyprpaper.service >/dev/null 2>&1; then
     echo "reloaded hyprpaper service"

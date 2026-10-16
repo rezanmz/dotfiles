@@ -314,6 +314,7 @@ putting an image there and reloading. `set-wallpaper` does both:
 ```sh
 set-wallpaper ~/Downloads/photo.jpg
 set-wallpaper --fit contain ~/Pictures/banner.png
+set-wallpaper file:///home/you/Downloads/photo.jpg   # file:// URIs work too
 ```
 
 It converts the image to PNG at `~/.local/share/wallpapers/current.png` (Pillow,

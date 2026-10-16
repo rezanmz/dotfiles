@@ -26,3 +26,24 @@ end)
 hl.on("hyprland.start", function()
     hl.exec_cmd("anyrun daemon")
 end)
+
+-- hyprswitch daemon. Required, not optional: `hyprswitch gui` (the SUPER+Tab
+-- bind in 60-binds.lua) sends its command to this daemon over a unix socket at
+-- /run/user/1000/hyprswitch.sock and exits immediately with "Daemon not
+-- running" if it is absent. The GUI, the window list and the submap that makes
+-- release-to-switch work all live in the daemon process.
+--
+-- --custom-css is passed here rather than per-bind because the theme is a
+-- daemon-level setting: hyprswitch reads the stylesheet once at init, so
+-- changing dot_config/hyprswitch/style.css needs the daemon restarted, not the
+-- keybinding re-pressed.
+--
+-- --show-title shows the window title instead of the class in the overview;
+-- with several browser and terminal windows open, titles are what actually
+-- distinguish them.
+--
+-- Same lifetime argument as anyrun above: meaningless outside a graphical
+-- session, so it is an hl.on("hyprland.start") exec rather than a systemd unit.
+hl.on("hyprland.start", function()
+    hl.exec_cmd("hyprswitch init --show-title --custom-css " .. os.getenv("HOME") .. "/.config/hyprswitch/style.css")
+end)

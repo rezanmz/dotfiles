@@ -5,6 +5,7 @@
 .config/dunst/
 .config/anyrun/
 .config/udiskie/
+.config/hyprswitch/
 .config/fontconfig/
 .config/gtk-3.0/
 .config/gtk-4.0/

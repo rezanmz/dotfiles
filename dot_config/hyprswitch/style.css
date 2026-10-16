@@ -1,0 +1,57 @@
+/*
+ * hyprswitch theme — Dracula, matching dot_config/hypr/modules/00-theme.lua and
+ * the anyrun stylesheet.
+ *
+ * hyprswitch's GUI is a GTK4 app styled entirely through CSS variables declared
+ * on :root, so this file overrides them rather than restyling every class. The
+ * variable set is fixed (see upstream src/daemon/gui/defaults.css): seven
+ * variables, and that is all the GUI exposes.
+ *
+ * Colours are the Dracula values used everywhere else:
+ *   bg #282a36   current #44475a   fg #f8f8f2   purple #bd93f9   pink #ff79c6
+ *
+ * Loaded by the daemon via:
+ *   hyprswitch init --custom-css ~/.config/hyprswitch/style.css
+ * so the path is declared once, at daemon start, and changing this file needs
+ * the daemon restarted to take effect.
+ */
+
+* {
+    border: unset;
+}
+
+:root {
+    /* Card behind each window preview. Slightly translucent so the wallpaper
+     * reads through, matching the anyrun card. */
+    --bg-color: rgba(40, 42, 54, 0.92);
+
+    /* Hovered (not selected) preview: Dracula's "current line" grey, which is
+     * the same step the terminals use for a selection background. */
+    --bg-color-hover: rgba(68, 71, 90, 0.95);
+
+    /* Idle border: muted, so the selected window is the only bright thing. */
+    --border-color: rgba(98, 114, 164, 0.65);
+
+    /* Selected border: the same purple->pink accent as the Hyprland active
+     * border (40-look.lua) and anyrun's selection. Single colour here because
+     * the variable takes one value, not a gradient. */
+    --border-color-active: rgba(189, 147, 249, 1);
+
+    /* The little index badge on each preview. Pink, so it does not compete with
+     * the purple selection border next to it. */
+    --index-border-color: rgba(255, 121, 198, 0.85);
+
+    /* Rounded to match the anyrun card (16px) and the window borders (8px);
+     * 12px sits between the two and reads as the same family. */
+    --border-radius: 12px;
+
+    /* Thin. 3px (upstream default) reads as a heavy outline against a dark card
+     * where the border is the main colour signal. */
+    --border-size: 2px;
+}
+
+/* Preview card text. Anything not covered by a variable has to be styled by
+ * class, which is what the two rules below exist for. */
+.window {
+    color: #f8f8f2;
+}

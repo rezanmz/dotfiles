@@ -1,7 +1,7 @@
 // Stdin plugin — the dmenu replacement.
 //
-// Used by the helper scripts (clipboard-pick, window-switch, notif-history),
-// which pipe a list in and read the chosen line back:
+// Used by the helper scripts (clipboard-pick, notif-history), which pipe a list
+// in and read the chosen line back:
 //
 //   cliphist list | anyrun --plugins libstdin.so
 //

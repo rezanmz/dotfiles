@@ -3,7 +3,7 @@
 --
 --   SUPER+RETURN  terminal          SUPER+SPACE  unified menu
 --   SUPER+SHIFT+D displays          SUPER+B  bluetooth
---   SUPER+Tab      window switcher (anyrun, stdin mode)
+--   SUPER+Tab      window switcher (hyprswitch, hold and release)
 --   SUPER+Q       close window      SUPER+E  file manager
 --   SUPER+L       lock
 --   SUPER+1..0    workspaces        SUPER+SHIFT+1..0  move window to workspace
@@ -31,8 +31,26 @@ local helpers = os.getenv("HOME") .. "/.local/bin"
 hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + E",      hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
--- Window switcher: list open windows and focus the chosen one.
-hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd(helpers .. "/window-switch"))
+-- Window switcher: hold-and-release, the Alt-Tab muscle memory.
+--
+-- Hold SUPER and tap TAB to step through windows; release SUPER to switch to
+-- the highlighted one (or press Escape to abort). Shift+TAB steps backwards.
+--
+-- `--close mod-key-release` is the load-bearing flag. hyprswitch defaults to
+-- `--close default`, which requires pressing Enter to commit — exactly the
+-- behaviour this bind exists to avoid. The release-to-switch behaviour comes
+-- from a Hyprland submap whose binds carry `release = true`, which is why
+-- hyprswitch can see the modifier come up at all.
+--
+-- WHY NOT ANYRUN ANY MORE
+-- The previous switcher was `anyrun --plugins libstdin.so`. anyrun's window is a
+-- layer-shell surface with keyboard_mode=Exclusive, so it grabs the keyboard and
+-- Hyprland stops seeing modifier keys — the SUPER release is unobservable, and
+-- no anyrun option changes that. The tradeoff accepted here: hyprswitch has no
+-- text input, so typed fuzzy window search on this chord is gone. SUPER+SPACE
+-- remains the unified menu.
+--
+hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd("hyprswitch gui --mod-key SUPER --key TAB --close mod-key-release --reverse-key mod=shift"))
 -- Display management GUI (scale, position, multi-monitor alignment).
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("nwg-displays"))
 --

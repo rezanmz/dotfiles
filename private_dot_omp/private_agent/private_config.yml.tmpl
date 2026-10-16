@@ -35,19 +35,20 @@ modelRoles:
   task: github-copilot/gpt-6.1-sol:medium
   advisor: github-copilot/claude-sonnet-5.5:xhigh
 {{- else }}
-  # All personal roles run through the 9Router combos (chat = everyday
-  # flash tier, smart = heavy reasoning tier). The previous direct-model
-  # primaries head each role's fallback chain below.
+  # Every personal role runs on the 9Router `chat` combo (MiMo-Flash ->
+  # GPT-Luna -> Deepseek-Flash -> GLM-Flash); per-role thinking effort is
+  # preserved. The previous direct-model primaries head each role's
+  # fallback chain below.
   default: 9router/chat:high
-  slow: 9router/smart:xhigh
+  slow: 9router/chat:xhigh
   smol: 9router/chat
-  vision: 9router/smart:high
-  plan: 9router/smart:xhigh
-  designer: 9router/smart:high
+  vision: 9router/chat:high
+  plan: 9router/chat:xhigh
+  designer: 9router/chat:high
   commit: 9router/chat:low
   tiny: 9router/chat:minimal
   task: 9router/chat:high
-  advisor: 9router/smart:high
+  advisor: 9router/chat:high
 {{- end }}
 advisor:
   enabled: false

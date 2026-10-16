@@ -502,13 +502,15 @@ The OMP configuration is rendered from the machine role. `personal` uses the Ope
 
 | OMP role | Work model | Purpose |
 | --- | --- | --- |
-| `default`, `task` | GPT-5.6 Terra | Everyday implementation and delegated coding |
-| `slow` | Claude Opus 5 | Highest-judgment review and security |
-| `plan` | GPT-5.6 Sol | Architecture and deep coding plans |
-| `smol` | Gemini 3.7 Flash | Fast scouting, research, and mechanical agents |
-| `vision`, `designer` | Claude Sonnet 5 | Multimodal and UI/UX work |
-| `commit`, `tiny` | GPT-5.6 Luna | Low-cost utility operations |
-| `advisor` | Grok 4.6 | Diverse second-opinion review |
+| `default` | GPT-6.1 Sol (xhigh) | Everyday implementation |
+| `task` | GPT-6.1 Sol (medium) | Delegated coding subagents |
+| `slow` | Claude Opus 5.5 (max) | Highest-judgment review and security |
+| `plan` | Claude Sonnet 5.5 (xhigh) | Architecture and deep coding plans |
+| `smol` | Claude Haiku 5.5 (medium) | Fast scouting, research, and mechanical agents |
+| `vision` | GPT-6.1 Sol (high) | Image and screenshot understanding |
+| `designer` | Claude Sonnet 5.5 (high) | UI/UX work |
+| `commit`, `tiny` | GPT-6 Luna (low) | Low-cost utility operations |
+| `advisor` | Claude Sonnet 5.5 (xhigh) | Cross-vendor second-opinion review |
 
 Authenticate on the work laptop from inside OMP with `/login github-copilot`. Credentials are not managed by chezmoi. Verify the live catalog and quota after login:
 

@@ -12,18 +12,35 @@
 // typing "lock" or "reboot" reaches them without having to out-rank a
 // mathematical reading of the same words.
 //
-// Position and size mirror the rofi window this replaces: a half-width overlay
-// pinned to the top of the screen, so the visual change of the switch is
-// minimal.
+// Position and size are measured from the rofi window this replaces, so the
+// switch does not move the runner on screen.
+//
+// rofi, with no location set, centred its window horizontally *and* vertically.
+// Measured on this machine with a live run: x=830 y=845 w=1413 h=82 on a
+// 3072x1728 logical screen under a 44px exclusive zone.
+//
+// anyrun resolves Fraction() against the FULL monitor geometry — app.rs passes
+// `monitor.geometry()`, not the usable area — so the fractions below are
+// proportions of 3072x1728:
+//
+//     width: 0.46  -> 1413px                    (rofi: 1413)
+//     x:     0.5   -> 1536 - 1413/2 = 830px     (rofi: 830)
+//
+// Rounding the width to 0.5 would make it 1536px and shift the left edge to
+// 768, a visible 62px jump.
 
 Config(
-    // Compared against the full screen width; the value is adjusted so that
-    // Fraction(0.5) is exactly centred.
+    // Centred horizontally, which is rofi's own default.
     x: Fraction(0.5),
-    y: Absolute(0),
 
-    // Half the screen width, matching the old rofi window.
-    width: Fraction(0.5),
+    // Centred vertically. rofi's centre was 845 rather than 864 because it
+    // centres inside the usable area and subtracts half its height; anyrun
+    // centres on the full geometry and subtracts half of `height` (1px). The
+    // ~19px difference is the one detectable change and is cosmetic.
+    y: Fraction(0.5),
+
+    // 0.46 of 3072 = 1413px, matching the rofi window exactly.
+    width: Fraction(0.46),
 
     // Minimum height. 1px means "shrink to fit the entries" — with Absolute(0)
     // the window would never shrink again after expanding.
@@ -33,9 +50,17 @@ Config(
     hide_icons: false,
     hide_plugin_info: false,
 
-    // Let anyrun draw over the waybar exclusive zone so the overlay is not
-    // pushed down by the bar.
-    ignore_exclusive_zones: true,
+
+    /*
+     * Respect the exclusive zone. This MUST stay false.
+     *
+     * Waybar reserves 44px at the top of this monitor (`reserved=[0, 44, 0, 0]`)
+     * and rofi honoured that. With `true` anyrun would be free to draw over the
+     * bar, and because it is vertically centred its click-outside-to-close
+     * surface would sit across the bar and swallow clicks on it. `false` keeps
+     * the runner inside the usable area exactly as rofi was.
+     */
+    ignore_exclusive_zones: false,
 
     layer: Overlay,
 

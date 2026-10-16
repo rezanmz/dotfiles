@@ -8,7 +8,8 @@
  *                     and rounding live on box.main
  *   box.main          the visible card
  *   text              the input field
- *   list.matches      the results container
+ *   box.matches       the results container (one "box" holds all plugins)
+ *   list.plugin       the per-plugin list of rows inside it
  *   .match            one row
  *   label.match       the row's main text
  *   label.match.description  the dimmer second line
@@ -19,9 +20,11 @@
  *
  * box.main is deliberately translucent (0.72) — that is what lets the Hyprland
  * layer rule `blur` show through. A fully opaque background makes the blur
- * invisible because there is nothing behind it to sample. In Hyprland the
- * companion rule `ignorezero` is what stops the blur from covering the whole
- * screen; both are set in dot_config/hypr/modules/70-rules.lua.
+ * invisible because there is nothing behind it to sample.
+ *
+ * One consequence of the full-screen surface (see config.ron's close_on_click)
+ * is that every pixel this file paints sits over the desktop, so nothing here
+ * may be opaque beyond the card itself.
  */
 
 @define-color bg-color #282a36;
@@ -36,13 +39,24 @@ window {
     background: transparent;
 }
 
-/* The visible card. */
+/*
+ * The visible card.
+ *
+ * margin is deliberately 0. anyrun positions this widget by setting its GTK
+ * margins itself (`set_margin_start/top/end/bottom` in app.rs, derived from
+ * config.ron's x/y/width/height) — a margin here would be overwritten and would
+ * also break the intended geometry, since the widget is laid out with the
+ * surface as its parent. Spacing inside the card comes from `padding`.
+ *
+ * The background is translucent so the Hyprland `blur` layer rule has something
+ * to sample; an opaque colour would make the blur a no-op.
+ */
 box.main {
     border-radius: 14px;
     background-color: alpha(@bg-color, 0.72);
     border: 2px solid @accent;
     padding: 14px;
-    margin: 10px;
+    margin: 0;
 }
 
 /* The input line. */
@@ -64,11 +78,18 @@ list.matches {
     border-radius: 10px;
 }
 
-/* One row. */
+/*
+ * One row.
+ *
+ * min-height is set because anyrun calls set_height_request(32) on the row in
+ * plugin_box.rs, and a CSS min-height overrides that request. Declaring it here
+ * keeps the row from collapsing to the label height.
+ */
 .match {
     background: transparent;
     border-radius: 8px;
     padding: 4px 8px;
+    min-height: 32px;
     font-size: 1.05rem;
 }
 

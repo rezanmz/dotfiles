@@ -3,13 +3,14 @@
 // No prefix: typing "1920/16+7" answers directly, exactly as rofi-calc did.
 // That is the whole point of the switch — rofi-calc cannot evaluate inside
 // rofi's combi mode (upstream issue #33, open since 2019), which is what made
-// the previous calculator entry necessary and awkward.
+// the previous setup need a separate entry just to reach the calculator.
 //
-// pull_currencies enables unit and currency conversion ("20 usd in eur",
-// "5 km to miles"), which rink supports natively. It fetches a currency table
-// from rinkcalc.app; set it to false if the machine should not make that
-// request — conversions then still work for units, just not exchange rates.
+// `prefix` is the ONLY field this plugin reads (see plugins/rink/src/lib.rs in
+// anyrun v26.6.1: `struct Config { prefix: String }`). Unit and currency
+// conversion therefore come entirely from rink itself — "5 km to miles",
+// "20 usd in eur" — and the plugin refreshes its currency table
+// unconditionally at startup; there is no option to disable that here.
+
 Config(
     prefix: "",
-    pull_currencies: true,
 )

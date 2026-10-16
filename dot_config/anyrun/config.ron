@@ -56,27 +56,39 @@ Config(
     x: Fraction(0.5),
 
     /*
-     * Top edge at 34% of the screen height.
+     * Centred — and the value is derived, not guessed.
      *
-     * Not 0.5. With the top-anchored layout described above, 0.5 pins the top
-     * edge to the exact vertical middle, so the card hangs entirely below the
-     * centre line and reads as bottom-heavy. 0.34 puts it just below the middle
-     * of the upper half, which is where a launcher is conventionally read from
-     * and leaves maximum room for a long list before it approaches the bottom
-     * edge.
+     * The card is a FIXED-height frame (see style.css: GTK4 has min-height but
+     * no max-height, so pinning min-height to the tallest possible content is
+     * what stops it resizing and jumping). Because the height is now known and
+     * constant, the offset that centres it can be computed exactly:
+     *
+     *     wanted top edge = (usable height - card height) / 2
+     *                     = (1728 - 560) / 2 = 584px
+     *
+     * and anyrun's own formula is  margin_top = y * monitor_height - height / 2,
+     * where `height` is THIS field, not the card's rendered height. Solving:
+     *
+     *     y = (584 + 44/2) / 1728 = 0.351
+     *
+     * 0.351 rather than 0.5 because of that -height/2 term: passing 0.5 would
+     * place the top edge at 864 - 22 = 842px, i.e. 258px below centre. Previous
+     * values (0.34, then 0.17) were eyeballed; this one puts the card's midpoint
+     * on the screen's midpoint. If the fixed height in style.css changes, this
+     * number must be recomputed — see that file's min-height comment.
      */
-    y: Fraction(0.34),
+    y: Fraction(0.351),
 
     /*
-     * Width: 0.38 of 3072 = 1167px.
+     * Width: 0.30 of 3072 = 921px.
      *
-     * This was 0.46 to match the old rofi window (1413px). That was the right
-     * call for preserving the previous look, but it is too wide to read a short
-     * launcher in: the eye has to travel the full width of the screen to reach
-     * the right-hand plugin labels. 1167px still fits the longest application
-     * name plus its description at the current font size.
+     * Walked down twice on feedback: 0.46 matched the old rofi window (1413px),
+     * then 0.38 (1167px), and both read as too wide. 921px is comfortably under
+     * a thousand and still fits a long application name beside its plugin label
+     * — "Avahi Zeroconf Browser" plus "Applications" measures about 640px at
+     * this font size, so there is room to spare on the widest realistic row.
      */
-    width: Fraction(0.38),
+    width: Fraction(0.30),
 
     /*
      * Minimum height, in pixels, of the card.
@@ -107,19 +119,31 @@ Config(
     // Click outside the card to close, as rofi did.
     close_on_click: true,
 
-    // Nothing is shown until something is typed: the symbols plugin matches very
-    // broadly and would otherwise open the runner onto a wall of glyphs.
+    /*
+     * Nothing is shown until something is typed.
+     *
+     * `true` was tried in an attempt to avoid opening onto an empty box, and it
+     * made things worse rather than better: with an empty query no plugin has
+     * anything meaningful to offer, so the list filled with the symbols plugin's
+     * entire table — "SPACE", "!", "QUOTATION MARK" — which is noise, not
+     * results. (Symbols now has a ";" prefix, so it stays quiet either way, but
+     * the setting is still not worth having.)
+     */
     show_results_immediately: false,
 
     /*
      * Hard cap on rows shown at once.
      *
      * This is the overflow fix — see the header comment. anyrun cannot scroll,
-     * so an uncapped list runs off the bottom of the screen. Ten rows is roughly
-     * 470px including the input line and padding, which fits below the 0.34
-     * anchor with room to spare. Narrowing the query is how you reach the rest.
+     * so an uncapped list runs off the bottom of the screen.
+     *
+     * Eight rather than ten: the card is a fixed-height frame (see style.css),
+     * so every slot costs permanent blank space when a query returns fewer rows.
+     * Eight is the smallest cap that still shows a whole plugin's worth of
+     * results without scrolling, and it keeps the frame short. Narrowing the
+     * query is how you reach anything past the cap.
      */
-    max_entries: Some(10),
+    max_entries: Some(8),
 
     /*
      * Plugin order = priority. Applications first so an app name is never beaten

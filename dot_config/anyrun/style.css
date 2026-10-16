@@ -47,6 +47,33 @@ window {
 box.main {
     border-radius: 16px;
 
+    /*
+     * FIXED HEIGHT — this is what stops the box jumping.
+     *
+     * GTK4 has no `max-height` (verified: the parser rejects it), but
+     * `min-height` works. Content is capped at 8 rows by config.ron's
+     * max_entries, so pinning min-height to the height of the tallest possible
+     * content makes the card a fixed frame: the edge can no longer move between
+     * keystrokes, because there is nothing left to resize.
+     *
+     * Without this the card hugs its content, so every result-count change
+     * re-lays out the whole box and the row under the eye moves — which is what
+     * breaks focus while typing.
+     *
+     * 560px, derived from measurement: ten rows rendered 773 physical px on this
+     * display (scale 1.25), so a row plus its share of padding is about 60 css
+     * px. Eight rows is therefore roughly 8 * 60 + input 52 + padding 32 ≈ 564,
+     * and 560 sits just under that — the frame is sized to the cap, not padded
+     * past it, so the blank area below a short list stays as small as it can be
+     * while still never resizing.
+     *
+     * The cost is deliberate and chosen: with few results the box keeps its full
+     * height and shows blank space below the last row. A tight-fit box was tried
+     * and rejected — it resized the bottom edge on almost every keystroke, which
+     * broke reading focus. A still box with some empty space is the better trade.
+     */
+    min-height: 560px;
+
     /* Layered: a flat base colour, then a diagonal gradient over it, so the
      * top-left reads as lit and the bottom-right recedes. */
     background-color: alpha(@bg-color, 0.92);
@@ -107,14 +134,46 @@ list.plugin {
     padding: 0;
 }
 
-/* Selected / hovered row — the terminals' selection colours, inverted. */
-.match:selected,
-.match:hover {
+/*
+ * Selected / hovered row.
+ *
+ * A tinted row, not a saturated bar. The previous version used full-strength
+ * purple-to-pink, which inverted the row to dark text on a bright fill; it read
+ * as too loud, and it fights the card it sits in.
+ *
+ * This is the same accent at low alpha over the card, so the selection reads as
+ * "this row is lit" rather than "this row is a different colour". Note the text
+ * colour flips back to the normal foreground: as the fill is muted toward the
+ * card, dark text loses contrast and light text gains it — at alpha 0.34 light
+ * text measures 7.53:1 where dark text would be 2.7:1. Keeping dark text on a
+ * muted fill is the classic mistake here.
+ *
+ * A left accent stripe carries the emphasis that the colour no longer does.
+ */
+/*
+ * Scoped to `row.match`, NOT `.match`.
+ *
+ * anyrun tags SIX elements per row with the `match` class — the ListBoxRow, the
+ * inner Box, the icon Image, the text-fields Box, the title Label and the
+ * description Label (plugin_box.rs). An unscoped `.match:hover` therefore paints
+ * a highlight on every one of them, which renders as several nested boxes inside
+ * a single row. That was the bug.
+ *
+ * `row` is GtkListBoxRow's CSS node name, so `row.match` selects exactly the row
+ * background and nothing inside it. The nested children keep their transparent
+ * backgrounds and inherit only the text colour.
+ */
+row.match:selected,
+row.match:hover {
     background-image: linear-gradient(90deg,
-        alpha(@accent, 1.0) 0%,
-        alpha(@accent-alt, 0.95) 100%);
-    color: @bg-color;
-    box-shadow: 0 2px 14px alpha(@accent, 0.30);
+        alpha(@accent, 0.34) 0%,
+        alpha(@accent-alt, 0.29) 100%);
+    color: @fg-color;
+    border-left: 3px solid alpha(@accent, 0.85);
+    box-shadow: 0 2px 10px alpha(#000000, 0.28);
+    /* The stripe shifts the content, so pull the row back by the same amount to
+     * stop labels jumping sideways as the selection moves. */
+    padding-left: 7px;
 }
 
 /* Row text. */

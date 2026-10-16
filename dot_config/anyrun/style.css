@@ -127,16 +127,25 @@ label.match {
     color: @fg-color;
 }
 
-/* Second line of a row (desktop entry comment, calculator description, …). */
+/*
+ * Second line of a row (desktop entry comment, calculator description, …), and
+ * the plugin name.
+ *
+ * alpha(@fg-color, 0.7) rather than @dim (#6272a4). Measured: @dim is 3.03:1
+ * against the card, below the 4.5:1 WCAG AA floor for body text — and the card
+ * is translucent over an arbitrary wallpaper, so the real ratio is worse than
+ * that already-failing figure. 0.7 alpha gives 7.34:1 and still reads as
+ * secondary next to the 13.36:1 title.
+ */
 label.match.description {
     font-size: 0.82rem;
-    color: @dim;
+    color: alpha(@fg-color, 0.7);
 }
 
-/* Plugin name, right-aligned. */
+/* Plugin name. Same contrast reasoning as the description above. */
 label.plugin.info {
     font-size: 0.85rem;
-    color: @dim;
+    color: alpha(@fg-color, 0.7);
     min-width: 130px;
 }
 

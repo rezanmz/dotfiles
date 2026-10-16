@@ -14,7 +14,7 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/hypr/modules/00-theme.lua` | Dracula palette and the `dra()` colour helper |
 | `dot_config/hypr/modules/10-monitors.lua` | Output modes (Dell U3225QE, 3840x2160@120) |
 | `dot_config/hypr/modules/20-env.lua` | Wayland/Electron/Firefox environment variables |
-| `dot_config/hypr/modules/30-autostart.lua` | App autostart (Thunderbird on workspace 10) |
+| `dot_config/hypr/modules/30-autostart.lua` | App autostart (Thunderbird on workspace 10, anyrun daemon) |
 | `dot_config/hypr/modules/40-look.lua` | Gaps, borders, shadows, blur, animations |
 | `dot_config/hypr/modules/50-input.lua` | Keyboard layout, pointer settings |
 | `dot_config/hypr/modules/60-binds.lua` | Keybindings |
@@ -24,9 +24,9 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/hypr/hyprlock.conf` | Lock screen |
 | `dot_config/waybar/` | Status bar config and Dracula stylesheet |
 | `dot_config/dunst/dunstrc` | Notifications |
-| `dot_config/fuzzel/fuzzel.ini` | Launcher; also driven via `--dmenu` |
+| `dot_config/anyrun/` | Launcher (applications, calculator, actions, symbols); `stdin` mode replaces `dmenu` |
 | `dot_config/systemd/user/` | `wl-clip-persist.service` |
-| `dot_local/bin/executable_*` | `screenshot`, `clipboard-pick`, `exit-menu` |
+| `dot_local/bin/executable_*` | `screenshot`, `clipboard-pick`, `window-switch`, `notif-history` |
 | `dot_config/gtk-3.0`, `dot_config/gtk-4.0` | GTK theme, icons, cursor |
 | `dot_config/chrome-flags.conf` | Forces Chrome onto the native Wayland backend |
 
@@ -492,7 +492,7 @@ This is a public repository. Never add passwords, API keys, bearer values, OAuth
 
 ## Profiles and optional fonts
 
-`machine=work` is the conservative profile: personal-only integrations and private mounts are not managed, and network access remains opt-in. `machine=personal` may opt into the MCP booleans explicitly. The Linux Hyprland, waybar, dunst, fuzzel, GTK, fontconfig, systemd-user, and `.local/bin` files are gated by `.chezmoiignore` outside Linux.
+`machine=work` is the conservative profile: personal-only integrations and private mounts are not managed, and network access remains opt-in. `machine=personal` may opt into the MCP booleans explicitly. The Linux Hyprland, waybar, dunst, anyrun, GTK, fontconfig, systemd-user, and `.local/bin` files are gated by `.chezmoiignore` outside Linux.
 
 Fonts are not vendored. Install Hack Nerd Font (`ttf-hack-nerd`) through the platform package manager; waybar and the terminals need its glyphs. The wallpaper at `~/.local/share/wallpapers/current.png` is machine-local and not vendored. B Nazanin is an optional local font; install it independently and never commit the font file.
 

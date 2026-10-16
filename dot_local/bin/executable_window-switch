@@ -1,33 +1,27 @@
 #!/bin/sh
-# Window switcher: list Hyprland windows with rofi and focus the chosen one.
-# Bound to SUPER+SHIFT+T.
+# Window switcher: list Hyprland windows with anyrun and focus the chosen one.
+# Bound to SUPER+Tab.
 #
-# Two choices worth keeping in sync with the code below:
+# UPDATED for anyrun. The picker is now
 #
-#   -format i
-#       rofi prints the row INDEX, not the row text, so the window address is
-#       never shown — rows read "class — title" instead of leaking a 0x address
-#       — and selection maps the index back to a freshly-read client list.
-#       That is also why stale rows are safe: if a window closed while the
-#       picker was open, the bounds check at the bottom does nothing rather
-#       than focusing the wrong window.
+#   hyprctl clients -j | <format rows> | anyrun --plugins libstdin.so
 #
+# `--plugins` overrides config.ron so only stdin loads and the list is nothing
+# but windows — the anyrun equivalent of `rofi -dmenu`.
+#
+# Two details worth keeping in sync with the code below:
+#
+#   Rows are matched as TEXT, then mapped back to a freshly-read client list by
+#       looking the row up again. rofi had a `-format i` flag that printed the
+#       row index and made this an O(1) lookup; stdin returns the chosen line
+#       and nothing else, so the mapping is by row text instead. The count of
+#       rows is checked first, and a row that no longer exists is simply not
+#       focused — so a window closing while the picker is open can never land
+#       the focus on the wrong window.
+#
+#   The address is never shown: rows read "class  —  title". The 0x address is
+#       only ever used internally, exactly as before.
 set -eu
-
-# Index -> window address, resolved at selection time so a closing window can
-# not shift rows underneath the cursor.
-resolve_index='
-import json, sys
-try:
-    idx = int(sys.argv[1])
-    clients = [c for c in json.load(sys.stdin)
-               if c.get("mapped", True)
-               and ((c.get("title") or "").strip() or (c.get("class") or "").strip())]
-    if 0 <= idx < len(clients):
-        print(clients[idx]["address"])
-except Exception:
-    pass
-'
 
 # One row per window: class, an em dash, then the title (truncated).
 list_windows='
@@ -42,17 +36,29 @@ for c in json.load(sys.stdin):
     print(cls + "  —  " + title[:80])
 '
 
-# -format i makes rofi print the row INDEX rather than the row text, which is
-# what fuzzel's dmenu.mode=index used to do. The index is resolved back to a
-# freshly-read client list below, so a window closing while the picker is open
-# cannot make the selection land on the wrong window.
+# Map the chosen row back to a window address. Read fresh, so the mapping
+# reflects reality at selection time rather than at list time.
+resolve_row='
+import json, sys
+want = sys.argv[1]
+for c in json.load(sys.stdin):
+    if not c.get("mapped", True):
+        continue
+    title = (c.get("title") or "").strip()
+    cls = (c.get("class") or "").strip()
+    if not title and not cls:
+        continue
+    if cls + "  —  " + title[:80] == want:
+        print(c["address"])
+        break
+'
+
 choice=$(hyprctl clients -j | python3 -c "$list_windows" |
-    rofi -dmenu -i -format i -p 'win❯ ' -l 10 \
-        -theme-str 'window {width: 50%;}' -theme-str 'entry {placeholder: "Switch window";}') || exit 0
+    anyrun --plugins libstdin.so) || exit 0
 
 [ -n "$choice" ] || exit 0
 
-addr=$(hyprctl clients -j | python3 -c "$resolve_index" "$choice")
+addr=$(hyprctl clients -j | python3 -c "$resolve_row" "$choice")
 [ -n "$addr" ] || exit 0
 
 hyprctl dispatch "hl.dsp.focus({ window = \"address:$addr\" })" >/dev/null

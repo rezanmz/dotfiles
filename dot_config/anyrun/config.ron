@@ -1,0 +1,88 @@
+// anyrun configuration — replaces rofi (and fuzzel before it).
+//
+// Managed by chezmoi: source lives in ~/.local/share/chezmoi/dot_config/anyrun.
+//
+// anyrun reads config.ron and style.css from its config directory, and each
+// plugin reads its own <plugin>.ron from the same directory. Plugin paths in
+// `plugins` may be bare library names, which are resolved against anyrun's
+// plugin directory, or absolute paths.
+//
+// Plugin order defines result priority: applications first, then the power
+// actions, then the calculator. Actions sit above the calculator so that
+// typing "lock" or "reboot" reaches them without having to out-rank a
+// mathematical reading of the same words.
+//
+// Position and size mirror the rofi window this replaces: a half-width overlay
+// pinned to the top of the screen, so the visual change of the switch is
+// minimal.
+
+Config(
+    // Compared against the full screen width; the value is adjusted so that
+    // Fraction(0.5) is exactly centred.
+    x: Fraction(0.5),
+    y: Absolute(0),
+
+    // Half the screen width, matching the old rofi window.
+    width: Fraction(0.5),
+
+    // Minimum height. 1px means "shrink to fit the entries" — with Absolute(0)
+    // the window would never shrink again after expanding.
+    height: Absolute(1),
+
+    // Keep the Nerd Font plugin icons; they are what makes the rows scannable.
+    hide_icons: false,
+    hide_plugin_info: false,
+
+    // Let anyrun draw over the waybar exclusive zone so the overlay is not
+    // pushed down by the bar.
+    ignore_exclusive_zones: true,
+
+    layer: Overlay,
+
+    // Clicking outside the box closes it, matching the rofi behaviour.
+    close_on_click: true,
+
+    // Nothing is shown until something is typed. This matters because the
+    // symbols plugin matches very broadly and would otherwise open the runner
+    // on a wall of glyphs.
+    show_results_immediately: false,
+
+    max_entries: None,
+
+    plugins: [
+        "libapplications.so",
+        "libactions.so",
+        "librink.so",
+        "libshell.so",
+        "libsymbols.so",
+        "libwebsearch.so",
+    ],
+
+    keybinds: [
+        Keybind(
+            key: "Return",
+            action: Select,
+        ),
+        Keybind(
+            key: "Up",
+            action: Up,
+        ),
+        Keybind(
+            key: "Down",
+            action: Down,
+        ),
+        Keybind(
+            key: "ISO_Left_Tab",
+            action: Up,
+            shift: true,
+        ),
+        Keybind(
+            key: "Tab",
+            action: Down,
+        ),
+        Keybind(
+            key: "Escape",
+            action: Close,
+        ),
+    ],
+)

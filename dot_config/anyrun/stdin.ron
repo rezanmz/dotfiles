@@ -1,0 +1,20 @@
+// Stdin plugin — the dmenu replacement.
+//
+// Used by the helper scripts (clipboard-pick, window-switch, notif-history),
+// which pipe a list in and read the chosen line back:
+//
+//   cliphist list | anyrun --plugins libstdin.so
+//
+// preserve_order is true so those lists keep the order the script produced —
+// cliphist already returns newest first, and the notification history is
+// deliberately newest-first. Sorting by fuzzy score would scramble both when
+// the query is empty, which is the common case.
+//
+// max_entries is higher than the default 5 because the clipboard history is
+// browsed by scrolling, not by typing.
+
+Config(
+    allow_invalid: false,
+    max_entries: 12,
+    preserve_order: true,
+)

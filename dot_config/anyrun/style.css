@@ -1,0 +1,144 @@
+/* anyrun stylesheet — Dracula, matching 00-theme.lua and the terminals.
+ *
+ * Widget names are the ones anyrun itself uses; see its bundled
+ * anyrun/res/style.css for the authoritative list. The selectors below are
+ * that set, recoloured:
+ *
+ *   window            the layer-shell surface — always transparent, the blur
+ *                     and rounding live on box.main
+ *   box.main          the visible card
+ *   text              the input field
+ *   list.matches      the results container
+ *   .match            one row
+ *   label.match       the row's main text
+ *   label.match.description  the dimmer second line
+ *   label.plugin.info the plugin name on the right of a row
+ *
+ * Colours are the same Dracula values as dot_config/hypr/modules/00-theme.lua:
+ * bg #282a36, fg #f8f8f2, purple #bd93f9, pink #ff79c6, comment #6272a4.
+ *
+ * box.main is deliberately translucent (0.72) — that is what lets the Hyprland
+ * layer rule `blur` show through. A fully opaque background makes the blur
+ * invisible because there is nothing behind it to sample. In Hyprland the
+ * companion rule `ignorezero` is what stops the blur from covering the whole
+ * screen; both are set in dot_config/hypr/modules/70-rules.lua.
+ */
+
+@define-color bg-color #282a36;
+@define-color fg-color #f8f8f2;
+@define-color accent #bd93f9;
+@define-color accent-alt #ff79c6;
+@define-color dim #6272a4;
+
+/* The layer surface. Must stay transparent: rounding and the background
+ * belong to box.main, otherwise the corners of the surface square off. */
+window {
+    background: transparent;
+}
+
+/* The visible card. */
+box.main {
+    border-radius: 14px;
+    background-color: alpha(@bg-color, 0.72);
+    border: 2px solid @accent;
+    padding: 14px;
+    margin: 10px;
+}
+
+/* The input line. */
+text {
+    font-size: 1.15rem;
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 10px;
+    min-height: 38px;
+    margin-bottom: 10px;
+    caret-color: @accent;
+    color: @fg-color;
+}
+
+/* Results list. */
+list.matches {
+    background-color: transparent;
+    border-radius: 10px;
+}
+
+/* One row. */
+.match {
+    background: transparent;
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 1.05rem;
+}
+
+/* Nested labels inherit tight spacing so rows stay compact. */
+.match * {
+    margin: 0;
+    padding: 0;
+}
+
+/* Selected row: solid accent with the background colour as the text, which
+ * gives the same high-contrast inversion as the terminals' selection. */
+.match:selected,
+.match:hover {
+    background-color: @accent;
+    color: @bg-color;
+}
+
+.match:selected label.match,
+.match:hover label.match {
+    color: @bg-color;
+}
+
+.match:selected label.match.description,
+.match:hover label.match.description {
+    color: alpha(@bg-color, 0.9);
+}
+
+.match:selected label.plugin.info,
+.match:hover label.plugin.info {
+    color: alpha(@bg-color, 0.9);
+}
+
+/* Row text. */
+label.match {
+    color: @fg-color;
+}
+
+/* Second line of a row (desktop entry comment, calculator description, …). */
+label.match.description {
+    font-size: 0.82rem;
+    color: @dim;
+}
+
+/* Plugin name, right-aligned. */
+label.plugin.info {
+    font-size: 0.85rem;
+    color: @dim;
+    min-width: 130px;
+}
+
+/* Plugin grouping box. */
+box.plugin:first-child {
+    margin-top: 0;
+}
+
+list.plugin {
+    background-color: transparent;
+}
+
+/* Fade the selected row in, matching the compositor's layer animations. */
+@keyframes fade {
+    0% {
+        opacity: 0;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+.match:selected {
+    animation: fade 0.1s linear;
+}

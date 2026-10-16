@@ -3,7 +3,7 @@
 #
 # --- Desktop stack (Wayland/Hyprland) -------------------------------------
 # hyprland, hyprpaper, hypridle, hyprlock, hyprpolkitagent,
-# xdg-desktop-portal-hyprland, waybar, fuzzel, dunst, wl-clipboard,
+# xdg-desktop-portal-hyprland, waybar, anyrun (AUR), dunst, wl-clipboard,
 # wl-clip-persist, cliphist, grim, slurp, satty, yazi
 #
 # --- Shell -----------------------------------------------------------------

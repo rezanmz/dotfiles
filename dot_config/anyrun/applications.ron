@@ -1,0 +1,23 @@
+// Applications plugin — the launcher proper, replacing rofi's drun mode.
+//
+// desktop_actions exposes the "New Window"-style entries that live inside a
+// .desktop file, which rofi's drun matched too.
+//
+// hide_description keeps rows to one line so the list stays as compact as the
+// rofi one was; the description is only shown for other plugins, where it
+// carries information (a calculator result, an action's command).
+//
+// terminal: rofi was configured with `terminal: "kitty"` so that any desktop
+// entry marked Terminal=true opens in kitty. Without this anyrun falls back to
+// a hardcoded list of terminals that does not include kitty.
+
+Config(
+    desktop_actions: true,
+    max_entries: 8,
+    hide_description: true,
+
+    terminal: Some(Terminal(
+        command: "kitty",
+        args: "-e {}",
+    )),
+)

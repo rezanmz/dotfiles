@@ -14,3 +14,15 @@
 hl.on("hyprland.start", function()
     hl.exec_cmd("thunderbird")
 end)
+
+-- anyrun daemon. The launcher itself is started on demand by the keybind, but
+-- the daemon must be resident: without it every launch re-loads the plugins
+-- from disk and the clipboard integration is unavailable, and anyrun prints a
+-- warning to that effect. It also pre-initialises the GPU resources so the
+-- first launch is not visibly slow.
+--
+-- Not a systemd unit because the daemon is meaningless outside a graphical
+-- session and anyrun owns its own lifetime.
+hl.on("hyprland.start", function()
+    hl.exec_cmd("anyrun daemon")
+end)

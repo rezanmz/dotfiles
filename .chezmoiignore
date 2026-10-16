@@ -3,7 +3,7 @@
 .config/hypr/
 .config/waybar/
 .config/dunst/
-.config/fuzzel/
+.config/anyrun/
 .config/fontconfig/
 .config/gtk-3.0/
 .config/gtk-4.0/

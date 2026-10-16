@@ -1,11 +1,25 @@
 #!/usr/bin/env sh
-# Pick a clipboard-history entry (cliphist) with rofi and restore it.
+# Pick a clipboard-history entry (cliphist) with anyrun and restore it.
+# Bound to SUPER+C.
+#
+# UPDATED for anyrun: the picker is now
+#
+#   cliphist list | anyrun --plugins libstdin.so
+#
+# `--plugins` overrides the plugin list from config.ron for this one run, so
+# only the stdin plugin loads and the picker shows nothing but the clipboard
+# entries — no applications, no calculator. That is the anyrun way to do what
+# `rofi -dmenu` did: stdin is explicitly documented as the dmenu replacement and
+# "should generally be used alone".
+#
+# stdin prints the selected line verbatim on stdout, so `cliphist decode` still
+# receives exactly the "id<TAB>preview" line it wrote. Entries are returned in
+# the order cliphist emits them (newest first) because stdin.ron sets
+# preserve_order — otherwise an empty query would re-sort them by fuzzy score
+# and scramble the history.
 set -eu
 
-# rofi -dmenu reads the list once and prints the chosen line, exactly like
-# fuzzel --dmenu did. -i makes matching case-insensitive, which is what you
-# want when hunting for a fragment of remembered text.
-pick="$(cliphist list | rofi -dmenu -i -p 'clip> ' -l 12 -theme-str 'window {width: 50%;}')" || exit 0
+pick="$(cliphist list | anyrun --plugins libstdin.so)" || exit 0
 [ -n "$pick" ] || exit 0
 
 printf '%s' "$pick" | cliphist decode | wl-copy

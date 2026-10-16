@@ -3,7 +3,7 @@
 --
 --   SUPER+RETURN  terminal          SUPER+D / SUPER+SPACE  unified menu
 --   SUPER+SHIFT+D displays          SUPER+B  bluetooth
---   SUPER+Tab      window switcher (rofi, index mode)
+--   SUPER+Tab      window switcher (anyrun, stdin mode)
 --   SUPER+Q       close window      SUPER+E  file manager
 --   SUPER+L       lock              SUPER+M  session actions
 --   SUPER+1..0    workspaces        SUPER+SHIFT+1..0  move window to workspace
@@ -14,10 +14,13 @@
 local mainMod = "SUPER"
 
 local terminal    = "kitty"
--- The unified menu: applications, windows, calculator and session actions in
--- ONE prompt. `combi` merges the modes declared in config.rasi, so typing
--- "firefox" launches it, "7*6" answers 42, and "reboot" offers the action.
-local launcher    = "rofi -show combi"
+-- The unified menu: applications, calculator, symbols, web search and session
+-- actions in ONE prompt. anyrun merges every plugin listed in config.ron, so
+-- typing "firefox" launches it, "7*6" answers 42, "lock" offers the action and
+-- "?hyprland" opens a browser search. This replaced rofi (and fuzzel before it);
+-- rofi-calc could not evaluate inside rofi's combi mode, which is what made the
+-- old setup need a separate entry to reach the calculator.
+local launcher    = "anyrun"
 local fileManager = "kitty yazi"
 local lockCmd     = "hyprlock"
 
@@ -41,10 +44,10 @@ hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(launcher))
 -- Session
 hl.bind(mainMod .. " + Q", hl.dsp.window.close())
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd(lockCmd))
--- Session actions now live inside the unified menu (search "reboot"), so this
--- opens the menu filtered to them rather than a separate list. The old
--- exit-menu script was fuzzel-based and is gone.
-hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("rofi -show combi -combi-modes 'session' -modi 'session:rofi-session'"))
+-- Session actions live inside the unified menu (search "reboot"), so this opens
+-- the menu filtered to the actions plugin rather than a separate list. The old
+-- exit-menu (fuzzel) and rofi-session scripts are both gone.
+hl.bind(mainMod .. " + M", hl.dsp.exec_cmd("anyrun --plugins libactions.so"))
 hl.bind(mainMod .. " + SHIFT + Q", hl.dsp.exit())
 
 -- Window management
@@ -90,6 +93,9 @@ end
 hl.bind(mainMod .. " + S",         hl.dsp.workspace.toggle_special("magic"))
 hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
 
+-- Clipboard history (cliphist), fed by the cliphist systemd user unit.
+-- One bind only: the old config had a second identical chord routing the same
+-- helper through an extra hyprctl dispatch, which added nothing.
 hl.bind(mainMod .. " + C", hl.dsp.exec_cmd(helpers .. "/clipboard-pick"))
 -- Cycle through workspaces with SUPER + scroll
 hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
@@ -98,9 +104,6 @@ hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
 -- Drag and resize with the mouse
 hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
 hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
-
--- Clipboard history (cliphist), fed by the cliphist systemd user unit
-hl.bind(mainMod .. " + C", hl.dsp.exec_cmd(ipc .. " 'hl.dsp.exec_cmd(\"sh -c \\\"" .. helpers .. "/clipboard-pick\\\"\")'"))
 
 -- Screenshots
 hl.bind("PRINT",         hl.dsp.exec_cmd(helpers .. "/screenshot region"))
@@ -118,7 +121,7 @@ hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),       { locke
 hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
 
 -- Utilities.
--- Notification history: rofi fed by dunst's history, newest first.
+-- Notification history: anyrun fed by dunst's history, newest first.
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd(helpers .. "/notif-history"))
 -- Colour picker (hyprpicker copies the picked colour to the clipboard).
 hl.bind(mainMod .. " + SHIFT + P", hl.dsp.exec_cmd("hyprpicker --autocopy"))

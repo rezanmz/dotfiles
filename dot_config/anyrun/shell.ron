@@ -1,0 +1,10 @@
+// Shell plugin — run a command straight from the runner.
+//
+// Prefix ":sh": typing ":sh systemctl status docker" runs it. Kept because the
+// previous launcher chain had no equivalent and reaching for a terminal to run
+// one command is the slower path.
+
+Config(
+    prefix: ":sh",
+    shell: None,
+)

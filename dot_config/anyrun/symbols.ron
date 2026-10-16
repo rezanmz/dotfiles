@@ -1,0 +1,12 @@
+// Symbols plugin — type a name, get the glyph.
+//
+// No prefix, but it only produces rows once something is typed, and config.ron
+// sets show_results_immediately: false, so the runner does not open onto a wall
+// of glyphs.
+//
+// This exists because the machine already depends on Nerd Font glyphs for
+// waybar and kitty; pasting one used to mean looking it up elsewhere.
+
+Config(
+    prefix: "",
+)

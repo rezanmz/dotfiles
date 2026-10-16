@@ -44,9 +44,12 @@
     icon_path = /usr/share/icons/Papirus/48x48/status/:/usr/share/icons/Papirus/48x48/devices/:/usr/share/icons/Papirus/48x48/apps/
     sticky_history = yes
     history_length = 20
-    # rofi -dmenu replaces fuzzel --dmenu. Kept on one line because dunst
-    # treats the whole value as the command line.
-    dmenu = /usr/bin/rofi -dmenu -i -p "notify> " -l 10
+    # anyrun's stdin plugin replaces rofi -dmenu (and fuzzel --dmenu before it).
+    # Kept on one line because dunst splits the value into argv itself.
+    # --plugins overrides config.ron for this run so only stdin loads: dunst
+    # feeds a list of actions in and expects the chosen line back, so the
+    # applications and calculator plugins must not contribute rows.
+    dmenu = anyrun --plugins libstdin.so
     browser = /usr/bin/xdg-open
     always_run_script = true
     title = Dunst

@@ -1,4 +1,25 @@
--- Window and workspace rules.
+-- Window, workspace and layer rules.
+
+-- anyrun (the launcher, which replaced rofi).
+--
+-- `blur` frosts whatever is behind the runner. On its own it also blurs the
+-- transparent parts of the full-screen layer surface, which reads as the whole
+-- screen dimming; `ignore_alpha` (Hyprland's `ignorezero`) restricts the blur
+-- to pixels that are actually drawn, so only the card is frosted. Together they
+-- are the pair the anyrun documentation recommends.
+--
+-- The card itself is translucent in style.css — an opaque background would give
+-- the blur nothing to sample and it would appear to do nothing.
+hl.layer_rule({
+    name        = "anyrun-blur",
+    match       = { namespace = "^anyrun$" },
+    blur        = true,
+    ignore_alpha = true,
+})
+
+-- The daemon is started from 30-autostart.lua, not here; a layer rule for a
+-- surface that does not exist yet is harmless, but the ordering below the two
+-- rules matters more than this comment.
 
 -- Suppress maximize requests: Hyprland's own fullscreen state is authoritative
 -- and apps that force-maximize fight the tiler.

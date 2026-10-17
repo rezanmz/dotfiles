@@ -15,7 +15,7 @@ BarItem {
     panel: "system"
 
     Text {
-        text: "gpu " + Math.round(Stats.gpu) + "%"
+        text: "gpu " + Util.pad(Stats.gpu, 3) + "%"
         color: Theme.fg
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize

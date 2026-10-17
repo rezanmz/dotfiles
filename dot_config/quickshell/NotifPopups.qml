@@ -79,6 +79,34 @@ PanelWindow {
         border.width: 2
         border.color: card.frame
 
+        // Slides in from the right edge it lives on.
+        transform: Translate {
+            id: slide
+
+            x: 40
+
+            Component.onCompleted: slide.x = 0
+
+            Behavior on x {
+                NumberAnimation {
+                    duration: Theme.animationNormal
+                    easing.type: Easing.OutCubic
+                }
+            }
+        }
+
+        // Urgency edge: the card's whole state in one glance, without reading
+        // the border colour off a rounded corner.
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.margins: 4
+            width: 3
+            radius: 2
+            color: card.frame
+        }
+
         HoverHandler {
             id: hover
         }

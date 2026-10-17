@@ -77,6 +77,14 @@ Singleton {
         return Math.round(v) + "%";
     }
 
+    // Right-aligned number for the bar's numeric readouts. Without it a value
+    // crossing a digit boundary resizes its widget and shoves everything left of
+    // it sideways — the same drift the old net-speed script padded against, and
+    // the reason the throughput readout already uses a fixed field.
+    function pad(v: real, width: int): string {
+        return String(Math.round(v)).padStart(width);
+    }
+
     // m:ss, used by the media player for track position.
     function duration(seconds: real): string {
         if (!isFinite(seconds) || seconds < 0)

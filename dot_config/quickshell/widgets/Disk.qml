@@ -17,7 +17,7 @@ BarItem {
     readonly property color colour: Theme.level(Stats.diskPct, 85, 92, Theme.yellow)
 
     Text {
-        text: Util.gib(Stats.diskUsed) + "GiB"
+        text: Util.pad(Stats.diskUsed / 1073741824, 3) + "GiB"
         color: root.colour
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize

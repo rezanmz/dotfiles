@@ -36,7 +36,7 @@ BarItem {
     readonly property bool online: root.device !== null && root.device.connected
 
     Text {
-        text: !root.online ? "offline \uf127" : (root.wifi ? root.signal + "% \uf1eb" : "eth \uf6ff")
+        text: !root.online ? "offline \uf127" : (root.wifi ? Util.pad(root.signal, 3) + "% \uf1eb" : "eth \uf6ff")
         color: root.online ? Theme.cyan : Theme.red
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize

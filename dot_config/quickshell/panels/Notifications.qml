@@ -45,10 +45,15 @@ Popup {
 
         required property var entry
 
-        readonly property var notif: entry.notification
+        // Null-guarded: the list is rebuilt as entries are removed, and the
+        // delegates' bindings re-evaluate during teardown with `entry` already
+        // gone (this produced "Cannot read property 'body' of null").
+        readonly property var notif: row.entry && row.entry.notification ? row.entry.notification : null
+        readonly property string summary: row.notif ? row.notif.summary : ""
+        readonly property string body: row.notif ? row.notif.body : ""
 
         width: parent.width
-        implicitHeight: body.visible ? 44 : 28
+        implicitHeight: row.body !== "" ? 44 : 28
 
         Text {
             id: summary
@@ -57,7 +62,7 @@ Popup {
             anchors.top: parent.top
             anchors.right: age.left
             anchors.rightMargin: 10
-            text: row.notif.summary
+            text: row.summary
             textFormat: Text.PlainText
             elide: Text.ElideRight
             maximumLineCount: 1
@@ -84,11 +89,11 @@ Popup {
             anchors.right: parent.right
             anchors.top: summary.bottom
             anchors.topMargin: 2
-            text: row.notif.body
+            text: row.body
             textFormat: Text.PlainText
             elide: Text.ElideRight
             maximumLineCount: 1
-            visible: row.notif.body !== ""
+            visible: row.body !== ""
             color: Theme.comment
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSmall

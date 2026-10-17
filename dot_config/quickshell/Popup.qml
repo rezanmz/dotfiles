@@ -82,6 +82,35 @@ PopupWindow {
         border.width: 1
         border.color: Theme.border
 
+        // Same hairline as the bar's bottom edge, on the card's top edge.
+        Rectangle {
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.margins: 1
+            height: 2
+            radius: parent.radius
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop {
+                    position: 0.0
+                    color: Theme.alpha(Theme.rampStart, 0.0)
+                }
+                GradientStop {
+                    position: 0.25
+                    color: Theme.alpha(Theme.rampStart, 0.9)
+                }
+                GradientStop {
+                    position: 0.6
+                    color: Theme.alpha(Theme.rampMid, 0.9)
+                }
+                GradientStop {
+                    position: 1.0
+                    color: Theme.alpha(Theme.rampEnd, 0.0)
+                }
+            }
+        }
+
         opacity: root.open ? 1 : 0
         scale: root.open ? 1 : 0.97
 

@@ -66,10 +66,17 @@ Singleton {
         // server discards anything untracked.
         notif.tracked = true;
 
+        // Some senders fire a notification with no text at all — udiskie's
+        // status-notifier stub, for one, and anything using the "replace my tray
+        // icon" idiom. Rendering one produced a blank card that stayed on screen
+        // forever when it was marked critical. It is kept in the history, but it
+        // does not pop up and it does not ring the bell.
+        const blank = notif.summary === "" && notif.body === "";
+
         const entry = {
             "notification": notif,
-            "popup": !root.dnd,
-            "seen": Panels.current === "notifications",
+            "popup": !root.dnd && !blank,
+            "seen": Panels.current === "notifications" || blank,
             // The Notification has no timestamp of its own, and the centre shows
             // how old each entry is (dunst's history did).
             "time": Date.now()

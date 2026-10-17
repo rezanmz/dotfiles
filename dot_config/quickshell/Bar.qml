@@ -38,12 +38,37 @@ PanelWindow {
         Panels.barWindow = bar;
     }
 
+    // The bar's bottom edge: the shell's signature hairline, a Dracula-spectrum
+    // ramp that fades in and out at the ends instead of a flat border. One per
+    // surface (see Theme.rampStart).
     Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: 1
-        color: Theme.selection
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop {
+                position: 0.0
+                color: Theme.alpha(Theme.rampStart, 0.0)
+            }
+            GradientStop {
+                position: 0.18
+                color: Theme.alpha(Theme.rampStart, 0.95)
+            }
+            GradientStop {
+                position: 0.5
+                color: Theme.alpha(Theme.rampMid, 0.95)
+            }
+            GradientStop {
+                position: 0.82
+                color: Theme.alpha(Theme.rampEnd, 0.95)
+            }
+            GradientStop {
+                position: 1.0
+                color: Theme.alpha(Theme.rampEnd, 0.0)
+            }
+        }
     }
 
     RowLayout {

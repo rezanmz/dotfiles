@@ -27,7 +27,7 @@ BarItem {
     }
 
     Text {
-        text: root.muted ? "muted \uf026" : Math.round(root.volume * 100) + "% " + root.icon
+        text: root.muted ? "muted \uf026" : Util.pad(root.volume * 100, 3) + "% " + root.icon
         color: root.muted ? Theme.comment : Theme.purple
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize

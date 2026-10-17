@@ -77,21 +77,41 @@ Scope {
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
+            // Soft glow behind the pill: two low-alpha rounded rectangles, which
+            // is as close to a bloom as QML gets without a shader.
+            Rectangle {
+                anchors.centerIn: card
+                width: card.width + 12
+                height: card.height + 12
+                radius: Theme.radiusPill
+                color: Theme.alpha(Sound.muted ? Theme.comment : Theme.purple, 0.10)
+            }
+
             Rectangle {
                 id: card
 
                 anchors.fill: parent
-                radius: Theme.panelRadius
+                radius: Theme.radiusPill
                 color: Theme.panelBg
                 border.width: 1
-                border.color: Theme.border
+                border.color: Theme.alpha(Sound.muted ? Theme.comment : Theme.purple, 0.55)
                 opacity: 0
+                y: 24
 
-                Component.onCompleted: opacity = 1
+                Component.onCompleted: {
+                    opacity = 1;
+                    y = 0;
+                }
 
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: Theme.animationFast
+                        duration: Theme.animationNormal
+                        easing.type: Easing.OutCubic
+                    }
+                }
+                Behavior on y {
+                    NumberAnimation {
+                        duration: Theme.animationNormal
                         easing.type: Easing.OutCubic
                     }
                 }
@@ -115,7 +135,7 @@ Scope {
                             return Sound.muted ? Theme.comment : Theme.purple;
                         }
                         font.family: Theme.fontFamily
-                        font.pixelSize: 20
+                        font.pixelSize: 22
                     }
 
                     Rectangle {
@@ -123,13 +143,23 @@ Scope {
                         width: 170
                         height: 6
                         radius: 3
-                        color: Theme.alpha(Theme.comment, 0.45)
+                        color: Theme.alpha(Theme.comment, 0.35)
 
                         Rectangle {
                             height: parent.height
                             radius: parent.radius
                             width: parent.width * (root.kind === "mic" ? 1 : Math.max(0, Math.min(1, Sound.volume)))
-                            color: root.kind === "mic" ? (Sound.micMuted ? Theme.red : Theme.green) : (Sound.muted ? Theme.comment : Theme.purple)
+                            gradient: Gradient {
+                                orientation: Gradient.Horizontal
+                                GradientStop {
+                                    position: 0.0
+                                    color: root.kind === "mic" ? Theme.green : Theme.rampStart
+                                }
+                                GradientStop {
+                                    position: 1.0
+                                    color: root.kind === "mic" ? Theme.green : (Sound.muted ? Theme.comment : Theme.rampMid)
+                                }
+                            }
                             Behavior on width {
                                 NumberAnimation {
                                     duration: Theme.animationFast
@@ -140,7 +170,7 @@ Scope {
 
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: 42
+                        width: 44
                         text: {
                             if (root.kind === "mic")
                                 return Sound.micMuted ? "muted" : "live";
@@ -148,7 +178,8 @@ Scope {
                         }
                         color: Theme.fg
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSizeSmall
+                        font.pixelSize: Theme.fontSize
+                        font.bold: true
                     }
                 }
             }

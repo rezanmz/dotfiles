@@ -6,8 +6,9 @@
 # xdg-desktop-portal-hyprland, quickshell, wl-clipboard,
 # wl-clip-persist, cliphist, grim, slurp, satty, yazi,
 # udisks2, udiskie, libayatana-appindicator (udiskie tray icon)
-# Replaced by quickshell (bar, notifications, launcher); still installed,
-# pending removal (units masked): waybar, dunst, anyrun (AUR)
+# Replaced by quickshell (bar, notifications, launcher) and removed: waybar,
+# dunst, anyrun (AUR). Their units are still masked, so a stray reinstall cannot
+# bring them back on login.
 #
 # --- Shell -----------------------------------------------------------------
 # zsh, zsh-completions

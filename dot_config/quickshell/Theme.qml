@@ -48,6 +48,17 @@ Singleton {
     readonly property int animationFast: 120
     readonly property int animationNormal: 180
 
+    // ---- signature -----------------------------------------------------
+    // One Dracula-spectrum hairline per surface: the bar's bottom edge, the top
+    // edge of every panel and card. Same three stops everywhere, so the surfaces
+    // read as one thing.
+    readonly property color rampStart: purple
+    readonly property color rampMid: pink
+    readonly property color rampEnd: cyan
+
+    // Pill geometry for the OSD and the active-workspace marker.
+    readonly property int radiusPill: 999
+
     // ---- helpers -------------------------------------------------------
     function alpha(c: color, a: real): color {
         return Qt.rgba(c.r, c.g, c.b, a);

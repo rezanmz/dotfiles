@@ -9,7 +9,7 @@ BarItem {
     panel: "system"
 
     Text {
-        text: "ram " + Math.round(Stats.memPct) + "%"
+        text: "ram " + Util.pad(Stats.memPct, 3) + "%"
         color: Theme.yellow
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize

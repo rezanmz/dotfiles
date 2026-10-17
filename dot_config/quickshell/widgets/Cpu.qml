@@ -9,7 +9,7 @@ BarItem {
     panel: "system"
 
     Text {
-        text: "cpu " + Math.round(Stats.cpu) + "%"
+        text: "cpu " + Util.pad(Stats.cpu, 3) + "%"
         color: Theme.green
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize

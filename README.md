@@ -22,11 +22,10 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/hypr/hyprpaper.conf` | Wallpaper (`wallpaper { }` blocks) |
 | `dot_config/hypr/hypridle.conf` | DPMS off, lock, and suspend timers |
 | `dot_config/hypr/hyprlock.conf` | Lock screen |
-| `dot_config/quickshell/` | Desktop shell — one `quickshell` process: bar, notification popups and centre, OSD, launcher (apps + `cliphist`); replaces waybar, dunst, anyrun and the `gpu-usage`, `net-speed`, `notif-history`, `clipboard-pick` helpers |
-| `dot_config/systemd/user/` | `quickshell.service`, `snappy-switcher.service`, `wl-clip-persist.service`, `udiskie.service` |
+| `dot_config/quickshell/` | Desktop shell — one `quickshell` process: bar, notification popups and centre, OSD, launcher (apps + `cliphist`), and the SUPER+Tab switcher with live window thumbnails; replaces waybar, dunst, anyrun, snappy-switcher and the `gpu-usage`, `net-speed`, `notif-history`, `clipboard-pick` helpers |
+| `dot_config/systemd/user/` | `quickshell.service`, `wl-clip-persist.service`, `udiskie.service` |
 | `dot_config/udiskie/` | Removable-drive automount (USB sticks, SD cards) |
 | `dot_local/bin/executable_*` | `screenshot`, `record-toggle`, `set-wallpaper`, `wifi-tune`, `gdrive-export`, `ly-theme` |
-| `dot_config/snappy-switcher/` | Window switcher config (SUPER+Tab, `snappy-switcher` daemon) |
 | `dot_config/gtk-3.0`, `dot_config/gtk-4.0` | GTK theme, icons, cursor |
 | `dot_config/chrome-flags.conf` | Forces Chrome onto the native Wayland backend |
 
@@ -51,12 +50,12 @@ Run `Hyprland --verify-config -c ~/.config/hypr/hyprland.lua` from
 `~/.config/hypr` as a quick syntax check only.
 
 The session must start through `uwsm` (the "Hyprland (uwsm-managed)" entry in
-the display manager) so that quickshell, snappy-switcher, hyprpaper, hypridle,
+the display manager) so that quickshell, hyprpaper, hypridle,
 cliphist and the polkit agent run as `graphical-session.target` user units.
 Enable them once:
 
 ```sh
-systemctl --user enable --now quickshell snappy-switcher hyprpaper hypridle cliphist hyprpolkitagent wl-clip-persist udiskie
+systemctl --user enable --now quickshell hyprpaper hypridle cliphist hyprpolkitagent wl-clip-persist udiskie
 ```
 
 ## System tuning (not chezmoi-managed)
@@ -404,7 +403,7 @@ it, which is a different experience from every other workspace keybinding.
 
 ### Display manager (ly) must launch the uwsm session
 
-Eight desktop units (quickshell, snappy-switcher, hyprpaper, hypridle, cliphist,
+Seven desktop units (quickshell, hyprpaper, hypridle, cliphist,
 wl-clip-persist, udiskie, hyprpolkitagent) hook `graphical-session.target`
 (`Requisite=` or `PartOf=`), which uwsm sets up. Launched from a plain
 `Hyprland` session they **cannot** start at all, so the desktop comes up without

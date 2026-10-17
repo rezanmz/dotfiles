@@ -17,7 +17,7 @@ BarItem {
     Text {
         id: label
 
-        text: Math.round(root.temp) + "°C"
+        text: Util.pad(root.temp, 2) + "°C"
         color: Theme.level(root.temp, 75, 90, Theme.cyan)
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize

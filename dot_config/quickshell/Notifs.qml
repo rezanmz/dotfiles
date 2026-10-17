@@ -83,8 +83,20 @@ Singleton {
         };
 
         // Cap the history the way dunstrc did (history_length = 20), with room
-        // for whatever is on screen.
-        root.entries = [entry].concat(root.entries.slice(0, 39));
+        // for whatever is on screen. Entries dropped by the cap must also leave
+        // the popup set: an entry that is in `popups` but no longer in `entries`
+        // can never be removed again, which is how a stale card used to stay on
+        // screen forever (it renders with no notification behind it, so it comes
+        // out as an empty card with a red border that nothing can dismiss).
+        const kept = [entry].concat(root.entries.slice(0, 39));
+        for (const dropped of root.entries.slice(39)) {
+            dropped.removed = true;
+            dropped.popup = false;
+            if (dropped.notification && dropped.notification.tracked)
+                dropped.notification.tracked = false;
+        }
+        root.entries = kept;
+        root.popups = root.popups.filter(e => kept.indexOf(e) !== -1);
         if (entry.popup)
             root.popups = [entry].concat(root.popups);
         if (!entry.seen)
@@ -93,13 +105,22 @@ Singleton {
         notif.closed.connect(reason => root.remove(entry));
     }
 
+    // Idempotent *and* re-entrancy safe. Clearing `tracked` makes the server
+    // close the notification, which emits `closed`, which calls this again — with
+    // no guard that is an infinite loop, and the stack overflow it threw aborted
+    // the removal half-way. That is the "blank card nothing can dismiss" bug: the
+    // entry stayed in `popups` with no notification behind it.
     function remove(entry): void {
-        if (root.entries.indexOf(entry) === -1)
+        if (!entry || entry.removed)
             return;
+        entry.removed = true;
         entry.popup = false;
-        entry.notification.tracked = false;
-        if (!entry.seen)
+        if (entry.notification && entry.notification.tracked)
+            entry.notification.tracked = false;
+        if (!entry.seen) {
+            entry.seen = true;
             root.unseen = Math.max(0, root.unseen - 1);
+        }
         root.entries = root.entries.filter(e => e !== entry);
         root.popups = root.popups.filter(e => e !== entry);
     }

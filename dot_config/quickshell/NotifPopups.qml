@@ -10,7 +10,8 @@ import qs
 // Dracula treatment dunstrc used (bg #282a36, a 2px frame coloured by urgency,
 // 6px corners, a progress bar for the remaining time). What is new is that the
 // body can carry action buttons — dunst only offered actions through a middle
-// click, with no way to see that they existed.
+// click, with no way to see that they existed. A click on the card runs the
+// action the sender marked default and only dismisses when there is none.
 //
 // The window never reserves space (exclusiveZone: -1) and sits on the overlay
 // layer: a notification must not push windows around, and must be visible over
@@ -69,9 +70,23 @@ PanelWindow {
         readonly property string appIcon: card.notif ? card.notif.appIcon : ""
         readonly property var actions: card.notif ? card.notif.actions : []
 
+        // The action the sender marked "default" (`identifier === "default"`),
+        // which is what a left click on the card runs.
+        readonly property var defaultAction: {
+            for (const a of card.actions) {
+                if (a.identifier === "default")
+                    return a;
+            }
+            return null;
+        }
+
         // Hovering holds a notification open: it is about to be read, not missed.
         readonly property bool held: hover.hovered
 
+        // A card with no notification behind it must not be drawn at all: it used
+        // to render as an empty box (red, because a missing urgency falls through
+        // to the critical colour) that nothing could dismiss.
+        visible: card.notif !== null
         width: column.width
         implicitHeight: content.implicitHeight + 20
         color: Theme.bg
@@ -109,6 +124,16 @@ PanelWindow {
 
         HoverHandler {
             id: hover
+        }
+
+        // Belt and braces: the sender can close a notification (or another
+        // instance can), and the card must leave with it.
+        Connections {
+            target: card.notif
+
+            function onClosed(reason): void {
+                Notifs.remove(card.entry);
+            }
         }
 
         Timer {
@@ -277,6 +302,11 @@ PanelWindow {
                     Notifs.clearPopups();
                 else if (mouse.button === Qt.MiddleButton && card.actions.length > 0)
                     card.actions[0].invoke();
+                else if (mouse.button === Qt.LeftButton && card.defaultAction !== null)
+                    // Left click runs the default action when there is one;
+                    // invoke() closes the notification itself. Only a click
+                    // with no default action behind it dismisses ("read it").
+                    card.defaultAction.invoke();
                 else
                     card.notif.dismiss();
             }

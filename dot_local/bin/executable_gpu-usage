@@ -7,11 +7,12 @@
 # amdgpu driver directly.
 #
 # WHERE THE NUMBERS COME FROM
-#   /sys/class/drm/card0/device/gpu_busy_percent  - GPU busy % (0-100)
-#   .../mem_info_vram_used                        - dedicated VRAM in use
-#   .../mem_info_vram_total                       - dedicated VRAM size
-#   .../mem_info_gtt_used                         - system RAM borrowed via GTT
-#   .../mem_info_gtt_total                        - GTT aperture size
+#   /sys/class/drm/<card>/device/gpu_busy_percent  - GPU busy % (0-100)
+#   .../mem_info_vram_used                         - dedicated VRAM in use
+#   .../mem_info_vram_total                        - dedicated VRAM size
+#   .../mem_info_gtt_used                          - system RAM borrowed via GTT
+#   .../mem_info_gtt_total                         - GTT aperture size
+#   .../hwmon/hwmonN/temp1_input                   - GPU edge temperature
 #
 # WHY GTT MATTERS ON THIS MACHINE
 # The Radeon 610M is an APU with only 512 MiB of dedicated VRAM. Anything larger
@@ -19,11 +20,36 @@
 # of it here. VRAM alone would show a permanent 512 MiB wall and hide the memory
 # that actually grows, so both are reported in the tooltip.
 #
-# WHY card0 IS HARDCODED
-# Exactly one GPU here (Radeon 610M; no discrete card), so card0 is unambiguous.
-# If a discrete GPU is added the amdgpu card index shifts and this would report
-# the wrong device. Deliberately NOT auto-detected: scanning for "the amdgpu
-# card" would silently switch which device is displayed.
+# WHY THE CARD IS DISCOVERED AND NOT HARDCODED
+# This used to read /sys/class/drm/card0/device unconditionally, on the theory
+# that a machine with exactly one GPU makes card0 unambiguous. That theory broke
+# on 2026-10-17: the module silently reported "gpu ---" because card0 had ceased
+# to be the AMD card. DRM card numbers are handed out in probe order, and this
+# box boots with efifb/simpledrm bound to the simple-framebuffer, which takes
+# DRM minor 0. When amdgpu then registers it gets card1:
+#
+#   [drm] Initialized simpledrm 1.0.0 for simple-framebuffer.0 on minor 0
+#   [drm] Initialized amdgpu 3.64.0 for 0000:0b:00.0 on minor 1
+#
+# Whether that happens depends on the initramfs: if it carries amdgpu (the `kms`
+# hook with the module pulled in by `autodetect`), amdgpu loads early and takes
+# minor 0, and the old hardcoded path worked. Regenerating the initramfs without
+# the module - which is what the 7.2.10 kernel update did here - leaves the
+# simpledrm framebuffer in place, and the numbering flips. So the failure was a
+# silent, load-order-dependent outage, not a driver problem.
+#
+# The device is therefore found by a SENTINEL instead of an index: the amdgpu
+# device that actually exports gpu_busy_percent. That is precisely the file this
+# module needs, so it cannot pick a device that will not work; a non-amdgpu card
+# (simpledrm, a future discrete GPU) is never selected. Where several amdgpu
+# cards exist the one that booted the console (boot_vga) wins, since that is the
+# one driving the session. If the driver is ever unbound or a card is renamed,
+# this module goes on working rather than needing a matching edit.
+#
+# (The alternative - pinning a path under /sys/devices/pci0000:00/0000:0b:00.0/
+# like the waybar `temperature` module does for k10temp - is boot-stable but
+# breaks outright if the GPU moves slot, which is easier to hit than a card
+# index change. Discovery plus the boot_vga tie-break degrades better.)
 #
 # WHY PYTHON AND NOT SHELL
 # The output is waybar JSON, and the tooltip needs \r as a line separator. Doing
@@ -40,7 +66,8 @@
 #
 # The `text` field is fixed width: "gpu " + 3-digit percentage + "%" = 8 chars,
 # always. waybar re-renders on every poll, and any width change shoves every
-# module to its left sideways.
+# module to its left sideways. The unavailable state is padded to the same 8
+# characters ("gpu ---%") for the same reason - "gpu ---" was 7.
 #
 # Plain "gpu" text rather than a Nerd Font glyph, matching this bar's existing
 # numeric modules ("cpu 12%", "ram 23%", "49°C"). Only pulseaudio/network/
@@ -48,18 +75,96 @@
 # numeric readouts visually parallel.
 
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
-DRM = Path("/sys/class/drm/card0/device")
+DRM_ROOT = Path("/sys/class/drm")
+DEVICE_DIRNAME = re.compile(r"card\d+\Z")
 
 
-def read_int(name: str) -> int | None:
-    """Read a single integer from the DRM device dir, or None if unavailable."""
+def find_amdgpu_device(root: Path = DRM_ROOT) -> tuple[Path | None, str]:
+    """Locate the amdgpu DRM device directory.
+
+    Returns (device_dir, reason). device_dir is None when the device cannot be
+    chosen unambiguously, and reason then says why, for the tooltip.
+    """
+    candidates: list[tuple[bool, Path]] = []
+
+    for card in sorted(root.glob("card[0-9]*")):
+        # `card1-DP-1` and `card1-HDMI-A-1` also match the glob; only the bare
+        # `cardN` entries are devices.
+        if not DEVICE_DIRNAME.match(card.name):
+            continue
+
+        device = card / "device"
+        driver_link = device / "driver"
+
+        try:
+            if os.path.basename(os.path.realpath(driver_link)) != "amdgpu":
+                continue
+        except OSError:
+            continue
+
+        # The sentinel: no gpu_busy_percent means this module cannot read the
+        # card anyway, so it is not a candidate.
+        if not (device / "gpu_busy_percent").exists():
+            continue
+
+        boot_vga = False
+        try:
+            boot_vga = (device / "boot_vga").read_text().strip() == "1"
+        except OSError:
+            pass
+
+        candidates.append((boot_vga, device))
+
+    if not candidates:
+        return None, f"no amdgpu device with gpu_busy_percent under {root}"
+
+    if len(candidates) == 1:
+        return candidates[0][1], ""
+
+    booted = [device for boot_vga, device in candidates if boot_vga]
+    if len(booted) == 1:
+        return booted[0], ""
+
+    names = ", ".join(p.parent.name for _, p in candidates)
+    return None, f"{len(candidates)} amdgpu devices ({names}) and no single boot_vga"
+
+
+def read_int(path: Path) -> int | None:
+    """Read a single integer from a sysfs file, or None if unavailable."""
     try:
-        return int((DRM / name).read_text().strip())
+        return int(path.read_text().strip())
     except (OSError, ValueError):
         return None
+
+
+def gpu_temperature_c(device: Path) -> float | None:
+    """GPU edge temperature in Celsius, or None if the sensor is unavailable.
+
+    temp1 on amdgpu is the edge sensor. It is read from the device's own hwmon
+    directory rather than a fixed hwmonN, since those numbers are also assigned
+    in probe order.
+    """
+    try:
+        for hwmon in sorted((device / "hwmon").glob("hwmon*")):
+            label = hwmon / "temp1_label"
+            try:
+                if label.exists() and label.read_text().strip() != "edge":
+                    continue
+            except OSError:
+                continue
+
+            raw = read_int(hwmon / "temp1_input")
+            if raw is not None:
+                return raw / 1000.0
+    except OSError:
+        pass
+
+    return None
 
 
 def human(n: int) -> str:
@@ -85,29 +190,44 @@ def emit(text: str, tooltip: str | None = None) -> None:
     print(json.dumps(payload, separators=(",", ":")))
 
 
-busy = read_int("gpu_busy_percent")
+def emit_unavailable(reason: str) -> None:
+    """Report an unreadable device at the live width, so the bar cannot shift."""
+    emit("gpu ---%", f"iGPU unavailable\r{reason}")
 
-if busy is None:
-    # Fixed width, same as the live value, so a missing driver cannot change
-    # the bar's width either.
-    emit("gpu ---", f"iGPU unavailable\n{DRM} not readable".replace("\n", "\r"))
-    sys.exit(0)
 
-vram_used = read_int("mem_info_vram_used") or 0
-vram_total = read_int("mem_info_vram_total") or 0
-gtt_used = read_int("mem_info_gtt_used") or 0
-gtt_total = read_int("mem_info_gtt_total") or 0
+def main() -> int:
+    device, reason = find_amdgpu_device()
 
-# \r separates tooltip lines, per waybar-custom(5). json.dumps encodes it as the
-# \r escape, which decodes back to a carriage return on waybar's side.
-tooltip = "\r".join(
-    (
+    busy = read_int(device / "gpu_busy_percent") if device else None
+
+    if busy is None:
+        emit_unavailable(reason or f"{device} not readable")
+        return 0
+
+    vram_used = read_int(device / "mem_info_vram_used") or 0
+    vram_total = read_int(device / "mem_info_vram_total") or 0
+    gtt_used = read_int(device / "mem_info_gtt_used") or 0
+    gtt_total = read_int(device / "mem_info_gtt_total") or 0
+
+    rows = [
         "iGPU (Radeon 610M)",
         f"busy   {busy}%",
         f"VRAM   {human(vram_used)} / {human(vram_total)}",
         f"GTT    {human(gtt_used)} / {human(gtt_total)}",
-    )
-)
+    ]
 
-# Fixed width: "gpu " (4) + %3d (3) + "%" (1) = 8 characters, always.
-emit(f"gpu {busy:3d}%", tooltip)
+    temp = gpu_temperature_c(device)
+    if temp is not None:
+        rows.append(f"edge   {temp:.0f}°C")
+
+    # \r separates tooltip lines, per waybar-custom(5). json.dumps encodes it as
+    # the \r escape, which decodes back to a carriage return on waybar's side.
+    tooltip = "\r".join(rows)
+
+    # Fixed width: "gpu " (4) + %3d (3) + "%" (1) = 8 characters, always.
+    emit(f"gpu {busy:3d}%", tooltip)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

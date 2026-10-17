@@ -1,6 +1,5 @@
 import QtQuick
 import qs
-import Quickshell
 
 // iGPU utilisation.
 //
@@ -8,13 +7,19 @@ import Quickshell
 // script; the numbers come from the same sysfs attributes now, read by Stats.
 // VRAM and GTT detail (which mattered on this APU: only 512 MiB of dedicated
 // VRAM, so anything large spills into GTT carved from system RAM) is in the
-// system panel.
-BarItem {
+// system panel — opened by the group in Bar.qml, not by this readout.
+Item {
     id: root
 
-    panel: "system"
+    implicitWidth: label.implicitWidth + Theme.modulePadding
+    implicitHeight: Theme.barHeight
+    width: implicitWidth
+    height: implicitHeight
 
     Text {
+        id: label
+
+        anchors.centerIn: parent
         text: "gpu " + Util.pad(Stats.gpu, 3) + "%"
         color: Theme.fg
         font.family: Theme.fontFamily

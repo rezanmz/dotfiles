@@ -93,14 +93,39 @@ PanelWindow {
         Idle {}
         Media {}
         Audio {}
-        Network {}
-        Speed {}
+
+        // Same-panel readouts are grouped under one BarItem: one hover pill,
+        // one click target, one highlight. The readouts inside are plain items
+        // (no hover, no click, no panel of their own); the Row is sized from its
+        // children so BarItem's content width picks the whole group up.
+        BarItem {
+            panel: "network"
+
+            Row {
+                spacing: 0
+                width: childrenRect.width
+                height: childrenRect.height
+
+                Network {}
+                Speed {}
+            }
+        }
         Bluetooth {}
-        Cpu {}
-        Gpu {}
-        Memory {}
-        Temperature {}
-        Disk {}
+        BarItem {
+            panel: "system"
+
+            Row {
+                spacing: 0
+                width: childrenRect.width
+                height: childrenRect.height
+
+                Cpu {}
+                Gpu {}
+                Memory {}
+                Temperature {}
+                Disk {}
+            }
+        }
         Clock {}
     }
 }

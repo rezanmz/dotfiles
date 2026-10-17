@@ -1,18 +1,20 @@
 import QtQuick
 import qs
-import Quickshell
 import Quickshell.Networking
 
 // Network state: wifi signal, ethernet link, or offline.
 //
 // The device comes from Stats, which already resolves the connected device from
 // NetworkManager (and uses the same one for the throughput counters), so there is
-// one definition of "the active interface" in the shell. Clicking opens the
-// network panel, which is where `kitty -e nmtui` used to be launched from.
-BarItem {
+// one definition of "the active interface" in the shell. The network panel (the
+// `nmtui` replacement) is opened by the group in Bar.qml, not by this readout.
+Item {
     id: root
 
-    panel: "network"
+    implicitWidth: label.implicitWidth + Theme.modulePadding
+    implicitHeight: Theme.barHeight
+    width: implicitWidth
+    height: implicitHeight
 
     readonly property var device: Stats.activeDevice
     readonly property bool wifi: root.device !== null && root.device.type === DeviceType.Wifi
@@ -36,6 +38,9 @@ BarItem {
     readonly property bool online: root.device !== null && root.device.connected
 
     Text {
+        id: label
+
+        anchors.centerIn: parent
         text: !root.online ? "offline \uf127" : (root.wifi ? Util.pad(root.signal, 3) + "% \uf1eb" : "eth \uf6ff")
         color: root.online ? Theme.cyan : Theme.red
         font.family: Theme.fontFamily

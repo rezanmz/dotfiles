@@ -6,32 +6,45 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import qs
 
-// SUPER+Tab window switcher, with live thumbnails.
+// SUPER+Tab WORKSPACE switcher, with live previews of where you would land.
 //
-// This replaces snappy-switcher (an external daemon with its own IPC server, its
-// own config and its own layer surface). Doing it here means the switcher shares
-// the shell's theme, and — the reason it exists — the thumbnails are *live*:
-// each card is a ScreencopyView capturing the window as it is right now, not a
-// snapshot taken when the overlay opened.
+// Each card is a workspace: a live ScreencopyView of the window you would land
+// on — the workspace's most recently focused window — plus the workspace name,
+// how many windows it holds, and the captured window's title. That is the whole
+// point of the overlay: the thumbnails are *live*, not snapshots taken when it
+// opened.
 //
 // Behaviour, matching what a switcher should feel like:
 //   hold SUPER, tap Tab        cycle forward (Shift+Tab back)
-//   release SUPER              switch to the highlighted window
+//   release SUPER              switch to the highlighted workspace
 //   click a card               switch to it
 //   Esc                        cancel
 //
-// Ordering is most-recently-used, which is what makes tapping Tab twice land on
-// the window you were on two windows ago. Hyprland does not expose focus history,
-// so it is tracked here from Hyprland.activeToplevel.
+// Candidates are workspaces in most-recently-used order, which is what makes a
+// single tap-and-release return to the workspace you just came from. Hyprland
+// does not expose workspace focus history, so it is tracked here from
+// Hyprland.focusedWorkspaceChanged. Only workspaces that hold windows (plus the
+// focused one) are offered — an empty workspace you merely visited is clutter.
+//
+// Committing is two dispatches on this machine's Lua-config Hyprland: focus the
+// workspace (`hl.dsp.focus({workspace = N})`), then raise the window that card
+// captured with an `address:` selector. The second call is what guarantees the
+// right window is on top even where the shell's idea of "most recently focused"
+// differs from Hyprland's own `lastwindow`.
 Scope {
     id: root
 
     property bool showing: false
     property int selected: 0
 
-    // MRU list of window addresses, most recent first. Kept in the shell rather
-    // than derived from Hyprland.toplevels, whose order is creation order.
+    // Workspace ids, most recently focused first. Kept in the shell rather than
+    // derived from Hyprland.workspaces, whose order is creation order.
     property var order: []
+
+    // Workspace id -> address of the window the shell saw focused on it most
+    // recently. Hyprland's per-workspace `lastwindow` is whatever the compositor
+    // last recorded; this stays correct while windows are being focused.
+    property var recent: ({})
 
     // Live thumbnails are only worth paying for while the overlay is up.
     readonly property bool live: root.showing
@@ -39,35 +52,94 @@ Scope {
     Connections {
         target: Hyprland
 
-        function onActiveToplevelChanged(): void {
-            const toplevel = Hyprland.activeToplevel;
-            if (!toplevel)
+        function onFocusedWorkspaceChanged(): void {
+            const ws = Hyprland.focusedWorkspace;
+            if (!ws)
                 return;
-            const address = toplevel.address;
-            root.order = [address].concat(root.order.filter(a => a !== address)).slice(0, 40);
+            root.order = [ws.id].concat(root.order.filter(id => id !== ws.id)).slice(0, 40);
+        }
+
+        function onActiveToplevelChanged(): void {
+            const top = Hyprland.activeToplevel;
+            if (!top || !top.workspace)
+                return;
+            const recent = Object.assign({}, root.recent);
+            recent[top.workspace.id] = top.address;
+            root.recent = recent;
         }
     }
 
-    // Windows to offer, MRU first, with anything that no longer exists dropped.
+    // Hyprland's IPC reports addresses with an 0x prefix and quickshell does not
+    // always keep it, so comparisons normalise it away.
+    function sameAddress(a: var, b: var): bool {
+        if (!a || !b)
+            return false;
+        const norm = s => String(s).replace(/^0x/i, "").toLowerCase();
+        return norm(a) === norm(b);
+    }
+
+    // The window a workspace card shows (and commit raises): the one the shell
+    // saw focused on that workspace most recently, else the workspace's own
+    // `lastwindow`, else its first toplevel.
+    function captureFor(ws: var): var {
+        const tops = ws.toplevels.values;
+        if (tops.length === 0)
+            return null;
+
+        const tracked = root.recent[ws.id];
+        for (const t of tops) {
+            if (root.sameAddress(t.address, tracked))
+                return t;
+        }
+
+        const last = ws.lastIpcObject && ws.lastIpcObject.lastwindow ? String(ws.lastIpcObject.lastwindow) : "";
+        for (const t of tops) {
+            if (root.sameAddress(t.address, last))
+                return t;
+        }
+
+        return tops[0];
+    }
+
+    // Workspaces to offer, MRU first: every workspace that holds windows plus
+    // the focused one, with anything that no longer exists dropped.
     readonly property var candidates: {
-        const alive = Hyprland.toplevels.values;
+        const values = Hyprland.workspaces.values;
+        const byId = {};
+        for (const ws of values)
+            byId[ws.id] = ws;
+
+        const entry = ws => {
+            const tops = ws.toplevels.values;
+            const capture = root.captureFor(ws);
+            return {
+                "ws": ws,
+                "id": ws.id,
+                "name": ws.name,
+                "focused": ws.focused,
+                "count": tops.length,
+                "capture": capture,
+                "title": capture ? capture.title : ""
+            };
+        };
+
         const out = [];
         const seen = {};
 
-        for (const address of root.order) {
-            for (let i = 0; i < alive.length; i++) {
-                if (alive[i].address === address && !seen[address]) {
-                    seen[address] = true;
-                    out.push(alive[i]);
-                }
+        for (const id of root.order) {
+            const ws = byId[id];
+            if (ws && !seen[id] && (ws.toplevels.values.length > 0 || ws.focused)) {
+                seen[id] = true;
+                out.push(entry(ws));
             }
         }
-        // Anything the shell has not seen focused yet (started before the shell,
-        // or focused while a reload happened) goes last, in Hyprland's order.
-        for (let i = 0; i < alive.length; i++) {
-            if (!seen[alive[i].address]) {
-                seen[alive[i].address] = true;
-                out.push(alive[i]);
+        // Workspaces the shell has not seen focused yet (started before the
+        // shell, or focused while a reload happened) go last, in Hyprland's
+        // order.
+        for (const ws of values) {
+            if (!seen[ws.id] && (ws.toplevels.values.length > 0 || ws.focused)) {
+                seen[ws.id] = true;
+                out.push(entry(ws));
             }
         }
         return out;
@@ -80,9 +152,15 @@ Scope {
             root.next();
             return;
         }
-        // Candidates are MRU-first, so index 0 is the window you are already on:
-        // opening with it selected would make a single tap-and-release a no-op.
-        // Preselecting the previous window is what alt-tab does.
+        // MRU-first means index 0 is the workspace you are on. Opening with it
+        // selected would make a single tap-and-release a no-op; preselecting the
+        // previous workspace is what alt-tab does.
+        //
+        // The focused workspace is forced to the MRU front so index 1 is "the
+        // previous one" even before the shell has seen a focus change.
+        const focused = Hyprland.focusedWorkspace;
+        if (focused && (root.order.length === 0 || root.order[0] !== focused.id))
+            root.order = [focused.id].concat(root.order.filter(id => id !== focused.id));
         root.selected = root.candidates.length > 1 ? 1 : 0;
         root.showing = true;
     }
@@ -109,20 +187,21 @@ Scope {
         if (!target)
             return;
 
-        // hl.dsp.focus with an `address:` selector focuses the window and, when
-        // it lives on another workspace, switches to that workspace — one call.
-        //
-        // It is also the only thing that works: Toplevel.activate() (xdg
-        // activation) is ignored by Hyprland for a window the shell does not own
-        // (verified — focus did not move, and the cross-workspace case only looked
-        // right because the workspace switch itself focused the last window), and
-        // the bare address without the `address:` prefix is rejected with
-        // "window not found".
-        // Hyprland's IPC reports addresses with a 0x prefix and the Lua selector
-        // requires it ("window not found" without), while quickshell does not
-        // always keep the prefix — so it is added when missing.
-        const address = target.address.startsWith("0x") ? target.address : "0x" + target.address;
-        Hyprland.dispatch("hl.dsp.focus({window = \"address:" + address + "\"})");
+        // Switch to the workspace. It is the working form on this machine:
+        // `hyprctl dispatch` parses its argument as Lua, not as classic
+        // dispatcher syntax.
+        Hyprland.dispatch("hl.dsp.focus({workspace = " + target.id + "})");
+
+        // Then raise the window the card showed. Toplevel.activate() (xdg
+        // activation) is ignored by Hyprland for a window the shell does not
+        // own (verified), and the bare address without the `address:` prefix is
+        // rejected with "window not found" (also verified) — so the selector
+        // form is the only thing that works.
+        const t = target.capture;
+        if (t) {
+            const address = String(t.address).startsWith("0x") ? String(t.address) : "0x" + String(t.address);
+            Hyprland.dispatch("hl.dsp.focus({window = \"address:" + address + "\"})");
+        }
     }
 
     IpcHandler {
@@ -230,12 +309,11 @@ Scope {
                         text: {
                             if (!root.current)
                                 return "nothing to switch to";
-                            const ws = root.current.workspace;
-                            const name = ws ? ws.name : "?";
-                            const focused = ws && ws.focused;
-                            return focused ? "workspace " + name : "jumping to workspace " + name;
+                            const c = root.current;
+                            const windows = c.count === 1 ? "1 window" : c.count + " windows";
+                            return (c.focused ? "workspace " : "jumping to workspace ") + c.name + " · " + windows;
                         }
-                        color: root.current && root.current.workspace && !root.current.workspace.focused ? Theme.pink : Theme.fg
+                        color: root.current && !root.current.focused ? Theme.pink : Theme.fg
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSize
                         font.bold: true
@@ -243,7 +321,7 @@ Scope {
                 }
 
                 // Filmstrip. The whole row slides so the selected card stays
-                // centred, which reads as "moving through" the windows.
+                // centred, which reads as "moving through" the workspaces.
                 Item {
                     anchors.horizontalCenter: parent.horizontalCenter
                     width: window.width
@@ -318,7 +396,7 @@ Scope {
                                         ScreencopyView {
                                             anchors.fill: parent
                                             anchors.margins: 2
-                                            captureSource: slot.live && slot.modelData.wayland ? slot.modelData.wayland : null
+                                            captureSource: slot.live && slot.modelData.capture ? slot.modelData.capture.wayland : null
                                             // Only the highlighted card streams: a live
                                             // screencopy per card is ~25 MiB of buffers each
                                             // (measured: +80 MiB with three cards streaming).
@@ -331,11 +409,13 @@ Scope {
                                             paintCursor: false
                                         }
 
-                                        // Shown until the first frame arrives, and
-                                        // when a window is too new to capture.
+                                        // Shown when the workspace holds no window
+                                        // (the focused one can legitimately be
+                                        // empty), and when a window is too new
+                                        // to capture.
                                         Text {
                                             anchors.centerIn: parent
-                                            visible: !slot.live
+                                            visible: slot.modelData.capture === null
                                             text: "\uf2d0"
                                             color: Theme.comment
                                             font.family: Theme.fontFamily
@@ -344,26 +424,30 @@ Scope {
                                     }
                                 }
 
+                                // Workspace name/number and how much it holds.
                                 Text {
                                     anchors.top: frame.bottom
                                     anchors.topMargin: 8
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     width: parent.width - 8
                                     horizontalAlignment: Text.AlignHCenter
-                                    text: Util.elide(slot.modelData.title || slot.modelData.wayland.appId || "", 34)
+                                    text: "workspace " + slot.modelData.name + "  ·  " + (slot.modelData.count === 1 ? "1 window" : slot.modelData.count + " windows")
                                     color: slot.current ? Theme.fg : Theme.comment
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontSizeSmall
                                     font.bold: slot.current
                                 }
 
+                                // The captured window's title: what is on top of
+                                // that workspace right now.
                                 Text {
                                     anchors.top: frame.bottom
                                     anchors.topMargin: 26
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    visible: slot.modelData.workspace && !slot.modelData.workspace.focused
-                                    text: "workspace " + (slot.modelData.workspace ? slot.modelData.workspace.name : "?")
-                                    color: Theme.pink
+                                    width: parent.width - 8
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: Util.elide(slot.modelData.title, 34)
+                                    color: slot.current ? Theme.fg : Theme.comment
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontSizeSmall
                                 }

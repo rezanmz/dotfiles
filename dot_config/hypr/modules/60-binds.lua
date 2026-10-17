@@ -3,8 +3,8 @@
 --
 --   SUPER+RETURN  terminal          SUPER+SPACE  unified menu
 --   SUPER+SHIFT+D displays          SUPER+B  bluetooth
---   SUPER+Tab      window switcher (hyprswitch, hold and release)
---   SUPER+Q twice close window (confirm)   SUPER+E  file manager
+--   SUPER+Tab     window switcher (snappy-switcher, hold and release)
+--   SUPER+Q       close window      SUPER+E  file manager
 --   SUPER+L       lock
 --   SUPER+1..0    workspaces        SUPER+SHIFT+1..0  move window to workspace
 --   SUPER+S       scratchpad (magic)   SUPER+0  workspace 10 (mail)
@@ -33,59 +33,40 @@ hl.bind(mainMod .. " + E",      hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 -- Window switcher: hold-and-release, the Alt-Tab muscle memory.
 --
--- OPTIONS, and why each one is here:
+-- `snappy-switcher next` is only an IPC client: it hands the command to the
+-- daemon started in 30-autostart.lua over a unix socket and returns at once.
+-- The window list, the Cairo/Pango overlay and the input handling live in the
+-- daemon, which is what makes hold-and-release work at all.
 --
--- --switch-type workspace
---     TAB steps through WORKSPACES, not individual windows. With the default
---     (client) a single TAB can land on another window that looks identical —
---     this machine usually has two kitty windows open, so "one tab then release"
---     appeared to do nothing. Stepping by workspace makes every step a visible
---     change, and matches the SUPER+1..0 workspace keys right below.
+-- `--mod super` MUST match the modifier in the bind. The daemon watches that
+-- key to know when to commit. It is matched through XKB
+-- (xkb_state_mod_name_is_active on the name "super"), not by registering a
+-- Hyprland release bind, so this does not depend on Hyprland reporting a
+-- release event for a particular physical key name.
 --
--- --include-special-workspaces
---     The "magic" scratchpad (SUPER+S) is otherwise invisible to the switcher,
---     which means a window parked there could never be reached from SUPER+Tab.
+-- WHY THIS REPLACED HYPRSWITCH
+-- hyprswitch generated its own Hyprland submap while open, with the release to
+-- commit expressed as a bind carrying `release = true`. That bind needs
+-- `submap_universal = true` to fire while a submap is active; that flag was
+-- only added in upstream commit 3b5bb6a (2026-08-28), and no hyprswitch release
+-- contains it — v5.0.0, the newest tag, was cut before that commit. The
+-- installed binary still emitted `{ release = true, transparent = true }`, so
+-- letting go of SUPER did nothing on the first attempt and the overlay stayed
+-- up until a second try. Verified by `strings` on the installed binary.
+-- snappy-switcher never generates a submap at all, so the class of bug cannot
+-- occur here.
 --
--- --max-switch-offset 9
---     Number badges 1..9. The default of 6 cannot address a 7th+ entry, and
---     this setup regularly has more than six workspaces worth of windows.
-
+-- Escaping the old switcher also means the --switch-type workspace workaround
+-- is gone. That existed because stepping client-to-client could land on an
+-- identical-looking window; snappy groups tiled windows that share a workspace
+-- AND app class into a single card (`mode = context` in its config.ini), so the
+-- two kitty windows appear as one entry and every step is still a visible
+-- change.
 --
--- Hold SUPER and tap TAB to step through windows; release SUPER to switch to
+-- Hold SUPER and tap TAB to step through entries; release SUPER to switch to
 -- the highlighted one (or press Escape to abort). Shift+TAB steps backwards.
---
--- `--mod-key SUPER_L`, NOT `SUPER`. This is subtle and was a real bug here:
--- hyprswitch builds the submap with two different uses of the mod key. The
--- CYCLE binds go through get_mod_from_mod_key(), which maps both SuperL and
--- SuperR to the generic "SUPER" — so cycling works either way. But the
--- RELEASE bind is generated from the literal string: bind(main_mod,
--- mod_key.to_string(), "hyprswitch close", release=true). Passing "SUPER"
--- therefore registers a release bind for a key name Hyprland never reports
--- (the real key is SUPER_L), so letting go of Super did nothing the first
--- time — the submap stayed open and only closed on the next attempt. Upstream
--- issue #5 is exactly this, fixed by using the physical key name.
---
--- `--close mod-key-release` is the other load-bearing flag: hyprswitch defaults
--- to `--close default`, which requires pressing Enter to commit — the opposite
--- of the behaviour wanted here. Release-to-switch works at all because the
--- submap binds carry `release = true`.
---
--- WHY NOT ANYRUN ANY MORE
--- The previous switcher was `anyrun --plugins libstdin.so`. anyrun's window is a
--- layer-shell surface with keyboard_mode=Exclusive, so it grabs the keyboard and
--- Hyprland stops seeing modifier keys — the SUPER release is unobservable, and
--- no anyrun option changes that. The tradeoff accepted here: hyprswitch has no
--- text input, so typed fuzzy window search on this chord is gone. SUPER+SPACE
--- remains the unified menu.
---
-hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd(
-    "hyprswitch gui"
-    .. " --mod-key SUPER_L --key TAB"
-    .. " --close mod-key-release --reverse-key mod=shift"
-    .. " --switch-type workspace"
-    .. " --include-special-workspaces"
-    .. " --max-switch-offset 9"
-))
+-- No text search here: unlike anyrun on SUPER+SPACE, this is a pure cycle.
+hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd("snappy-switcher next --mod super"))
 -- Display management GUI (scale, position, multi-monitor alignment).
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("nwg-displays"))
 --
@@ -102,120 +83,7 @@ hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(launcher))
 
 -- Session
 --
--- Closing a window is the one bind here that destroys work, so it asks first.
---
--- A single SUPER+Q used to kill the focused window on the spot, which made one
--- mis-press cost the whole window. SUPER+Q now arms a confirmation instead: the
--- first press names the window in a toast, a second SUPER+Q on that same window
--- within CLOSE_CONFIRM_MS closes it, and anything else — waiting the toast out,
--- moving focus, closing the window some other way — drops the request.
---
--- Deliberately NOT a confirm submap. While a submap is active every keybind
--- that is not `submap_universal` stops matching, so a stray SUPER+Q would take
--- the whole SUPER layer offline until the submap is left again — the cure would
--- be worse than the disease. Keeping the pending state in plain Lua upvalues
--- leaves every other bind working and needs no escape hatch: doing nothing is
--- the cancel.
---
--- The address is captured at arm time and re-checked at confirm time, so
--- SUPER+Q SUPER+Q can only ever close the window the toast named. If focus
--- moved in between, the second press just re-arms for the window now in front
--- instead of closing something the user is no longer looking at.
-
-local CLOSE_CONFIRM_MS = 3000
-
--- Pending confirmation: the window it aims at (by address, so it does not
--- depend on a stale window object), the toast advertising it, and a sequence
--- number so a lapsed timer can tell a live arm from one it no longer owns.
-local closeArmed  = nil
-local closeArmSeq = 0
-
-local function closeArmCancel()
-    if not closeArmed then
-        return
-    end
-
-    if closeArmed.toast then
-        closeArmed.toast:dismiss()
-    end
-
-    closeArmed = nil
-end
-
-local function closeArmLabel(win)
-    local label = win.title
-    if label == nil or label == "" then
-        label = win.class
-    end
-    if label == nil or label == "" then
-        return "this window"
-    end
-
-    -- The overlay renders a single unwrapped line, so a long title would run
-    -- off the screen edge; cut it on a character boundary, not a byte one.
-    local cut = utf8.offset(label, 41)
-    if cut then
-        label = label:sub(1, cut - 1) .. "…"
-    end
-
-    return label
-end
-
--- Close the focused window, but only if the same window was already named by
--- a SUPER+Q press within the last CLOSE_CONFIRM_MS.
-local function closeWithConfirm()
-    local win = hl.get_active_window()
-    if not win then
-        return
-    end
-
-    if closeArmed and closeArmed.address == win.address then
-        local target = closeArmed.address
-
-        closeArmCancel()
-        -- Close by the address captured at arm time rather than "the active
-        -- window": the toast promised one specific window, and this cannot
-        -- drift onto a different one if focus moves before the dispatch runs.
-        hl.dispatch(hl.dsp.window.close({ window = "address:" .. target }))
-        return
-    end
-
-    -- Anything else arms a fresh confirmation for the window in front: the
-    -- very first press, a different window, or a toast whose time already ran
-    -- out. Re-arming is also the "no" path — nothing has to be pressed to
-    -- abort, the request simply expires.
-    closeArmCancel()
-
-    closeArmSeq = closeArmSeq + 1
-    local seq   = closeArmSeq
-
-    closeArmed = {
-        address = win.address,
-        seq     = seq,
-        toast   = hl.notification.create({
-            text     = ("Close %s? Press SUPER+Q again to confirm"):format(closeArmLabel(win)),
-            duration = CLOSE_CONFIRM_MS,
-            icon     = "warning",
-            color    = dra(DRA.yellow),
-        }),
-    }
-
-    -- One timer per press, left to fire rather than cancelled early. A oneshot
-    -- timer is unref'd and dropped by the config manager once it runs, whereas
-    -- disabling it would strand the handle in its timer table until the next
-    -- reload; and `set_enabled` cannot be called at config load time at all —
-    -- it dereferences an event loop manager that does not exist yet under
-    -- `--verify-config`, which crashes the verifier. A stale timer instead
-    -- compares its sequence number against the live arm and does nothing.
-    hl.timer(function()
-        if closeArmed and closeArmed.seq == seq then
-            closeArmCancel()
-        end
-    end, { timeout = CLOSE_CONFIRM_MS, type = "oneshot" })
-end
-
-hl.bind(mainMod .. " + Q", closeWithConfirm)
-
+hl.bind(mainMod .. " + Q", hl.dsp.window.close())
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd(lockCmd))
 -- SUPER+M is intentionally unbound. It used to open an actions-only anyrun run;
 -- those actions are in the unified menu now, so the chord is free.

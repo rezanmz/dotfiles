@@ -1,5 +1,12 @@
 -- Autostart.
 --
+-- hyprland.start is NOT the place for long-lived daemons. hl.exec_cmd sends
+-- their stdout/stderr to /dev/null and nothing restarts them, so a daemon that
+-- dies mid-session dies invisibly and forever. Anything that has to survive the
+-- session belongs in a systemd user unit instead — see
+-- dot_config/systemd/user/snappy-switcher.service for the shape. What is left
+-- here is only what is genuinely fine being fire-and-forget.
+--
 -- uwsm-managed services (waybar, hyprpaper, hypridle, cliphist, polkit agent)
 -- are started by systemd user units at graphical-session.target, so they are
 -- deliberately NOT duplicated here.
@@ -21,29 +28,15 @@ end)
 -- warning to that effect. It also pre-initialises the GPU resources so the
 -- first launch is not visibly slow.
 --
--- Not a systemd unit because the daemon is meaningless outside a graphical
--- session and anyrun owns its own lifetime.
+-- Still an exec here rather than a unit: anyrun's daemon answers one launcher
+-- prompt and holds no state worth recovering — if it is ever missing, the next
+-- SUPER+SPACE starts it again. That is the test for whether something needs a
+-- supervisor, and snappy-switcher (a resident IPC server) does not pass it.
 hl.on("hyprland.start", function()
     hl.exec_cmd("anyrun daemon")
 end)
 
--- hyprswitch daemon. Required, not optional: `hyprswitch gui` (the SUPER+Tab
--- bind in 60-binds.lua) sends its command to this daemon over a unix socket at
--- /run/user/1000/hyprswitch.sock and exits immediately with "Daemon not
--- running" if it is absent. The GUI, the window list and the submap that makes
--- release-to-switch work all live in the daemon process.
---
--- --custom-css is passed here rather than per-bind because the theme is a
--- daemon-level setting: hyprswitch reads the stylesheet once at init, so
--- changing dot_config/hyprswitch/style.css needs the daemon restarted, not the
--- keybinding re-pressed.
---
--- --show-title shows the window title instead of the class in the overview;
--- with several browser and terminal windows open, titles are what actually
--- distinguish them.
---
--- Same lifetime argument as anyrun above: meaningless outside a graphical
--- session, so it is an hl.on("hyprland.start") exec rather than a systemd unit.
-hl.on("hyprland.start", function()
-    hl.exec_cmd("hyprswitch init --show-title --custom-css " .. os.getenv("HOME") .. "/.config/hyprswitch/style.css")
-end)
+-- snappy-switcher, the SUPER+Tab window switcher, runs as the systemd user unit
+-- dot_config/systemd/user/snappy-switcher.service — see the note at the top of
+-- this file for why. Nothing to do here; `systemctl --user status
+-- snappy-switcher` is the thing to check when SUPER+Tab misbehaves.

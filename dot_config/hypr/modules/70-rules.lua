@@ -17,20 +17,23 @@ hl.layer_rule({
     ignore_alpha = true,
 })
 
--- hyprswitch (the SUPER+Tab window switcher). Same pair as anyrun above, for
--- the same reason: `blur` frosts the desktop behind the overview, and
+-- snappy-switcher (the SUPER+Tab window switcher). Same pair as anyrun above,
+-- for the same reason: `blur` frosts the desktop behind the overview, and
 -- `ignore_alpha` keeps that blur confined to the pixels actually drawn rather
 -- than the whole full-screen layer surface.
 --
 -- The overview is the one place where frosted glass genuinely earns its keep —
 -- it is a transient overlay you look *through* while deciding where to go, so
 -- the windows behind should stay legible as shapes while being clearly
--- out-of-focus. style.css keeps the outer frame translucent (0.62 alpha) so
--- there is something for the blur to sample; an opaque frame would make this
--- rule a no-op.
+-- out-of-focus. The card fills are overridden to translucent values in
+-- dot_config/snappy-switcher/config.ini for exactly this reason; a fully opaque
+-- card would give the blur nothing to sample and make this rule a no-op.
+--
+-- The namespace is the layer-surface name baked into the snappy-switcher
+-- binary, not the process or window title.
 hl.layer_rule({
-    name        = "hyprswitch-blur",
-    match       = { namespace = "^hyprswitch$" },
+    name        = "snappy-switcher-blur",
+    match       = { namespace = "^snappy-switcher$" },
     blur        = true,
     ignore_alpha = true,
 })

@@ -1,0 +1,43 @@
+[Unit]
+Description=snappy-switcher — window switcher for Hyprland (SUPER+Tab daemon)
+Documentation=https://github.com/OpalAayan/snappy-switcher
+PartOf=graphical-session.target
+After=graphical-session.target
+Requisite=graphical-session.target
+
+# A second instance takes the socket over and kills the first (single-instance
+# takeover). Cap restarts so this unit can never become that second instance in
+# a loop. These two belong in [Unit]: in [Service] systemd ignores them.
+StartLimitIntervalSec=30
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# The daemon is the whole point: the SUPER+Tab bind in 60-binds.lua is only an
+# IPC client and fails with "Daemon not running" if nothing is listening.
+#
+# It used to be started by an hl.on("hyprland.start") exec in 30-autostart.lua,
+# which had two problems: hl.exec_cmd sends stdout/stderr to /dev/null, so a
+# crash left no trace anywhere, and nothing ever restarted it — once it died,
+# SUPER+Tab stayed dead for the rest of the session, silently.
+#
+# A user unit next to udiskie/wl-clip-persist fixes both: Restart= brings it
+# back and the journal keeps its output.
+#   journalctl --user -u snappy-switcher
+# `make install-user` drops its own copy of this unit; this file replaces it
+# (see dot_config/snappy-switcher/config.ini).
+ExecStart=%h/.local/bin/snappy-switcher --daemon
+# Graceful IPC shutdown first so the layer surface is torn down cleanly rather
+# than dropped when SIGTERM lands. The `-` keeps a stop from being reported as a
+# failure when the daemon had already gone — the very case this unit exists to
+# recover from.
+ExecStop=-%h/.local/bin/snappy-switcher quit
+# always, not on-failure: the failure that matters is a silent exit with code 0
+# leaving SUPER+Tab dead for the rest of the session. A deliberate `systemctl
+# --user stop` does not restart, and StartLimitBurst still bounds a crash loop.
+Restart=always
+RestartSec=2
+Slice=session.slice
+
+[Install]
+WantedBy=graphical-session.target

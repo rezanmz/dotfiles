@@ -15,16 +15,8 @@ Popup {
     name: "media"
     contentWidth: 380
 
-    readonly property var player: {
-        const players = Mpris.players.values;
-        if (players.length === 0)
-            return null;
-        for (let i = 0; i < players.length; i++) {
-            if (players[i].isPlaying)
-                return players[i];
-        }
-        return players[0];
-    }
+    // Shared with the bar widget and the media keys (Player.qml).
+    readonly property var player: Player.player
 
     component IconButton: Text {
         id: button

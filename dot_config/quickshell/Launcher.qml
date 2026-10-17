@@ -175,9 +175,10 @@ Scope {
         ];
     }
 
-    // Frecency value: launch count decayed by the age of the last launch, so
-    // "most used first" still reacts to something launched once this morning
-    // versus fifty times last month. 0 for never launched.
+    // Recency first, count as the tie-break. Reza's ask was "populate it with the
+    // most recent items": a count-weighted score (the previous behaviour) could
+    // keep something launched fifty times last month above the thing launched
+    // five minutes ago, which is not what an empty search box should show.
     function frecencyValue(id: string): real {
         const rec = root.frecency[id];
         if (rec === undefined)
@@ -188,8 +189,17 @@ Scope {
 
     function byFrecency(entries: var): var {
         const out = entries.slice();
-        // Stable sort: never-launched apps keep their natural order at the tail.
-        out.sort((a, b) => root.frecencyValue(b.id) - root.frecencyValue(a.id));
+        out.sort((a, b) => {
+            const ra = root.frecency[a.id];
+            const rb = root.frecency[b.id];
+            const la = ra === undefined ? -1 : ra.last;
+            const lb = rb === undefined ? -1 : rb.last;
+            if (la !== lb)
+                return lb - la;
+            // Same moment (or both never launched): the decayed score decides,
+            // then the natural order.
+            return root.frecencyValue(b.id) - root.frecencyValue(a.id);
+        });
         return out;
     }
 

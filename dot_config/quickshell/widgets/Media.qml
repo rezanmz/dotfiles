@@ -21,20 +21,10 @@ BarItem {
     panel: "media"
     panelButton: Qt.MiddleButton
 
-    readonly property var player: {
-        const players = Mpris.players.values;
-        if (players.length === 0)
-            return null;
-        // Prefer whatever is actually playing; fall back to the first player so
-        // a paused track is still visible.
-        for (let i = 0; i < players.length; i++) {
-            if (players[i].isPlaying)
-                return players[i];
-        }
-        return players[0];
-    }
-
-    readonly property bool playing: root.player !== null && root.player.isPlaying
+    // Which player, and whether it is playing, come from the Player singleton so
+    // the bar, the panel and the media keys cannot disagree.
+    readonly property var player: Player.player
+    readonly property bool playing: Player.playing
 
     readonly property string dynamic: {
         if (!root.player)

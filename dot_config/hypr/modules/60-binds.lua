@@ -58,9 +58,11 @@ hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 -- tapping twice goes back two windows); release SUPER to switch, Escape to abort,
 -- or click a card. Windows on other workspaces are labelled with where they are.
 hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd("qs ipc call switcher toggle"))
--- Picture-in-picture: a floating live view of another workspace (SUPER+W cycles
--- through the workspaces that hold windows and closes when there are no more).
-hl.bind(mainMod .. " + W", hl.dsp.exec_cmd("qs ipc call pip cycleOther"))
+-- Picture-in-picture has no bind: it is dragged out of the bar. Press a
+-- workspace pill and pull downward and a floating live view of that workspace
+-- comes with the pointer (see dot_config/quickshell/PiP.qml); it stays where it
+-- is dropped, and can be dragged, resized, switched to or closed from its own
+-- header. `qs ipc call pip open <workspace id>` still exists for scripts.
 -- Display management GUI (scale, position, multi-monitor alignment).
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("nwg-displays"))
 --
@@ -306,10 +308,13 @@ hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),      { locked = true, repeating = true })
 hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),     { locked = true, repeating = true })
 hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),   { locked = true, repeating = true })
-hl.bind("XF86AudioPlay",        hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
-hl.bind("XF86AudioPause",       hl.dsp.exec_cmd("playerctl play-pause"), { locked = true })
-hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),       { locked = true })
-hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
+-- Transport goes through the shell (MPRIS) rather than playerctl: playerctl was
+-- a dependency of waybar and went with it, which silently broke these keys. The
+-- shell is the media client now, so the keys ask it (`qs ipc call player ...`).
+hl.bind("XF86AudioPlay",        hl.dsp.exec_cmd("qs ipc call player toggle"),   { locked = true })
+hl.bind("XF86AudioPause",       hl.dsp.exec_cmd("qs ipc call player toggle"),   { locked = true })
+hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("qs ipc call player next"),     { locked = true })
+hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("qs ipc call player previous"), { locked = true })
 
 -- Utilities.
 -- Notification centre: the shell keeps the history itself now (it is the

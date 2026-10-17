@@ -116,6 +116,10 @@ Item {
         root.hoverCount++;
         root.pillHovered = true;
         hideTimer.stop();
+
+        // Every pill previews, including the workspace you are on — that is what
+        // was asked for, and it is genuinely useful when the window you care about
+        // is buried under others.
         const bottom = pill.mapToGlobal(pill.width / 2, pill.height);
         root.previewX = bottom.x;
         root.previewY = bottom.y;
@@ -163,7 +167,9 @@ Item {
     Timer {
         id: hoverTimer
 
-        interval: 1200
+        // Half a second: long enough not to fire while the pointer crosses the
+        // pills on its way somewhere else, short enough to feel like a glance.
+        interval: 500
         onTriggered: {
             if (root.pillHovered)
                 root.previewShown = true;
@@ -277,9 +283,60 @@ Item {
                 }
 
                 MouseArea {
+                    id: pillMouse
+
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: pill.modelData.activate()
+
+                    // Drag a pill downward to pull a floating live view of that
+                    // workspace out of the bar (PiP.qml); a plain click still
+                    // switches to it.
+                    property bool dragging: false
+                    property bool suppressClick: false
+
+                    onClicked: {
+                        if (pillMouse.suppressClick) {
+                            pillMouse.suppressClick = false;
+                            return;
+                        }
+                        pill.modelData.activate();
+                    }
+
+                    onPressed: pillMouse.dragging = false
+
+                    onPositionChanged: mouse => {
+                        // Screen coordinates, so the window tracks the pointer
+                        // one-to-one while it is pulled down.
+                        const pointer = pillMouse.mapToGlobal(mouse.x, mouse.y);
+                        if (!pillMouse.dragging) {
+                            // A few pixels of slop before it counts as a drag.
+                            if (mouse.y < 20)
+                                return;
+                            pillMouse.dragging = true;
+                            PiP.beginDrag(pill.modelData.id, pointer.x, pointer.y);
+                        } else {
+                            PiP.dragTo(pointer.x, pointer.y);
+                        }
+                    }
+
+                    onReleased: {
+                        if (pillMouse.dragging) {
+                            PiP.endDrag();
+                            pillMouse.dragging = false;
+                            // The release happens over the floating window, so no
+                            // click follows — but if it does not, do not also
+                            // switch workspaces.
+                            pillMouse.suppressClick = true;
+                        }
+                    }
+
+                    onCanceled: {
+                        if (pillMouse.dragging) {
+                            PiP.endDrag();
+                            pillMouse.dragging = false;
+                            pillMouse.suppressClick = true;
+                        }
+                    }
                 }
             }
         }

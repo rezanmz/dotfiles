@@ -30,8 +30,8 @@ ShellRoot {
     // SUPER+Tab: live workspace thumbnails, most-recently-used order.
     Switcher {}
 
-    // SUPER+W: a floating live view of another workspace.
-    PiP {}
+    // Dragged out of the bar: a floating live view of another workspace.
+    PiPWindow {}
 
     // Created while something is popping up, destroyed when the stack empties:
     // an idle window costs the same ~11 MiB as a busy one.

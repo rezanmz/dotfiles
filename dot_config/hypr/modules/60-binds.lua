@@ -4,7 +4,8 @@
 --   SUPER+RETURN  terminal          SUPER+SPACE  unified menu
 --   SUPER+SHIFT+D displays          SUPER+B  bluetooth
 --   SUPER+Tab     window switcher (snappy-switcher, hold and release)
---   SUPER+Q       close window      SUPER+E  file manager
+--   SUPER+Q twice close window (confirm)   SUPER+E  file manager
+--   SUPER+SHIFT+Q twice exit Hyprland (confirm)
 --   SUPER+L       lock
 --   SUPER+1..0    workspaces        SUPER+SHIFT+1..0  move window to workspace
 --   SUPER+S       scratchpad (magic)   SUPER+0  workspace 10 (mail)
@@ -83,11 +84,165 @@ hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(launcher))
 
 -- Session
 --
-hl.bind(mainMod .. " + Q", hl.dsp.window.close())
+-- Two binds here destroy something the user cannot get back: closing a window
+-- (SUPER+Q) and ending the session (SUPER+SHIFT+Q). Both ask first.
+--
+-- Each arms a confirmation: the first press names what is about to go away in
+-- a toast, the second press of the same chord within CONFIRM_MS does it, and
+-- anything else — waiting the toast out, moving on to other work — drops the
+-- request. One engine drives both chords; only the wording and the action
+-- differ.
+--
+-- WHY NOT A CONFIRM SUBMAP
+-- While a submap is active every keybind that is not `submap_universal` stops
+-- matching, so a stray SUPER+Q would take the whole SUPER layer offline until
+-- the submap is left again — the cure would be worse than the disease. Keeping
+-- the pending state in plain Lua upvalues leaves every other bind working and
+-- needs no escape hatch: doing nothing is the cancel.
+--
+-- Close uses a window-scoped arm whose target address is captured at arm time
+-- and re-checked at confirm time, so SUPER+Q SUPER+Q can only ever close the
+-- window the toast named. If focus moved in between, the second press re-arms
+-- for the window now in front instead of closing something the user is no
+-- longer looking at. Exit has no target: the arm simply names the action.
+
+local CONFIRM_MS = 3000
+
+-- Pending confirmation: the action it will run, the key that must be pressed
+-- again to run it, the toast advertising it, and a sequence number so a lapsed
+-- timer can tell a live arm from one it no longer owns.
+local confirmArmed = nil
+local confirmSeq   = 0
+
+local function confirmCancel()
+    if not confirmArmed then
+        return
+    end
+
+    if confirmArmed.toast then
+        confirmArmed.toast:dismiss()
+    end
+
+    confirmArmed = nil
+end
+
+local function confirmLabel(win)
+    local label = win.title
+    if label == nil or label == "" then
+        label = win.class
+    end
+    if label == nil or label == "" then
+        return "this window"
+    end
+
+    -- The overlay renders a single unwrapped line, so a long title would run
+    -- off the screen edge; cut it on a character boundary, not a byte one.
+    local cut = utf8.offset(label, 41)
+    if cut then
+        label = label:sub(1, cut - 1) .. "…"
+    end
+
+    return label
+end
+
+-- Arm `action` behind a second press of the same chord: the caller only has to
+-- pass what the toast should say, what is being armed (so an arm for one thing
+-- can never be confirmed by a press meant for another), and the work itself.
+local function confirmArm(chord, text, key, action)
+    confirmCancel()
+
+    confirmSeq = confirmSeq + 1
+    local seq  = confirmSeq
+
+    confirmArmed = {
+        chord  = chord,
+        key    = key,
+        action = action,
+        seq    = seq,
+        toast  = hl.notification.create({
+            text     = text,
+            duration = CONFIRM_MS,
+            icon     = "warning",
+            color    = dra(DRA.yellow),
+        }),
+    }
+
+    -- One timer per press, left to fire rather than cancelled early. A oneshot
+    -- timer is unref'd and dropped by the config manager once it runs, whereas
+    -- disabling it would strand the handle in its timer table until the next
+    -- reload; and `set_enabled` cannot be called at config load time at all —
+    -- it dereferences an event loop manager that does not exist yet under
+    -- `--verify-config`, which crashes the verifier. A stale timer instead
+    -- compares its sequence number against the live arm and does nothing.
+    hl.timer(function()
+        if confirmArmed and confirmArmed.seq == seq then
+            confirmCancel()
+        end
+    end, { timeout = CONFIRM_MS, type = "oneshot" })
+end
+
+-- The armed action of this chord, if the press is a repeat of the one that
+-- armed it. Keyed on the target so one chord's armed request can never be
+-- confirmed by another — and so arming a different window re-arms instead of
+-- closing the wrong one.
+local function confirmTake(chord, key)
+    if not confirmArmed or confirmArmed.chord ~= chord or confirmArmed.key ~= key then
+        return nil
+    end
+
+    local armed = confirmArmed
+    confirmCancel()
+    return armed.action
+end
+
+-- Close the focused window, but only after the same window was named by a
+-- SUPER+Q press within the last CONFIRM_MS.
+local function closeWithConfirm()
+    local win = hl.get_active_window()
+    if not win then
+        return
+    end
+
+    local action = confirmTake("close", win.address)
+    if action then
+        action()
+        return
+    end
+
+    -- Anything else arms a fresh confirmation for the window in front: the
+    -- very first press, a different window, or a toast whose time already ran
+    -- out. Re-arming is also the "no" path — nothing has to be pressed to
+    -- abort, the request simply expires.
+    local target = win.address
+
+    confirmArm("close", ("Close %s? Press SUPER+Q again to confirm"):format(confirmLabel(win)), target, function()
+        -- Close by the address captured at arm time rather than "the active
+        -- window": the toast promised one specific window, and this cannot
+        -- drift onto a different one if focus moves before the dispatch runs.
+        hl.dispatch(hl.dsp.window.close({ window = "address:" .. target }))
+    end)
+end
+
+-- End the session, but only after a SUPER+SHIFT+Q press within the last
+-- CONFIRM_MS. The armed key is a constant because unlike a window there is
+-- exactly one session to end, so any confirm press is a press for it.
+local function exitWithConfirm()
+    local action = confirmTake("exit", "session")
+    if action then
+        action()
+        return
+    end
+
+    confirmArm("exit", "Exit Hyprland? Press SUPER+SHIFT+Q again to confirm", "session", function()
+        hl.dispatch(hl.dsp.exit())
+    end)
+end
+
+hl.bind(mainMod .. " + Q", closeWithConfirm)
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd(lockCmd))
 -- SUPER+M is intentionally unbound. It used to open an actions-only anyrun run;
 -- those actions are in the unified menu now, so the chord is free.
-hl.bind(mainMod .. " + SHIFT + Q", hl.dsp.exit())
+hl.bind(mainMod .. " + SHIFT + Q", exitWithConfirm)
 
 -- Window management
 hl.bind(mainMod .. " + F",          hl.dsp.window.fullscreen({ mode = "fullscreen", action = "toggle" }))

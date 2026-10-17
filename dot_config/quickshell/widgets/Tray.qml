@@ -10,9 +10,10 @@ import Quickshell.Widgets
 // icon grows into free space to its right instead of pushing the readouts the
 // user is actually watching leftwards.
 //
-// Left click activates the item, right click opens its DBus menu through
-// SystemTrayItem.display() — the menu is the application's own, so no menu has
-// to be modelled here.
+// Left click opens the item's DBus menu when it has one and otherwise activates
+// it; middle click always activates; right click opens the menu. The menu is the
+// application's own, shown through SystemTrayItem.display(), so no menu has to
+// be modelled here.
 Item {
     id: root
 
@@ -60,23 +61,37 @@ Item {
                     height: root.iconSize + 6
                     radius: Theme.radius
                     color: hover.hovered ? Theme.hoverBg : "transparent"
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: Theme.animationFast
+                        }
+                    }
                     z: -1
                 }
 
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                    cursorShape: Qt.PointingHandCursor
 
                     onClicked: mouse => {
-                        // Menu coordinates are relative to the bar window, which
-                        // is the popup's parent.
-                        const position = slot.mapToItem(null, 0, slot.height);
-                        if (mouse.button === Qt.RightButton && slot.modelData.hasMenu)
-                            slot.modelData.display(Panels.barWindow, position.x, position.y);
-                        else if (mouse.button === Qt.LeftButton && slot.modelData.onlyMenu && slot.modelData.hasMenu)
-                            slot.modelData.display(Panels.barWindow, position.x, position.y);
-                        else if (mouse.button === Qt.LeftButton)
-                            slot.modelData.activate();
+                        // udiskie's item advertises org.kde.StatusNotifierItem.Activate(ii)
+                        // but the bus answers "Call failed: No handler for Activate" — its
+                        // activation is a stub and only its dbusmenu is real. So the menu is
+                        // the primary left-click action whenever the item has one, and
+                        // activate() is just the fallback (and the middle-click action).
+                        const item = slot.modelData;
+                        if (mouse.button === Qt.MiddleButton) {
+                            item.activate();
+                        } else if (item.hasMenu) {
+                            // Drawn by the shell (TrayMenu.qml + panels/Tray.qml) rather
+                            // than handed to Qt's platform menu renderer, which needs
+                            // QApplication mode and looks nothing like the rest of the
+                            // desktop.
+                            TrayMenu.openFor(item, slot);
+                        } else if (mouse.button === Qt.LeftButton) {
+                            item.activate();
+                        }
                     }
                     onWheel: wheel => slot.modelData.scroll(wheel.angleDelta.y, false)
                 }

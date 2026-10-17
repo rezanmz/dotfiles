@@ -4,7 +4,7 @@
 -- their stdout/stderr to /dev/null and nothing restarts them, so a daemon that
 -- dies mid-session dies invisibly and forever. Anything that has to survive the
 -- session belongs in a systemd user unit instead — see
--- dot_config/systemd/user/snappy-switcher.service for the shape. What is left
+-- dot_config/systemd/user/quickshell.service for the shape. What is left
 -- here is only what is genuinely fine being fire-and-forget.
 --
 -- uwsm-managed services (quickshell, hyprpaper, hypridle, cliphist, polkit
@@ -26,7 +26,7 @@ end)
 -- there is nothing to start here: quickshell.service is the only process, and it
 -- answers `qs ipc call launcher ...` from the keybinds.
 
--- snappy-switcher, the SUPER+Tab window switcher, runs as the systemd user unit
--- dot_config/systemd/user/snappy-switcher.service — see the note at the top of
--- this file for why. Nothing to do here; `systemctl --user status
--- snappy-switcher` is the thing to check when SUPER+Tab misbehaves.
+-- The SUPER+Tab switcher is part of the shell now (Switcher.qml), so there is no
+-- daemon to supervise: quickshell.service is the only process involved, and
+-- `systemctl --user status quickshell` is what to check when SUPER+Tab
+-- misbehaves. snappy-switcher, its socket, its config and its unit are gone.

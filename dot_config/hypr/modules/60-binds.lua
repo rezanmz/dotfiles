@@ -33,40 +33,31 @@ hl.bind(mainMod .. " + E",      hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 -- Window switcher: hold-and-release, the Alt-Tab muscle memory.
 --
--- `snappy-switcher next` is only an IPC client: it hands the command to the
--- daemon started in 30-autostart.lua over a unix socket and returns at once.
--- The window list, the Cairo/Pango overlay and the input handling live in the
--- daemon, which is what makes hold-and-release work at all.
+-- The switcher is part of the shell now (dot_config/quickshell/Switcher.qml).
+-- `qs ipc call switcher toggle` opens the overlay; the shell's own overlay takes
+-- keyboard focus, so it sees the TAB taps and, crucially, the SUPER *release*
+-- that commits the switch. That is what the old `--mod super` argument was for:
+-- snappy-switcher watched the modifier itself because Hyprland's release binds
+-- were unreliable (see below). Nothing watches XKB here — Qt receives the
+-- release because the overlay holds keyboard focus.
 --
--- `--mod super` MUST match the modifier in the bind. The daemon watches that
--- key to know when to commit. It is matched through XKB
--- (xkb_state_mod_name_is_active on the name "super"), not by registering a
--- Hyprland release bind, so this does not depend on Hyprland reporting a
--- release event for a particular physical key name.
+-- WHY THE OLD SWITCHER IS GONE
+-- snappy-switcher was a separate daemon with its own IPC socket, config file and
+-- layer surface, and it drew a snapshot rather than live content. The shell can
+-- do all of it with the theme it already has, and with live thumbnails: each
+-- card is a ScreencopyView capturing the window as it is right now.
 --
--- WHY THIS REPLACED HYPRSWITCH
--- hyprswitch generated its own Hyprland submap while open, with the release to
--- commit expressed as a bind carrying `release = true`. That bind needs
--- `submap_universal = true` to fire while a submap is active; that flag was
--- only added in upstream commit 3b5bb6a (2026-08-28), and no hyprswitch release
--- contains it — v5.0.0, the newest tag, was cut before that commit. The
--- installed binary still emitted `{ release = true, transparent = true }`, so
--- letting go of SUPER did nothing on the first attempt and the overlay stayed
--- up until a second try. Verified by `strings` on the installed binary.
--- snappy-switcher never generates a submap at all, so the class of bug cannot
--- occur here.
+-- (It replaced hyprswitch, which generated its own submap while open, with the
+-- release-to-commit expressed as a bind carrying `release = true`. That bind
+-- needs `submap_universal = true` to fire while a submap is active; the flag was
+-- only added upstream in 3b5bb6a (2026-08-28) and no hyprswitch release contains
+-- it, so letting go of SUPER did nothing on the first attempt. snappy-switcher
+-- never generated a submap, and neither does this.)
 --
--- Escaping the old switcher also means the --switch-type workspace workaround
--- is gone. That existed because stepping client-to-client could land on an
--- identical-looking window; snappy groups tiled windows that share a workspace
--- AND app class into a single card (`mode = context` in its config.ini), so the
--- two kitty windows appear as one entry and every step is still a visible
--- change.
---
--- Hold SUPER and tap TAB to step through entries; release SUPER to switch to
--- the highlighted one (or press Escape to abort). Shift+TAB steps backwards.
--- No text search here: unlike anyrun on SUPER+SPACE, this is a pure cycle.
-hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd("snappy-switcher next --mod super"))
+-- Hold SUPER and tap TAB to step through windows (most-recently-used order, so
+-- tapping twice goes back two windows); release SUPER to switch, Escape to abort,
+-- or click a card. Windows on other workspaces are labelled with where they are.
+hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd("qs ipc call switcher toggle"))
 -- Display management GUI (scale, position, multi-monitor alignment).
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("nwg-displays"))
 --

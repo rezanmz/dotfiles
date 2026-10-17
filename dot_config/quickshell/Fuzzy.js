@@ -1,7 +1,7 @@
 .pragma library
 
 // Ranking for the launcher, replacing anyrun's rink plugin. Pure JS on
-// purpose: the QML side only calls score()/rank(), and keeping the matcher out
+// purpose: the QML side only calls scoreFields()/rank(), and keeping the matcher out
 // of QML means it can be exercised from a plain JS harness without spinning up
 // the shell.
 //
@@ -120,19 +120,62 @@ function score(query, target) {
     return s > 0 ? s : 0;
 }
 
-// Entries sorted best-first, non-matches dropped. keyFn(entry) is called once
-// per entry. An empty query keeps the caller's order untouched — the launcher
-// has a meaningful natural order that re-sorting would destroy — and ties keep
+// Multi-field, multi-token match score. `fields` is [{ text, weight }, ...],
+// e.g. an application's name, genericName, keywords, comment and exec basename.
+//
+// A whitespace-separated query is an AND over its tokens: every token must
+// match at least one field, and each token contributes the best
+// field-score * field-weight it can get from any single field. Keeping tokens
+// to one field each is what makes "web bro" match "Web Browser" in a
+// genericName while "file man" matches "File Manager" in a name, and keeping
+// fields separate (one entry per keyword) stops a token from matching across
+// keyword boundaries. The weights order the fields: the caller gives the name
+// the biggest weight so a name hit outranks an equally good comment hit.
+// Returns -1 if any token finds no home anywhere.
+function scoreFields(query, fields) {
+    if (!query)
+        return 0;
+
+    const tokens = query.toLowerCase().split(/\s+/).filter(t => t !== "");
+    if (tokens.length === 0)
+        return 0;
+
+    let total = 0;
+    for (let k = 0; k < tokens.length; k++) {
+        let best = NEG;
+        for (let i = 0; i < fields.length; i++) {
+            const s = score(tokens[k], fields[i].text);
+            if (s < 0)
+                continue;
+            const w = s * fields[i].weight;
+            if (w > best)
+                best = w;
+        }
+        if (best === NEG)
+            return -1;
+        total += best;
+    }
+    return total;
+}
+
+// Entries sorted best-first, non-matches dropped. fieldsFn(entry) is called
+// once per entry and returns the scoreFields() field list; boostFn(entry), if
+// given, is a small non-negative number added to the score (used as a
+// frecency tie-break that must never outweigh match quality).
+// An empty query keeps the caller's order untouched — the launcher has a
+// meaningful frecency order that re-sorting would destroy — and ties keep
 // the input order too (the comparator falls back to the original index).
-function rank(query, entries, keyFn) {
+function rank(query, entries, fieldsFn, boostFn) {
     if (!query)
         return entries.slice();
 
     const pairs = [];
     for (let i = 0; i < entries.length; i++) {
-        const s = score(query, keyFn(entries[i]));
-        if (s >= 0)
-            pairs.push([entries[i], s, i]);
+        const s = scoreFields(query, fieldsFn(entries[i]));
+        if (s >= 0) {
+            const boost = boostFn ? boostFn(entries[i]) : 0;
+            pairs.push([entries[i], s + boost, i]);
+        }
     }
     pairs.sort((a, b) => (b[1] - a[1]) || (a[2] - b[2]));
 

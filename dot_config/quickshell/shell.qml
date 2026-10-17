@@ -1,3 +1,6 @@
+// No `//@ pragma UseQApplication`: that was only needed to hand the tray's
+// dbusmenu to Qt's platform menu renderer. The menu is drawn by the shell now
+// (TrayMenu.qml + panels/Tray.qml), so QtWidgets is not pulled in at all.
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
@@ -24,6 +27,9 @@ ShellRoot {
         delegate: Bar {}
     }
 
+    // SUPER+Tab: live window thumbnails, most-recently-used order.
+    Switcher {}
+
     // Created while something is popping up, destroyed when the stack empties:
     // an idle window costs the same ~11 MiB as a busy one.
     LazyLoader {
@@ -41,7 +47,7 @@ ShellRoot {
     // destroyed when it closes. The compiled component is cached, so this is
     // window setup, not a re-parse.
     Variants {
-        model: ["system", "audio", "bluetooth", "notifications", "media", "network", "calendar"]
+        model: ["system", "audio", "bluetooth", "notifications", "media", "network", "calendar", "tray"]
 
         delegate: LazyLoader {
             required property string modelData
@@ -88,6 +94,11 @@ ShellRoot {
         Calendar {}
     }
 
+    Component {
+        id: trayPanel
+        Tray {}
+    }
+
     function panelComponent(name: string): var {
         switch (name) {
         case "system":
@@ -104,6 +115,8 @@ ShellRoot {
             return networkPanel;
         case "calendar":
             return calendarPanel;
+        case "tray":
+            return trayPanel;
         }
         return null;
     }

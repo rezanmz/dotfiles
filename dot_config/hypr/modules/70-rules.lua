@@ -39,30 +39,19 @@ hl.layer_rule({
     ignore_alpha = true,
 })
 
--- snappy-switcher (the SUPER+Tab window switcher). Same pair as anyrun above,
--- for the same reason: `blur` frosts the desktop behind the overview, and
--- `ignore_alpha` keeps that blur confined to the pixels actually drawn rather
--- than the whole full-screen layer surface.
+-- The switcher overlay (quickshell). Same pair again: the overlay is a
+-- translucent dim over the whole screen and the cards are drawn on top, so the
+-- blur frosts the desktop behind and ignore_alpha keeps it confined to the drawn
+-- pixels rather than the transparent parts of the surface.
 --
--- The overview is the one place where frosted glass genuinely earns its keep —
--- it is a transient overlay you look *through* while deciding where to go, so
--- the windows behind should stay legible as shapes while being clearly
--- out-of-focus. The card fills are overridden to translucent values in
--- dot_config/snappy-switcher/config.ini for exactly this reason; a fully opaque
--- card would give the blur nothing to sample and make this rule a no-op.
---
--- The namespace is the layer-surface name baked into the snappy-switcher
--- binary, not the process or window title.
+-- This replaced snappy-switcher's rule; the namespace comes from
+-- WlrLayershell.namespace in Switcher.qml.
 hl.layer_rule({
-    name        = "snappy-switcher-blur",
-    match       = { namespace = "^snappy-switcher$" },
-    blur        = true,
+    name         = "quickshell-switcher-blur",
+    match        = { namespace = "^quickshell-switcher$" },
+    blur         = true,
     ignore_alpha = true,
 })
-
--- The daemon is started from 30-autostart.lua, not here; a layer rule for a
--- surface that does not exist yet is harmless, but the ordering below the two
--- rules matters more than this comment.
 
 -- Suppress maximize requests: Hyprland's own fullscreen state is authoritative
 -- and apps that force-maximize fight the tiler.

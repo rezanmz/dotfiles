@@ -31,8 +31,7 @@ elif [[ "$OSTYPE" == linux* ]]; then
   alias ls='ls -ltrh --color=auto'
 fi
 
-# omp model profiles: daily driver by default, heavy models on demand.
-alias omp-heavy='omp --config "$HOME/.omp/agent/heavy.yml"'
+# omp is the daily driver; all model roles live in ~/.omp/agent/config.yml.
 
 # Load the prompt only when it is present.
 [[ -r "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"

@@ -14,7 +14,7 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/hypr/modules/00-theme.lua` | Dracula palette and the `dra()` colour helper |
 | `dot_config/hypr/modules/10-monitors.lua` | Output modes (Dell U3225QE, 3840x2160@120) |
 | `dot_config/hypr/modules/20-env.lua` | Wayland/Electron/Firefox environment variables |
-| `dot_config/hypr/modules/30-autostart.lua` | App autostart (Thunderbird on workspace 10, anyrun daemon) |
+| `dot_config/hypr/modules/30-autostart.lua` | App autostart (Thunderbird on workspace 10); the shell runs as `quickshell.service`, not from here |
 | `dot_config/hypr/modules/40-look.lua` | Gaps, borders, shadows, blur, animations |
 | `dot_config/hypr/modules/50-input.lua` | Keyboard layout, pointer settings |
 | `dot_config/hypr/modules/60-binds.lua` | Keybindings |
@@ -22,17 +22,17 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/hypr/hyprpaper.conf` | Wallpaper (`wallpaper { }` blocks) |
 | `dot_config/hypr/hypridle.conf` | DPMS off, lock, and suspend timers |
 | `dot_config/hypr/hyprlock.conf` | Lock screen |
-| `dot_config/waybar/` | Status bar config and Dracula stylesheet |
-| `dot_config/dunst/dunstrc` | Notifications |
-| `dot_config/anyrun/` | Launcher (applications, calculator, actions, symbols); `stdin` mode replaces `dmenu` |
-| `dot_config/systemd/user/` | `wl-clip-persist.service`, `udiskie.service` |
+| `dot_config/quickshell/` | Desktop shell — one `quickshell` process: bar, notification popups and centre, OSD, launcher (apps + `cliphist`); replaces waybar, dunst, anyrun and the `gpu-usage`, `net-speed`, `notif-history`, `clipboard-pick` helpers |
+| `dot_config/systemd/user/` | `quickshell.service`, `snappy-switcher.service`, `wl-clip-persist.service`, `udiskie.service` |
 | `dot_config/udiskie/` | Removable-drive automount (USB sticks, SD cards) |
-| `dot_local/bin/executable_*` | `screenshot`, `clipboard-pick`, `notif-history`, `gpu-usage`, `ly-theme` |
-| `dot_config/hyprswitch/` | Window switcher theme (SUPER+Tab) |
+| `dot_local/bin/executable_*` | `screenshot`, `record-toggle`, `set-wallpaper`, `wifi-tune`, `gdrive-export`, `ly-theme` |
+| `dot_config/snappy-switcher/` | Window switcher config (SUPER+Tab, `snappy-switcher` daemon) |
 | `dot_config/gtk-3.0`, `dot_config/gtk-4.0` | GTK theme, icons, cursor |
 | `dot_config/chrome-flags.conf` | Forces Chrome onto the native Wayland backend |
 
-`PACKAGES.md` lists package prerequisites; chezmoi never installs packages.
+`PACKAGES.md` lists package prerequisites; chezmoi never installs packages. The
+shell is driven from `60-binds.lua` through `qs ipc`: `SUPER+SPACE` toggles the
+launcher, `SUPER+C` the clipboard history, `SUPER+N` the notification centre.
 
 Hyprland 0.55+ reads `hyprland.lua` in preference to `hyprland.conf`. Note that
 Hyprland's Lua `require()` resolves against the **current working directory**
@@ -51,11 +51,12 @@ Run `Hyprland --verify-config -c ~/.config/hypr/hyprland.lua` from
 `~/.config/hypr` as a quick syntax check only.
 
 The session must start through `uwsm` (the "Hyprland (uwsm-managed)" entry in
-the display manager) so that waybar, hyprpaper, hypridle, cliphist and the
-polkit agent run as `graphical-session.target` user units. Enable them once:
+the display manager) so that quickshell, snappy-switcher, hyprpaper, hypridle,
+cliphist and the polkit agent run as `graphical-session.target` user units.
+Enable them once:
 
 ```sh
-systemctl --user enable --now waybar hyprpaper hypridle cliphist hyprpolkitagent wl-clip-persist udiskie
+systemctl --user enable --now quickshell snappy-switcher hyprpaper hypridle cliphist hyprpolkitagent wl-clip-persist udiskie
 ```
 
 ## System tuning (not chezmoi-managed)
@@ -403,11 +404,11 @@ it, which is a different experience from every other workspace keybinding.
 
 ### Display manager (ly) must launch the uwsm session
 
-Seven desktop units (waybar, hyprpaper, hypridle, cliphist, wl-clip-persist,
-udiskie, hyprpolkitagent) declare `Requisite=graphical-session.target`, which uwsm sets
-up. Launched from a plain `Hyprland` session they **cannot** start at all, so
-the desktop comes up without a bar, wallpaper, lock timers, clipboard history or
-polkit agent.
+Eight desktop units (quickshell, snappy-switcher, hyprpaper, hypridle, cliphist,
+wl-clip-persist, udiskie, hyprpolkitagent) hook `graphical-session.target`
+(`Requisite=` or `PartOf=`), which uwsm sets up. Launched from a plain
+`Hyprland` session they **cannot** start at all, so the desktop comes up without
+a bar, wallpaper, lock timers, clipboard history or polkit agent.
 
 `~/.config/uwsm/default-id` only affects `uwsm start default`; it does **not**
 change what ly launches. ly stores its choice by *index* into a list it builds
@@ -495,9 +496,9 @@ This is a public repository. Never add passwords, API keys, bearer values, OAuth
 
 ## Profiles and optional fonts
 
-`machine=work` is the conservative profile: personal-only integrations and private mounts are not managed, and network access remains opt-in. `machine=personal` may opt into the MCP booleans explicitly. The Linux Hyprland, waybar, dunst, anyrun, GTK, fontconfig, systemd-user, and `.local/bin` files are gated by `.chezmoiignore` outside Linux.
+`machine=work` is the conservative profile: personal-only integrations and private mounts are not managed, and network access remains opt-in. `machine=personal` may opt into the MCP booleans explicitly. The Linux Hyprland, quickshell, GTK, fontconfig, systemd-user, and `.local/bin` files are gated by `.chezmoiignore` outside Linux.
 
-Fonts are not vendored. Install Hack Nerd Font (`ttf-hack-nerd`) through the platform package manager; waybar and the terminals need its glyphs. The wallpaper at `~/.local/share/wallpapers/current.png` is machine-local and not vendored. B Nazanin is an optional local font; install it independently and never commit the font file.
+Fonts are not vendored. Install Hack Nerd Font (`ttf-hack-nerd`) through the platform package manager; quickshell and the terminals need its glyphs. The wallpaper at `~/.local/share/wallpapers/current.png` is machine-local and not vendored. B Nazanin is an optional local font; install it independently and never commit the font file.
 
 ## OMP model routing
 

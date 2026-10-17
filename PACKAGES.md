@@ -3,15 +3,17 @@
 #
 # --- Desktop stack (Wayland/Hyprland) -------------------------------------
 # hyprland, hyprpaper, hypridle, hyprlock, hyprpolkitagent,
-# xdg-desktop-portal-hyprland, waybar, anyrun (AUR), dunst, wl-clipboard,
+# xdg-desktop-portal-hyprland, quickshell, wl-clipboard,
 # wl-clip-persist, cliphist, grim, slurp, satty, yazi,
 # udisks2, udiskie, libayatana-appindicator (udiskie tray icon)
+# Replaced by quickshell (bar, notifications, launcher); still installed,
+# pending removal (units masked): waybar, dunst, anyrun (AUR)
 #
 # --- Shell -----------------------------------------------------------------
 # zsh, zsh-completions
 #
 # --- Fonts -----------------------------------------------------------------
-# ttf-hack-nerd            (terminal + waybar glyphs)
+# ttf-hack-nerd            (terminal + quickshell glyphs)
 # noto-fonts, noto-fonts-emoji, noto-fonts-cjk
 # vazirmatn-fonts          (AUR: Persian)
 #

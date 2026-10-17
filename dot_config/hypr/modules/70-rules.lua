@@ -1,19 +1,41 @@
 -- Window, workspace and layer rules.
 
--- anyrun (the launcher, which replaced rofi).
+-- The shell's layer surfaces (quickshell). Same pair as before, for the same
+-- reason: `blur` frosts whatever is behind a translucent surface, and
+-- `ignore_alpha` (Hyprland's `ignorezero`) keeps that blur confined to the
+-- pixels actually drawn instead of the whole layer surface, which would read as
+-- the screen dimming.
 --
--- `blur` frosts whatever is behind the runner. On its own it also blurs the
--- transparent parts of the full-screen layer surface, which reads as the whole
--- screen dimming; `ignore_alpha` (Hyprland's `ignorezero`) restricts the blur
--- to pixels that are actually drawn, so only the card is frosted. Together they
--- are the pair the anyrun documentation recommends.
+-- The bar carries the same rgba(40,42,54,0.92) waybar had (Theme.qml), and the
+-- notification stack uses the same translucent card, so both have something for
+-- the blur to sample. The OSD is a small card over the desktop, which is the one
+-- place a frosted look genuinely helps.
 --
--- The card itself is translucent in style.css — an opaque background would give
--- the blur nothing to sample and it would appear to do nothing.
+-- Namespaces are set by WlrLayershell.namespace in the shell's QML. The bar
+-- panels (the drop-downs under the bar widgets) deliberately have no rule here:
+-- they are xdg popups, not layer surfaces, so a layer rule cannot match them.
+--
+-- The launcher is not listed either: it draws a full-screen dim rectangle, and
+-- with ignore_alpha that whole surface would be blurred — a full-screen blur on
+-- an APU for no visual gain, since its card is nearly opaque.
 hl.layer_rule({
-    name        = "anyrun-blur",
-    match       = { namespace = "^anyrun$" },
-    blur        = true,
+    name         = "quickshell-bar-blur",
+    match        = { namespace = "^quickshell-bar$" },
+    blur         = true,
+    ignore_alpha = true,
+})
+
+hl.layer_rule({
+    name         = "quickshell-notifications-blur",
+    match        = { namespace = "^quickshell-notifications$" },
+    blur         = true,
+    ignore_alpha = true,
+})
+
+hl.layer_rule({
+    name         = "quickshell-osd-blur",
+    match        = { namespace = "^quickshell-osd$" },
+    blur         = true,
     ignore_alpha = true,
 })
 

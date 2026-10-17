@@ -15,13 +15,12 @@
 local mainMod = "SUPER"
 
 local terminal    = "kitty"
--- The unified menu: applications, calculator, symbols, web search and session
--- actions in ONE prompt. anyrun merges every plugin listed in config.ron, so
--- typing "firefox" launches it, "7*6" answers 42, "lock" offers the action and
--- "?hyprland" opens a browser search. This replaced rofi (and fuzzel before it);
--- rofi-calc could not evaluate inside rofi's combi mode, which is what made the
--- old setup need a separate entry to reach the calculator.
-local launcher    = "anyrun"
+-- The unified menu is the shell's launcher now
+-- (dot_config/quickshell/Launcher.qml): applications, and the clipboard history
+-- on its own chord below. It replaced anyrun, whose plugins are why this used to
+-- be a single prompt doing five jobs — `qs ipc call` reaches the running shell,
+-- so nothing is started per keypress.
+local launcher    = "qs ipc call launcher toggleApps"
 local fileManager = "kitty yazi"
 local lockCmd     = "hyprlock"
 
@@ -290,7 +289,11 @@ hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:mag
 -- Clipboard history (cliphist), fed by the cliphist systemd user unit.
 -- One bind only: the old config had a second identical chord routing the same
 -- helper through an extra hyprctl dispatch, which added nothing.
-hl.bind(mainMod .. " + C", hl.dsp.exec_cmd(helpers .. "/clipboard-pick"))
+--
+-- The picking happens in the shell's launcher now, which reads `cliphist list`
+-- itself, decodes the chosen entry and puts it on the clipboard — the old
+-- `cliphist list | anyrun | cliphist decode | wl-copy` pipeline is gone.
+hl.bind(mainMod .. " + C", hl.dsp.exec_cmd("qs ipc call launcher openClipboard"))
 -- Cycle through workspaces with SUPER + scroll
 hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
 hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
@@ -315,8 +318,10 @@ hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("playerctl next"),       { locke
 hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("playerctl previous"),   { locked = true })
 
 -- Utilities.
--- Notification history: anyrun fed by dunst's history, newest first.
-hl.bind(mainMod .. " + N", hl.dsp.exec_cmd(helpers .. "/notif-history"))
+-- Notification centre: the shell keeps the history itself now (it is the
+-- notification server), so this opens a panel instead of piping `dunstctl
+-- history` through python into anyrun's stdin plugin.
+hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call shell togglePanel notifications"))
 -- Colour picker (hyprpicker copies the picked colour to the clipboard).
 hl.bind(mainMod .. " + SHIFT + P", hl.dsp.exec_cmd("hyprpicker --autocopy"))
 -- Screen recording toggle.

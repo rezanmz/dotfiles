@@ -1,9 +1,7 @@
 # Linux desktop configuration is never applied on macOS or other systems.
 {{- if ne .chezmoi.os "linux" }}
 .config/hypr/
-.config/waybar/
-.config/dunst/
-.config/anyrun/
+.config/quickshell/
 .config/udiskie/
 .config/snappy-switcher/
 .config/fontconfig/

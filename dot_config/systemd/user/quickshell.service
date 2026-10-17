@@ -1,0 +1,35 @@
+[Unit]
+Description=quickshell — desktop shell (bar, panels, notifications, OSD, launcher)
+Documentation=https://quickshell.org
+PartOf=graphical-session.target
+After=graphical-session.target
+Requisite=graphical-session.target
+
+# A bad QML edit fails the whole configuration (one missing import is fatal:
+# quickshell exits 255 and there is no partial degradation), so cap restarts
+# rather than letting a broken file spin.
+StartLimitIntervalSec=30
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# One process for the entire shell. It replaces three things that used to be
+# separate — waybar.service, dunst.service and the `anyrun daemon` exec in
+# 30-autostart.lua — and owns org.freedesktop.Notifications, which is why dunst
+# must not be running alongside it.
+#
+# No -c/--config: the configuration is ~/.config/quickshell/shell.qml, which
+# quickshell treats as the default config.
+ExecStart=/usr/bin/quickshell
+# Applications launched from the launcher inherit this. Without it they start in
+# whatever directory the shell was started from.
+WorkingDirectory=%h
+# always, not on-failure: the failure that matters is a config error leaving the
+# session with no bar at all, and that exits cleanly as far as systemd is
+# concerned. A deliberate `systemctl --user stop` does not restart.
+Restart=always
+RestartSec=2
+Slice=session.slice
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,0 +1,121 @@
+import QtQuick
+import qs
+
+// System panel: the detail behind the cpu/gpu/ram/temp/disk readouts.
+//
+// One panel for all five widgets — they are the same question ("what is this
+// machine doing") at different granularities, and this is where the numbers that
+// used to live in waybar tooltips now live, with a sparkline each so the shape of
+// the last two minutes is visible rather than just the current value.
+Popup {
+    id: root
+
+    name: "system"
+    contentWidth: 430
+
+    component StatRow: Item {
+        id: row
+
+        required property string label
+        property string value: ""
+        property color valueColour: Theme.fg
+        property string detail: ""
+        property var history: null
+        property color historyColour: Theme.purple
+
+        implicitHeight: 36
+        width: parent.width
+
+        Text {
+            id: labelText
+
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: 52
+            text: row.label
+            color: Theme.comment
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+        }
+
+        Text {
+            id: valueText
+
+            anchors.left: labelText.right
+            anchors.verticalCenter: parent.verticalCenter
+            text: row.value
+            color: row.valueColour
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+        }
+
+        Text {
+            anchors.left: valueText.right
+            anchors.leftMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: spark.visible ? spark.left : parent.right
+            anchors.rightMargin: 10
+            text: row.detail
+            elide: Text.ElideRight
+            color: Theme.comment
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+        }
+
+        Sparkline {
+            id: spark
+
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: 120
+            height: 22
+            visible: row.history !== null && row.history.length > 1
+            values: row.history || []
+            lineColour: row.historyColour
+        }
+    }
+
+    StatRow {
+        label: "cpu"
+        value: Math.round(Stats.cpu) + "%"
+        valueColour: Theme.green
+        detail: Stats.cpuTemp > 0 ? Math.round(Stats.cpuTemp) + "°C package" : ""
+        history: Stats.cpuHistory
+        historyColour: Theme.green
+    }
+
+    StatRow {
+        label: "gpu"
+        value: Math.round(Stats.gpu) + "%"
+        valueColour: Theme.orange
+        // VRAM is only 512 MiB on this APU, so GTT (system RAM borrowed by the
+        // GPU) is the number that actually grows; both are shown, as the old
+        // tooltip did. VRAM in MiB because a GiB-rounded 512 MiB reads as "1G".
+        detail: Stats.vramTotal > 0 ? "vram " + Math.round(Stats.vramUsed / 1048576) + "M/" + Math.round(Stats.vramTotal / 1048576) + "M  gtt " + Util.gib(Stats.gttUsed) + "G/" + Util.gib(Stats.gttTotal, 0) + "G" : ""
+        history: Stats.gpuHistory
+        historyColour: Theme.orange
+    }
+
+    StatRow {
+        label: "ram"
+        value: Math.round(Stats.memPct) + "%"
+        valueColour: Theme.yellow
+        detail: Util.gib(Stats.memUsed) + "G / " + Util.gib(Stats.memTotal) + "G"
+        history: Stats.memHistory
+        historyColour: Theme.yellow
+    }
+
+    StatRow {
+        label: "temp"
+        value: Stats.cpuTemp > 0 ? Math.round(Stats.cpuTemp) + "°C" : "-"
+        valueColour: Theme.level(Stats.cpuTemp, 75, 90, Theme.cyan)
+        detail: Stats.gpuTemp > 0 ? "gpu " + Math.round(Stats.gpuTemp) + "°C" : ""
+    }
+
+    StatRow {
+        label: "disk"
+        value: Util.gib(Stats.diskUsed) + "G"
+        valueColour: Theme.level(Stats.diskPct, 85, 92, Theme.yellow)
+        detail: Math.round(Stats.diskPct) + "% of " + Util.gib(Stats.diskTotal, 0) + "G on /"
+    }
+}

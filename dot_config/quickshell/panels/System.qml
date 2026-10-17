@@ -22,6 +22,8 @@ Popup {
         property string detail: ""
         property var history: null
         property color historyColour: Theme.purple
+        property real historyFloor: 0
+        property real historyCeiling: 100
 
         implicitHeight: 36
         width: parent.width
@@ -72,6 +74,8 @@ Popup {
             visible: row.history !== null && row.history.length > 1
             values: row.history || []
             lineColour: row.historyColour
+            scaleMin: row.historyFloor
+            scaleMax: row.historyCeiling
         }
     }
 
@@ -110,6 +114,12 @@ Popup {
         value: Stats.cpuTemp > 0 ? Math.round(Stats.cpuTemp) + "°C" : "-"
         valueColour: Theme.level(Stats.cpuTemp, 75, 90, Theme.cyan)
         detail: Stats.gpuTemp > 0 ? "gpu " + Math.round(Stats.gpuTemp) + "°C" : ""
+        history: Stats.tempHistory
+        historyColour: Theme.cyan
+        // Temperature has its own band: 20-100 °C shows the shape, where 0-100
+        // would flatten it against the floor.
+        historyFloor: 20
+        historyCeiling: 100
     }
 
     StatRow {

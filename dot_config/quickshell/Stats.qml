@@ -71,6 +71,7 @@ Singleton {
     property var cpuHistory: []
     property var memHistory: []
     property var gpuHistory: []
+    property var tempHistory: []
 
     // ---- discovery -----------------------------------------------------
     // Sentinel-based, mirroring what gpu-usage did and for the same reason: the
@@ -274,6 +275,7 @@ Singleton {
         root.cpuHistory = pushHistory(root.cpuHistory, root.cpu);
         root.memHistory = pushHistory(root.memHistory, root.memPct);
         root.gpuHistory = pushHistory(root.gpuHistory, root.gpu);
+        root.tempHistory = pushHistory(root.tempHistory, root.cpuTemp);
     }
 
     // Sparkline history. A fresh array each tick is what makes the change

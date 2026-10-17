@@ -22,7 +22,7 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/hypr/hyprpaper.conf` | Wallpaper (`wallpaper { }` blocks) |
 | `dot_config/hypr/hypridle.conf` | DPMS off, lock, and suspend timers |
 | `dot_config/hypr/hyprlock.conf` | Lock screen |
-| `dot_config/quickshell/` | Desktop shell — one `quickshell` process: bar, notification popups and centre, OSD, launcher (apps + `cliphist`), and the SUPER+Tab switcher with live window thumbnails; replaces waybar, dunst, anyrun, snappy-switcher and the `gpu-usage`, `net-speed`, `notif-history`, `clipboard-pick` helpers |
+| `dot_config/quickshell/` | Desktop shell — one `quickshell` process: bar, notification popups and centre, OSD, launcher (apps, session actions, inline maths, `cliphist`), SUPER+Tab workspace switcher with live thumbnails, a picture-in-picture view of another workspace (`SUPER+W`), and the idle panel (timed holds, plus an automatic hold while media plays); replaces waybar, dunst, anyrun, snappy-switcher and the `gpu-usage`, `net-speed`, `notif-history`, `clipboard-pick` helpers |
 | `dot_config/systemd/user/` | `quickshell.service`, `wl-clip-persist.service`, `udiskie.service` |
 | `dot_config/udiskie/` | Removable-drive automount (USB sticks, SD cards) |
 | `dot_local/bin/executable_*` | `screenshot`, `record-toggle`, `set-wallpaper`, `wifi-tune`, `gdrive-export`, `ly-theme` |
@@ -31,7 +31,10 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 
 `PACKAGES.md` lists package prerequisites; chezmoi never installs packages. The
 shell is driven from `60-binds.lua` through `qs ipc`: `SUPER+SPACE` toggles the
-launcher, `SUPER+C` the clipboard history, `SUPER+N` the notification centre.
+launcher, `SUPER+C` the clipboard history, `SUPER+N` the notification centre,
+`SUPER+Tab` the workspace switcher (hold SUPER, tap Tab, release to switch), and
+`SUPER+W` cycles a floating picture-in-picture view through the other workspaces
+that hold windows.
 
 Hyprland 0.55+ reads `hyprland.lua` in preference to `hyprland.conf`. Note that
 Hyprland's Lua `require()` resolves against the **current working directory**

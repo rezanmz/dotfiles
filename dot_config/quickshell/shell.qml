@@ -27,8 +27,11 @@ ShellRoot {
         delegate: Bar {}
     }
 
-    // SUPER+Tab: live window thumbnails, most-recently-used order.
+    // SUPER+Tab: live workspace thumbnails, most-recently-used order.
     Switcher {}
+
+    // SUPER+W: a floating live view of another workspace.
+    PiP {}
 
     // Created while something is popping up, destroyed when the stack empties:
     // an idle window costs the same ~11 MiB as a busy one.
@@ -47,7 +50,7 @@ ShellRoot {
     // destroyed when it closes. The compiled component is cached, so this is
     // window setup, not a re-parse.
     Variants {
-        model: ["system", "audio", "bluetooth", "notifications", "media", "network", "calendar", "tray"]
+        model: ["system", "audio", "bluetooth", "notifications", "media", "network", "calendar", "tray", "idle"]
 
         delegate: LazyLoader {
             required property string modelData
@@ -99,6 +102,11 @@ ShellRoot {
         Tray {}
     }
 
+    Component {
+        id: idlePanel
+        Idle {}
+    }
+
     function panelComponent(name: string): var {
         switch (name) {
         case "system":
@@ -117,6 +125,8 @@ ShellRoot {
             return calendarPanel;
         case "tray":
             return trayPanel;
+        case "idle":
+            return idlePanel;
         }
         return null;
     }

@@ -58,6 +58,9 @@ hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 -- tapping twice goes back two windows); release SUPER to switch, Escape to abort,
 -- or click a card. Windows on other workspaces are labelled with where they are.
 hl.bind(mainMod .. " + Tab", hl.dsp.exec_cmd("qs ipc call switcher toggle"))
+-- Picture-in-picture: a floating live view of another workspace (SUPER+W cycles
+-- through the workspaces that hold windows and closes when there are no more).
+hl.bind(mainMod .. " + W", hl.dsp.exec_cmd("qs ipc call pip cycleOther"))
 -- Display management GUI (scale, position, multi-monitor alignment).
 hl.bind(mainMod .. " + SHIFT + D", hl.dsp.exec_cmd("nwg-displays"))
 --

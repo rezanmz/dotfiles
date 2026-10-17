@@ -11,6 +11,9 @@ Canvas {
     property var values: []
     property color lineColour: Theme.purple
     property real scaleMax: 100
+    // A floor matters for metrics that never approach zero — a temperature line
+    // on a 0-100 scale is a flat line at the bottom.
+    property real scaleMin: 0
 
     implicitWidth: 180
     implicitHeight: 30
@@ -21,8 +24,9 @@ Canvas {
     onLineColourChanged: requestPaint()
 
     function yFor(value: real): real {
-        const clamped = Math.max(0, Math.min(root.scaleMax, value));
-        return height - clamped / root.scaleMax * height;
+        const span = Math.max(1, root.scaleMax - root.scaleMin);
+        const clamped = Math.max(root.scaleMin, Math.min(root.scaleMax, value));
+        return height - (clamped - root.scaleMin) / span * height;
     }
 
     onPaint: {

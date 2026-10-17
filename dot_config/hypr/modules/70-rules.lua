@@ -33,6 +33,13 @@ hl.layer_rule({
 })
 
 hl.layer_rule({
+    name         = "quickshell-pip-blur",
+    match        = { namespace = "^quickshell-pip$" },
+    blur         = true,
+    ignore_alpha = true,
+})
+
+hl.layer_rule({
     name         = "quickshell-osd-blur",
     match        = { namespace = "^quickshell-osd$" },
     blur         = true,

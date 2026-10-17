@@ -22,12 +22,17 @@ Item {
     property var codes: []
 
     // Keymap name (what the event carries) to layout code. Hyprland reports the
-    // human name on the event, not the index, so the mapping is by name.
-    readonly property var keymapCodes: ({
-            "English (US)": "us",
-            "Persian": "ir",
-            "Farsi": "ir"
-        })
+    // human name on the event, not the index, so the mapping is by name — and by
+    // *prefix*, because the name carries the variant: with the `winkeys` variant
+    // the Persian layout reports as "Persian (Windows)", which an exact-match
+    // table missed and the bar then displayed verbatim.
+    function codeFor(keymap: string): string {
+        if (keymap.startsWith("English"))
+            return "us";
+        if (keymap.startsWith("Persian") || keymap.startsWith("Farsi"))
+            return "ir";
+        return "";
+    }
 
     function labelFor(code: string): string {
         if (code === "us")
@@ -68,8 +73,8 @@ Item {
                 return;
             // "keyboard-name,Keymap Name"
             const keymap = event.data.slice(event.data.indexOf(",") + 1);
-            const code = root.keymapCodes[keymap];
-            root.layout = root.labelFor(code !== undefined ? code : keymap);
+            const code = root.codeFor(keymap);
+            root.layout = root.labelFor(code !== "" ? code : keymap);
         }
     }
 

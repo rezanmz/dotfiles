@@ -27,10 +27,15 @@ Item {
     implicitWidth: contentArea.implicitWidth + Theme.modulePadding * 2
     implicitHeight: Theme.barHeight
 
-    // The bar's PanelWindow, for the APIs that need a window (tray menus, the
-    // idle inhibitor). QtQuick's Window.window would be a ProxiedWindow, which
-    // quickshell's APIs reject.
+    // The window this item lives in — popups anchored to it need it.
     readonly property var barWindow: Panels.barWindow
+
+    // Panel state for this widget. Several widgets can open the same panel (the
+    // network readout and the throughput readout both open `network`), so only
+    // the one that was actually clicked is marked as active — matching on the
+    // panel name alone lit up both of them.
+    readonly property bool panelOpen: root.panel !== "" && Panels.current === root.panel
+    readonly property bool panelAnchor: Panels.anchorItem === root
 
     // Panels find their anchor through this registry, so a panel can also be
     // opened from a keybind or the IPC instead of a click.
@@ -46,7 +51,7 @@ Item {
         anchors.topMargin: 5
         anchors.bottomMargin: 5
         radius: Theme.radius
-        color: (hover.hovered || (root.panel !== "" && Panels.current === root.panel)) ? Theme.hoverBg : "transparent"
+        color: (hover.hovered || (root.panelOpen && root.panelAnchor)) ? Theme.hoverBg : "transparent"
         Behavior on color {
             ColorAnimation {
                 duration: Theme.animationFast

@@ -24,6 +24,13 @@
 
 set -eu
 
+# Linux-only: NetworkManager and its dispatcher directory do not exist on macOS,
+# where this would only try to write a file to a missing path.
+if [ "$(uname -s)" != "Linux" ]; then
+    echo "not Linux; skipping fq_codel dispatcher install" >&2
+    exit 0
+fi
+
 DEST=/etc/NetworkManager/dispatcher.d/90-fq_codel
 
 if [ "$(id -u)" -ne 0 ]; then

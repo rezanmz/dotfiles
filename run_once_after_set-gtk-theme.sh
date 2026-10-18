@@ -17,8 +17,24 @@
 
 set -eu
 
+# Linux desktop configuration: this drives dconf through gsettings. Homebrew's
+# glib does install a gsettings binary on macOS, so the `command -v` probe below
+# cannot tell the two systems apart on its own.
+if [ "$(uname -s)" != "Linux" ]; then
+    echo "not Linux; skipping GTK theme setup" >&2
+    exit 0
+fi
+
 if ! command -v gsettings >/dev/null 2>&1; then
     echo "gsettings not found; skipping GTK theme setup" >&2
+    exit 0
+fi
+
+# glib without compiled schemas answers every call with "No schemas installed"
+# and a non-zero exit, which `set -e` turns into a failed chezmoi apply. Probe a
+# key we are about to write instead of trusting the binary's presence.
+if ! gsettings get org.gnome.desktop.interface gtk-theme >/dev/null 2>&1; then
+    echo "gsettings has no compiled schemas; skipping GTK theme setup" >&2
     exit 0
 fi
 
@@ -39,7 +55,12 @@ fi
 
 # prefer-dark makes GTK/libadwaita prefer dark variants, which is what stops
 # apps like Thunderbird from rendering light when the theme's dark assets exist.
-gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+# The key needs gsettings-desktop-schemas >= 42, so check it before writing.
+if gsettings get org.gnome.desktop.interface color-scheme >/dev/null 2>&1; then
+    gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+else
+    echo "color-scheme key unavailable; leaving it unchanged" >&2
+fi
 
 # Cursor: Bibata ships via bibata-cursor-theme-bin (AUR). Same guard pattern as
 # the themes above: only point at it if it is actually installed.
@@ -50,4 +71,4 @@ else
     echo "Bibata cursor not installed; leaving cursor-theme unchanged" >&2
 fi
 
-echo "GTK theme applied: $(gsettings get org.gnome.desktop.interface gtk-theme) / $(gsettings get org.gnome.desktop.interface color-scheme)"
+echo "GTK theme applied: $(gsettings get org.gnome.desktop.interface gtk-theme) / $(gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null || echo unset)"

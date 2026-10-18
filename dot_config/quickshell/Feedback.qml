@@ -39,24 +39,20 @@ Singleton {
         tick.running = true;
     }
 
-    // The tick is played on the *default* sink, explicitly.
+    // Played on the default sink, which is what pw-play uses when given no target.
     //
-    // pw-play follows pipewire's active node rather than the default one, and
-    // those differ as soon as anything else has played recently: with the default
-    // on the desktop speakers but the active node on the monitor's HDMI output,
-    // a plain pw-play went to the monitor — which has no speakers — and the
-    // feedback was silent. Naming the default sink removes the ambiguity.
+    // Measured, not assumed: a stream started by this file and a plain `pw-play`
+    // both land on the sink `pactl` calls the default (checked in
+    // `pactl list sink-inputs`, the `Sink:` field), so naming a target changes
+    // nothing and there is no active-node trap here.
+    //
+    // The reason it was inaudible is elsewhere: pipewire suspends an idle sink, and
+    // the first sound after that silence is the one that has to wake it — a 100 ms
+    // tick cannot survive the resume. That is what
+    // dot_config/wireplumber/wireplumber.conf.d/51-disable-suspend.conf fixes.
     Process {
         id: tick
 
-        command: root.tickCommand()
-
-        Component.onCompleted: command = root.tickCommand()
-    }
-
-    function tickCommand(): var {
-        const sink = Sound.sink && Sound.sink.name ? Sound.sink.name : "";
-        const sound = "/usr/share/sounds/freedesktop/stereo/audio-volume-change.oga";
-        return sink === "" ? ["pw-play", sound] : ["pw-play", "--target", sink, sound];
+        command: ["pw-play", "/usr/share/sounds/freedesktop/stereo/audio-volume-change.oga"]
     }
 }

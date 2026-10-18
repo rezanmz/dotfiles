@@ -90,24 +90,45 @@ Scope {
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
-            // Soft glow behind the pill: two low-alpha rounded rectangles, which
-            // is as close to a bloom as QML gets without a shader.
-            Rectangle {
-                anchors.centerIn: card
-                width: card.width + 12
-                height: card.height + 12
-                radius: Theme.radiusPill
-                color: Theme.alpha(Sound.muted ? Theme.comment : Theme.purple, 0.10)
-            }
-
             Rectangle {
                 id: card
 
                 anchors.fill: parent
-                radius: Theme.radiusPill
+                radius: Theme.panelRadius
                 color: Theme.panelBg
                 border.width: 1
-                border.color: Theme.alpha(Sound.muted ? Theme.comment : Theme.purple, 0.55)
+                border.color: Theme.border
+
+                // The shell's signature hairline, the same one the bar's bottom
+                // edge and every panel card carry. The halo that used to be here
+                // belonged to no other surface, which is why this read as foreign.
+                Rectangle {
+                    anchors.top: parent.top
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.margins: 1
+                    height: 2
+                    radius: parent.radius
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop {
+                            position: 0.0
+                            color: Theme.alpha(Theme.rampStart, 0.0)
+                        }
+                        GradientStop {
+                            position: 0.25
+                            color: Theme.alpha(Theme.rampStart, 0.9)
+                        }
+                        GradientStop {
+                            position: 0.6
+                            color: Theme.alpha(Theme.rampMid, 0.9)
+                        }
+                        GradientStop {
+                            position: 1.0
+                            color: Theme.alpha(Theme.rampEnd, 0.0)
+                        }
+                    }
+                }
                 opacity: 0
                 y: 24
 
@@ -202,17 +223,10 @@ Scope {
                             height: parent.height
                             radius: parent.radius
                             width: parent.width * (root.kind === "mic" ? 1 : Math.max(0, Math.min(1, Sound.volume)))
-                            gradient: Gradient {
-                                orientation: Gradient.Horizontal
-                                GradientStop {
-                                    position: 0.0
-                                    color: root.kind === "mic" ? Theme.green : Theme.rampStart
-                                }
-                                GradientStop {
-                                    position: 1.0
-                                    color: root.kind === "mic" ? Theme.green : (Sound.muted ? Theme.comment : Theme.rampMid)
-                                }
-                            }
+                            // Flat accent, not a gradient: the volume readout in the
+                            // bar and the mixer's rows are both plain purple, and the
+                            // HUD should not be the one surface that differs.
+                            color: root.kind === "mic" ? Theme.green : (Sound.muted ? Theme.comment : Theme.purple)
                             Behavior on width {
                                 NumberAnimation {
                                     duration: Theme.animationFast

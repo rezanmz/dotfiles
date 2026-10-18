@@ -109,6 +109,11 @@ Popup {
         // From the entry's snapshot: a notification that has closed has no fields
         // left to read, and the row must still say what it said (see Notifs.add).
         readonly property string app: row.entry && row.entry.app !== undefined ? row.entry.app : (row.notif ? row.notif.appName : "")
+        // An entry whose notification object is gone *and* which carries no
+        // snapshot — one written by a build before fields were copied — has nothing
+        // to show but its age. Say so rather than drawing a blank row, which reads
+        // as an empty notification.
+        readonly property bool unknown: row.entry !== undefined && row.entry !== null && row.entry.app === undefined
         readonly property string summary: row.entry && row.entry.summary !== undefined ? row.entry.summary : (row.notif ? row.notif.summary : "")
         readonly property string body: row.entry && row.entry.body !== undefined ? row.entry.body : (row.notif ? row.notif.body : "")
 
@@ -122,7 +127,7 @@ Popup {
             anchors.top: parent.top
             anchors.right: appLabel.left
             anchors.rightMargin: 10
-            text: row.summary
+            text: row.unknown ? "notification closed" : row.summary
             textFormat: Text.PlainText
             elide: Text.ElideRight
             maximumLineCount: 1

@@ -39,9 +39,24 @@ Singleton {
         tick.running = true;
     }
 
+    // The tick is played on the *default* sink, explicitly.
+    //
+    // pw-play follows pipewire's active node rather than the default one, and
+    // those differ as soon as anything else has played recently: with the default
+    // on the desktop speakers but the active node on the monitor's HDMI output,
+    // a plain pw-play went to the monitor — which has no speakers — and the
+    // feedback was silent. Naming the default sink removes the ambiguity.
     Process {
         id: tick
 
-        command: ["pw-play", "/usr/share/sounds/freedesktop/stereo/audio-volume-change.oga"]
+        command: root.tickCommand()
+
+        Component.onCompleted: command = root.tickCommand()
+    }
+
+    function tickCommand(): var {
+        const sink = Sound.sink && Sound.sink.name ? Sound.sink.name : "";
+        const sound = "/usr/share/sounds/freedesktop/stereo/audio-volume-change.oga";
+        return sink === "" ? ["pw-play", sound] : ["pw-play", "--target", sink, sound];
     }
 }

@@ -64,7 +64,11 @@ Popup {
                 continue;
             }
             const notif = entry.notification;
-            const fields = [notif ? notif.appName : "", notif ? notif.summary : "", notif ? notif.body : ""];
+            const fields = [
+                entry.app !== undefined ? entry.app : (notif ? notif.appName : ""),
+                entry.summary !== undefined ? entry.summary : (notif ? notif.summary : ""),
+                entry.body !== undefined ? entry.body : (notif ? notif.body : "")
+            ];
             for (const field of fields) {
                 if (field.toLowerCase().includes(q)) {
                     out.push(entry);
@@ -102,9 +106,11 @@ Popup {
         // delegates' bindings re-evaluate during teardown with `entry` already
         // gone (this produced "Cannot read property 'body' of null").
         readonly property var notif: row.entry && row.entry.notification ? row.entry.notification : null
-        readonly property string app: row.notif ? row.notif.appName : ""
-        readonly property string summary: row.notif ? row.notif.summary : ""
-        readonly property string body: row.notif ? row.notif.body : ""
+        // From the entry's snapshot: a notification that has closed has no fields
+        // left to read, and the row must still say what it said (see Notifs.add).
+        readonly property string app: row.entry && row.entry.app !== undefined ? row.entry.app : (row.notif ? row.notif.appName : "")
+        readonly property string summary: row.entry && row.entry.summary !== undefined ? row.entry.summary : (row.notif ? row.notif.summary : "")
+        readonly property string body: row.entry && row.entry.body !== undefined ? row.entry.body : (row.notif ? row.notif.body : "")
 
         width: parent.width
         implicitHeight: row.body !== "" ? 44 : 28

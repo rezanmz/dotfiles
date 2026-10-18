@@ -113,6 +113,13 @@ Singleton {
 
         const entry = {
             "notification": notif,
+            // The history outlives the notification: once it closes, the
+            // Notification object behind it is gone and every property on it reads
+            // as undefined, which is why the centre showed rows with nothing but an
+            // age. The fields the centre draws are copied here, while they exist.
+            "app": notif.appName,
+            "summary": notif.summary,
+            "body": notif.body,
             "popup": !root.dnd && !silent && !blank,
             "seen": Panels.current === "notifications" || blank,
             // The Notification has no timestamp of its own, and the centre shows

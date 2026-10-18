@@ -100,6 +100,11 @@ PanelWindow {
         Media {}
         Audio {}
 
+        // Scroll to adjust, click for the Control Centre: the two screen-wide
+        // things that are not per-application like the volume is.
+        Brightness {}
+        Warmth {}
+
         // Same-panel readouts are grouped under one BarItem: one hover pill,
         // one click target, one highlight. The readouts inside are plain items
         // (no hover, no click, no panel of their own); the Row is sized from its

@@ -211,7 +211,10 @@ ShellRoot {
         // is started" — a layer grab alongside it would close the panel the
         // instant it opened. It dismisses itself: its xdg grab closes on outside
         // click and the panel syncs that back through Panels.close().
-        active: Panels.anyOpen && Panels.current !== "notifications"
+        // Not while the crosshair is up: it takes exclusive keyboard focus, which
+        // clears this grab regardless of what is whitelisted, and the clear closes
+        // the very panel the user is trying to photograph (a calendar, a menu).
+        active: Panels.anyOpen && Panels.current !== "notifications" && !Selection.active
         windows: Panels.registry
         onCleared: Panels.close()
     }

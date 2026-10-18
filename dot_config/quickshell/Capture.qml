@@ -182,16 +182,21 @@ Singleton {
     }
 
     function fireCapture(m: string): void {
-        // The toolbar must not be in its own screenshot: close whatever panel
-        // is open and wait out the close animation before grim runs.
-        const wasOpen = Panels.anyOpen;
-        if (wasOpen)
+        // The ⌘⇧5 toolbar must not be in its own screenshot, so it closes for the
+        // capture. Any *other* panel is part of what you are photographing: the
+        // notification centre, the calendar, a tray menu. macOS is explicit about
+        // this — its own instructions for capturing a menu are "open the menu,
+        // press Shift-Command-4, drag over the menu items" — and closing the panel
+        // made that impossible to plan.
+        const closingToolbar = Panels.current === "capture";
+        if (closingToolbar)
             Panels.close();
         root.pendingKind = "capture";
         root.pendingMode = m;
         root.pendingGeometry = "";
         root.makeTarget();
-        fireDelay.interval = wasOpen ? 260 : 1;
+        // Only the toolbar needs its close animation waited out.
+        fireDelay.interval = closingToolbar ? 260 : 1;
         fireDelay.restart();
     }
 
@@ -316,7 +321,7 @@ Singleton {
             if (root.pendingKind === "record")
                 root.startRecording(root.pendingGeometry);
             else
-                root.runGrim();
+                root.cropFrozen();
         }
     }
 
@@ -339,6 +344,43 @@ Singleton {
 
         function onCancelled(): void {
             root.clearPending();
+        }
+    }
+
+    // The shot is the frame that was frozen when the crosshair appeared, cropped —
+    // not the screen as it looks when you let go. That is what macOS does, and it
+    // is the only way to photograph something that disappears the moment you
+    // interact with it: a menu or the notification centre closes on the first
+    // outside grab, so the old live re-capture at commit time came back without it.
+    //
+    // ffmpeg does the crop (0.15 s for a full-screen frame); the frozen frame is in
+    // the output's pixels, so the logical selection is scaled by Selection.frozenScale.
+    function cropFrozen(): void {
+        const m = /^(-?\d+),(-?\d+)\s+(\d+)x(\d+)$/.exec(root.pendingGeometry.trim());
+        if (m === null) {
+            root.notify("screenshot", "Capture failed", "no usable selection geometry");
+            root.clearPending();
+            return;
+        }
+        const scale = Selection.frozenScale;
+        const x = Math.round(parseInt(m[1]) * scale);
+        const y = Math.round(parseInt(m[2]) * scale);
+        const w = Math.round(parseInt(m[3]) * scale);
+        const h = Math.round(parseInt(m[4]) * scale);
+        cropProc.command = ["ffmpeg", "-v", "error", "-y", "-i", Selection.frozenPath, "-vf", "crop=" + w + ":" + h + ":" + x + ":" + y, "-frames:v", "1", root.pendingFile];
+        cropProc.running = true;
+    }
+
+    Process {
+        id: cropProc
+
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0)
+                root.captureDone();
+            else {
+                root.notify("screenshot", "Capture failed", "could not crop the frozen frame (ffmpeg " + exitCode + ")");
+                root.clearPending();
+            }
         }
     }
 

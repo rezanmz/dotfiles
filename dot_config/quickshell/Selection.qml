@@ -70,6 +70,10 @@ Singleton {
     signal chosen(string geometry)
     signal cancelled()
 
+    // The frozen frame is stored in the output's pixels, the selection is in
+    // logical coordinates: the crop multiplies by this.
+    readonly property real frozenScale: win.width > 0 ? frozen.implicitWidth / win.width : 1
+
     // Is there a usable selection right now (bigger than a stray click)?
     readonly property bool hasSelection: root.selW >= 4 && root.selH >= 4
 
@@ -215,7 +219,9 @@ Singleton {
         // The focused screen's own name, never a literal: grim fails outright on
         // an output that does not exist, and a failed freeze used to be
         // indistinguishable from pressing nothing at all.
-        command: ["grim", "-o", Util.focusedScreen().name, root.frozenPath]
+        // The cursor goes in only when the Show Mouse Pointer option asks for it:
+        // the frame doubles as the shot itself.
+        command: Capture.showPointer ? ["grim", "-c", "-o", Util.focusedScreen().name, root.frozenPath] : ["grim", "-o", Util.focusedScreen().name, root.frozenPath]
 
         onExited: (exitCode, exitStatus) => {
             if (exitCode !== 0) {
@@ -249,10 +255,18 @@ Singleton {
         // Taken at map time, which is why this window maps *for* the selection
         // instead of staying mapped: a layer surface cannot be handed the
         // keyboard after it is already up.
+        //
+        // Always. Standing down while a panel was open looked tempting — the panel
+        // keeps its xdg popup grab — but that grab owns the *pointer* too, so the
+        // crosshair never received the drag and the selection was impossible. The
+        // panel may well close when the keyboard changes hands; what matters is
+        // that the shot is taken from the frozen frame, which already has it.
         WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
         // The screen as it was when the crosshair appeared, at logical size.
         Image {
+            id: frozen
+
             anchors.fill: parent
             source: "file://" + root.frozenPath
             fillMode: Image.PreserveAspectFit
@@ -425,6 +439,10 @@ Singleton {
             property bool dragging: false
 
             onPressed: (m) => {
+                if (m.button === Qt.RightButton) {
+                    root.cancel();
+                    return;
+                }
                 if (root.mode === "window") {
                     // Hit test at the click itself. Waiting for a motion event to
                     // have highlighted something first meant a click that arrived

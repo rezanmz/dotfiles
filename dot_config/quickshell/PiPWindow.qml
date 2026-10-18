@@ -7,9 +7,17 @@ import qs
 // The picture-in-picture windows: one per workspace, each a live floating view.
 //
 // State lives in PiP.qml (the bar drives it by dragging a workspace pill down);
-// this file only draws them. Drag a view by its header, resize it from the
-// corner, switch to the workspace it shows, or close it. Several can be up at
-// once — one per workspace.
+// this file only draws them.
+//
+// WHY THE WINDOW IS FULL-SCREEN AND THE CARD MOVES INSIDE IT
+// A layer surface's position is set by its margins, and the compositor applies
+// them asynchronously. If the drag derives the pointer position from the window's
+// own position (which is what a small moving window forces you to do), the stale
+// position is added to the delta again on the next event and the window runs away
+// from the cursor. With a full-screen window the surface never moves, so
+// mouse.x/mouse.y ARE screen coordinates and a drag tracks the pointer exactly.
+// The input region (`mask`) is the card, so everything outside it still belongs to
+// whatever is underneath.
 Scope {
     id: root
 
@@ -31,13 +39,23 @@ Scope {
             readonly property var target: PiP.targetFor(modelData)
             readonly property var workspace: PiP.workspaceFor(modelData)
 
+            // Header strip height, and the size of the corner grab area.
+            readonly property int headerHeight: 30
+            readonly property int cornerSize: 22
+
+            function inHeader(x: real, y: real): bool {
+                return x >= window.box.x && x <= window.box.x + window.box.w && y >= window.box.y && y <= window.box.y + window.headerHeight;
+            }
+
+            function inCorner(x: real, y: real): bool {
+                return x >= window.box.x + window.box.w - window.cornerSize && x <= window.box.x + window.box.w && y >= window.box.y + window.box.h - window.cornerSize && y <= window.box.y + window.box.h;
+            }
+
             screen: Util.focusedScreen()
             anchors.top: true
             anchors.left: true
-            margins.top: window.box.y
-            margins.left: window.box.x
-            implicitWidth: window.box.w
-            implicitHeight: window.box.h
+            anchors.right: true
+            anchors.bottom: true
             color: "transparent"
             // Floating, not reserving space, and never taking the keyboard: this
             // is something you glance at, not something you type into.
@@ -46,12 +64,79 @@ Scope {
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
-            Rectangle {
+            // Input only where the card is drawn.
+            mask: Region {
+                shape: RegionShape.Rect
+                x: window.box.x
+                y: window.box.y
+                width: window.box.w
+                height: window.box.h
+                radius: Theme.panelRadius
+            }
+
+            // Drag and resize. Declared before the card so the card's own buttons
+            // (which are click targets, not motion handlers) sit on top of it; a
+            // plain Rectangle does not consume presses, so a press on the card's
+            // body still lands here.
+            MouseArea {
+                id: dragArea
+
                 anchors.fill: parent
+
+                // 0 = idle, 1 = moving the card, 2 = resizing it.
+                property int mode: 0
+                property real grabDX: 0
+                property real grabDY: 0
+
+                cursorShape: window.inCorner(mouseX, mouseY) ? Qt.SizeFDiagCursor : (window.inHeader(mouseX, mouseY) ? Qt.SizeAllCursor : Qt.ArrowCursor)
+
+
+                onPressed: mouse => {
+                    if (window.inCorner(mouse.x, mouse.y)) {
+                        dragArea.mode = 2;
+                    } else if (window.inHeader(mouse.x, mouse.y)) {
+                        dragArea.mode = 1;
+                        dragArea.grabDX = mouse.x - window.box.x;
+                        dragArea.grabDY = mouse.y - window.box.y;
+                    } else {
+                        dragArea.mode = 0;
+                    }
+                }
+                onPositionChanged: mouse => {
+                    console.log("PDRAG2 mode=" + dragArea.mode + " mouse=" + Math.round(mouse.x) + "," + Math.round(mouse.y) + " box=" + Math.round(window.box.x) + "," + Math.round(window.box.y) + " grab=" + Math.round(dragArea.grabDX) + "," + Math.round(dragArea.grabDY));  // TEMPORARY
+                    if (dragArea.mode === 1)
+                        PiP.setGeometry(window.modelData, mouse.x - dragArea.grabDX, mouse.y - dragArea.grabDY, window.box.w, window.box.h);
+                    else if (dragArea.mode === 2)
+                        PiP.setGeometry(window.modelData, window.box.x, window.box.y, Math.max(240, mouse.x - window.box.x), Math.max(180, mouse.y - window.box.y));
+                }
+                onReleased: dragArea.mode = 0
+                onCanceled: dragArea.mode = 0
+            }
+
+            Rectangle {
+                id: card
+
+                x: window.box.x
+                y: window.box.y
+                width: window.box.w
+                height: window.box.h
                 radius: Theme.panelRadius
                 color: Theme.panelBg
                 border.width: 1
                 border.color: Theme.border
+
+                Behavior on x {
+                    enabled: dragArea.mode !== 1
+                    NumberAnimation {
+                        duration: Theme.animationFast
+                    }
+                }
+                Behavior on y {
+                    enabled: dragArea.mode !== 1
+                    NumberAnimation {
+                        duration: Theme.animationFast
+                    }
+                }
 
                 // Same hairline as every other surface, so a preview reads as
                 // part of the shell rather than a stray window.
@@ -79,113 +164,75 @@ Scope {
                     }
                 }
 
-                // Header: the drag handle, and the three actions.
-                Item {
-                    id: header
-
-                    anchors.top: parent.top
+                Text {
                     anchors.left: parent.left
+                    anchors.leftMargin: 10
+                    anchors.top: parent.top
+                    anchors.topMargin: 8
+                    text: "\uf0d9  workspace " + (window.workspace ? window.workspace.name : "?")
+                    color: Theme.purple
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                }
+
+                Row {
                     anchors.right: parent.right
-                    height: 30
+                    anchors.rightMargin: 8
+                    anchors.top: parent.top
+                    anchors.topMargin: 8
+                    spacing: 12
 
                     Text {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 10
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "\uf0d9  workspace " + (window.workspace ? window.workspace.name : "?")
-                        color: Theme.purple
+                        text: "\uf061"
+                        color: switchHover.hovered ? Theme.green : Theme.comment
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSizeSmall
-                    }
 
-                    Row {
-                        anchors.right: parent.right
-                        anchors.rightMargin: 8
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 12
-
-                        Text {
-                            text: "\uf061"
-                            color: switchHover.hovered ? Theme.green : Theme.comment
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-
-                            HoverHandler {
-                                id: switchHover
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: PiP.switchTo(window.modelData)
-                            }
+                        HoverHandler {
+                            id: switchHover
                         }
 
-                        Text {
-                            text: "\uf065"
-                            color: sizeHover.hovered ? Theme.cyan : Theme.comment
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-
-                            HoverHandler {
-                                id: sizeHover
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: PiP.cycleSize(window.modelData)
-                            }
-                        }
-
-                        Text {
-                            text: "\uf00d"
-                            color: closeHover.hovered ? Theme.red : Theme.comment
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSizeSmall
-
-                            HoverHandler {
-                                id: closeHover
-                            }
-
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: PiP.close(window.modelData)
-                            }
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: PiP.switchTo(window.modelData)
                         }
                     }
 
-                    MouseArea {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.rightMargin: 80
-                        cursorShape: Qt.SizeAllCursor
+                    Text {
+                        text: "\uf065"
+                        color: sizeHover.hovered ? Theme.cyan : Theme.comment
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
 
-                        // mouse.x/y are relative to this item, and the item moves
-                        // with the window — using them directly makes the window
-                        // chase its own tail, so it visibly lags the cursor.
-                        // Deriving the pointer's screen position from the window's
-                        // current position cancels that out.
-                        property real pressPointerX: 0
-                        property real pressPointerY: 0
-                        property real pressWindowX: 0
-                        property real pressWindowY: 0
-
-                        onPressed: mouse => {
-                            pressPointerX = window.box.x + mouse.x;
-                            pressPointerY = window.box.y + mouse.y;
-                            pressWindowX = window.box.x;
-                            pressWindowY = window.box.y;
+                        HoverHandler {
+                            id: sizeHover
                         }
-                        onPositionChanged: mouse => {
-                            if (!pressed)
-                                return;
-                            const pointerX = window.box.x + mouse.x;
-                            const pointerY = window.box.y + mouse.y;
-                            PiP.setGeometry(window.modelData, pressWindowX + (pointerX - pressPointerX), pressWindowY + (pointerY - pressPointerY), window.box.w, window.box.h);
+
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: PiP.cycleSize(window.modelData)
+                        }
+                    }
+
+                    Text {
+                        text: "\uf00d"
+                        color: closeHover.hovered ? Theme.red : Theme.comment
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+
+                        HoverHandler {
+                            id: closeHover
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: PiP.close(window.modelData)
                         }
                     }
                 }
@@ -193,11 +240,12 @@ Scope {
                 ClippingWrapperRectangle {
                     id: frame
 
-                    anchors.top: header.bottom
+                    anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     anchors.margins: 6
+                    anchors.topMargin: window.headerHeight
                     radius: Theme.radius
                     color: Theme.alpha("#000000", 0.5)
                     border.width: 1
@@ -225,7 +273,8 @@ Scope {
                     }
                 }
 
-                // Corner resize handle.
+                // Corner resize hint; the grab area itself is the full-screen
+                // MouseArea above, so this is decoration.
                 Text {
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
@@ -233,40 +282,9 @@ Scope {
                     anchors.bottomMargin: 4
                     text: "\uf0c9"
                     rotation: 90
-                    color: resizeArea.containsMouse ? Theme.purple : Theme.alpha(Theme.comment, 0.8)
+                    color: window.inCorner(dragArea.mouseX, dragArea.mouseY) ? Theme.purple : Theme.alpha(Theme.comment, 0.8)
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSizeSmall
-
-                    MouseArea {
-                        id: resizeArea
-
-                        anchors.fill: parent
-                        anchors.margins: -6
-                        hoverEnabled: true
-                        cursorShape: Qt.SizeFDiagCursor
-
-                        property real pressPointerX: 0
-                        property real pressPointerY: 0
-                        property real startW: 0
-                        property real startH: 0
-
-                        onPressed: mouse => {
-                            // Same self-cancelling pointer derivation as the drag
-                            // handle: the handle moves with the window, so a raw
-                            // mouse delta would undershoot.
-                            pressPointerX = window.box.x + window.box.w + mouse.x;
-                            pressPointerY = window.box.y + window.box.h + mouse.y;
-                            startW = window.box.w;
-                            startH = window.box.h;
-                        }
-                        onPositionChanged: mouse => {
-                            if (!pressed)
-                                return;
-                            const pointerX = window.box.x + window.box.w + mouse.x;
-                            const pointerY = window.box.y + window.box.h + mouse.y;
-                            PiP.setGeometry(window.modelData, window.box.x, window.box.y, Math.max(240, startW + (pointerX - pressPointerX)), Math.max(180, startH + (pointerY - pressPointerY)));
-                        }
-                    }
                 }
             }
         }

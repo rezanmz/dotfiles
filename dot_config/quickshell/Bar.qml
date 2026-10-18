@@ -126,6 +126,7 @@ PanelWindow {
                 Disk {}
             }
         }
+        Rec {}
         Clock {}
     }
 }

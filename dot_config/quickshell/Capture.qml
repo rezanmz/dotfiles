@@ -10,8 +10,9 @@ pragma Singleton
 // the screen and piped tools together; those scripts are now thin wrappers over
 // this IPC, so there is exactly one implementation.
 //
-// Every capture is grim, every region is slurp (Esc exits non-zero and cancels
-// silently, like ⌘⇧4), the focused window is read from hyprctl's JSON, and
+// Every capture is grim, a region comes from Selection.qml's own crosshair (the
+// shell draws it — see that file for why slurp was dropped), the focused window
+// is read from hyprctl's JSON, and
 // recordings are wf-recorder via Recorder.qml, which owns the process and the
 // `recording` state. All of it runs as child processes with argv lists —
 // Quickshell.execDetached takes a *string* (see Launcher.qml), so filenames
@@ -33,17 +34,20 @@ Singleton {
     // ---- options, shared with panels/Capture.qml ----------------------
     // The toolbar's segmented controls write these; the captures read them.
     property string mode: "screen"          // "screen" | "selection" | "window"
-    property string saveTo: "desktop"       // "desktop" | "pictures" | "clipboard"
+    property string saveTo: "desktop"       // "desktop" | "documents" | "pictures" | "clipboard" | "other"
     property int timer: 0                   // 0 | 5 | 10 seconds
     property bool thumbnail: true           // show the floating thumbnail after a capture
+    property bool showPointer: false        // macOS's Show Mouse Pointer (grim -c)
     property bool recordingMode: false      // the toolbar is showing its recording controls
     property string recordTarget: "selection" // "screen" | "selection"
     property string mic: "none"             // "none" | "default" (the default source) | "system" (the sink monitor)
     // macOS's "Other Location": a typed directory, used when saveTo is "other".
     property string customDir: ""
-    // macOS's "Remember Last Selection": a plain selection capture reuses the
-    // previous geometry instead of asking again. slurp cannot pre-draw a frame, so
-    // the toolbar's Reselect button is the way to draw a new one.
+    // macOS's "Remember Last Selection": the previous rectangle comes back
+    // pre-drawn, ready to take with Enter or to replace with a new drag — macOS
+    // does not skip the crosshair, and skipping it silently was how a ⌘⇧4 press
+    // looked like it did nothing at all. The toolbar's Reselect button forces a
+    // fresh crosshair with nothing pre-drawn.
     property bool rememberSelection: false
     property string lastGeometry: ""
     property bool reselect: false
@@ -55,6 +59,7 @@ Singleton {
     // ---- floating thumbnail state (ScreenshotThumb.qml reads it) -------
     property string thumbPath: ""
     property bool thumbTemp: false          // a clipboard capture: delete the file with the thumbnail
+    property bool thumbVideo: false         // the thumbnail is a recording, not an image
     property bool thumbVisible: false
 
     // The file the running recording will finalise into.
@@ -98,6 +103,10 @@ Singleton {
     property string pendingFile: ""
     property string pendingDir: ""
     property bool pendingTemp: false
+    // Set for the length of one pipeline by the ⌃⌘⇧3/⌃⌘⇧4 shortcuts, so the
+    // Control modifier is per-invocation like macOS and does not leave Save to
+    // stuck on Clipboard for the next ⌘⇧3.
+    property bool pendingClipboard: false
     property string pendingGeometry: ""     // filled in by slurp / hyprctl
     property bool sattyTemp: false
     property string sattyPath: ""
@@ -114,13 +123,15 @@ Singleton {
     // either, but does show the thumbnail).
     function makeTarget(): void {
         const name = "Screenshot " + root.stamp() + ".png";
-        if (root.saveTo === "clipboard") {
+        if (root.pendingClipboard || root.saveTo === "clipboard") {
             root.pendingDir = "/tmp";
             root.pendingFile = "/tmp/" + name;
             root.pendingTemp = true;
             return;
         }
-        if (root.saveTo === "pictures") {
+        if (root.saveTo === "documents") {
+            root.pendingDir = root.home + "/Documents";
+        } else if (root.saveTo === "pictures") {
             root.pendingDir = root.home + "/Pictures/Screenshots";
         } else if (root.saveTo === "other" && root.customDir !== "") {
             root.pendingDir = root.customDir;
@@ -189,14 +200,15 @@ Singleton {
         onTriggered: root.runPrep()
     }
 
-    // Recordings always land in ~/Videos/Recordings (macOS: ~/Movies).
+    // Recordings always land in ~/Videos/Recordings (macOS: ~/Movies), named the
+    // way macOS names them: "Screen Recording 2026-10-18 at 10.32.45.mov".
     function beginRecord(target: string): void {
         if (Recorder.recording)
             return;
         root.pendingKind = "record";
         root.pendingMode = target;
         root.pendingDir = root.home + "/Videos/Recordings";
-        root.pendingFile = root.pendingDir + "/Recording " + root.stamp() + ".mp4";
+        root.pendingFile = root.pendingDir + "/Screen Recording " + root.stamp() + ".mov";
         root.pendingTemp = false;
         root.pendingGeometry = "";
         root.runPrep();
@@ -210,13 +222,31 @@ Singleton {
         root.beginRecord("selection");
     }
 
+    // "Record a window": pick one with the same overlay the capture uses, then
+    // record that rectangle. wf-recorder takes one fixed region per recording, so
+    // a window that moves (or is tiled elsewhere) is not followed — macOS follows
+    // it; this records where it was when you picked it.
+    function recordWindow(): void {
+        root.beginRecord("window");
+    }
+
     function stopRecording(): void {
         if (!Recorder.recording)
             return;
         Recorder.stop();
         if (root.recordingFile !== "") {
-            root.notify("recording", "Recording saved", root.recordingFile);
+            const file = root.recordingFile;
             root.recordingFile = "";
+            // macOS shows the recording's floating thumbnail when it stops; the
+            // notification stays because the thumbnail never says where the file
+            // went (macOS has the Finder for that, the shell does not).
+            if (root.thumbnail) {
+                root.thumbPath = file;
+                root.thumbTemp = false;
+                root.thumbVideo = true;
+                root.thumbVisible = true;
+            }
+            root.notify("recording", "Recording saved", file);
         }
     }
 
@@ -251,48 +281,38 @@ Singleton {
     }
 
     function continuePending(): void {
-        if (root.pendingKind === "record") {
-            if (root.pendingMode === "screen") {
+        // Both kinds of pipeline run through the same dispatch: what differs is
+        // only what happens once the geometry is known — a record starts
+        // wf-recorder on it, a capture runs grim (see afterSelection).
+        //
+        // Whole-screen work skips the crosshair entirely; a region or a window
+        // opens Selection, which reports back through chosen()/cancelled().
+        if (root.pendingMode === "screen") {
+            if (root.pendingKind === "record")
                 root.startRecording("");
-            } else {
-                slurpProc.running = true;
-            }
+            else
+                root.runGrim();
             return;
         }
         if (root.pendingMode === "selection") {
-            // Remembered selection: reuse the last geometry instead of asking
-            // again (macOS's "Remember Last Selection"). Reselect forces slurp.
-            if (root.rememberSelection && root.lastGeometry !== "" && !root.reselect) {
-                root.pendingGeometry = root.lastGeometry;
-                root.runGrim();
-                return;
-            }
+            // macOS's "Remember Last Selection" comes back pre-drawn rather than
+            // skipping the crosshair; the toolbar's Reselect clears it.
+            const preset = (root.rememberSelection && !root.reselect) ? root.lastGeometry : "";
             root.reselect = false;
-            slurpProc.running = true;
+            Selection.begin("region", preset);
         } else if (root.pendingMode === "window") {
-            winProc.running = true;
+            Selection.begin("window", "");
         } else {
             root.runGrim();
         }
     }
 
-    // slurp draws its own overlay and waits for the drag; Esc exits non-zero,
-    // which cancels silently — nothing to say about a cancelled selection.
-    Process {
-        id: slurpProc
-        command: ["slurp"]
-        stdout: StdioCollector {
-            id: slurpOut
-            waitForEnd: true
-        }
-        onExited: (exitCode, exitStatus) => {
-            if (exitCode !== 0) {
-                root.clearPending();
-                return;
-            }
-            root.pendingGeometry = slurpOut.text.trim();
-            if (root.rememberSelection)
-                root.lastGeometry = root.pendingGeometry;
+    // The overlay is gone by the time this runs; the wait covers the frame it
+    // takes the compositor to unmap it.
+    Timer {
+        id: afterSelection
+
+        onTriggered: {
             if (root.pendingKind === "record")
                 root.startRecording(root.pendingGeometry);
             else
@@ -300,39 +320,33 @@ Singleton {
         }
     }
 
-    // The focused window's geometry, in the same logical coordinates slurp
-    // works in (grim -g takes those; the old script did this too).
-    Process {
-        id: winProc
-        command: ["hyprctl", "-j", "activewindow"]
-        stdout: StdioCollector {
-            id: winOut
-            waitForEnd: true
-        }
-        onExited: (exitCode, exitStatus) => root.applyWindow(winOut.text)
-    }
+    // The crosshair is the shell's own window (Selection.qml); it hands back the
+    // geometry and is already hidden by then, so the capture cannot include the
+    // dim or the border. A cancel is silent, like ⌘⇧4's Escape.
+    Connections {
+        target: Selection
 
-    function applyWindow(text: string): void {
-        let geom = "";
-        try {
-            const w = JSON.parse(text);
-            if (w && w.at && w.size)
-                geom = w.at[0] + "," + w.at[1] + " " + w.size[0] + "x" + w.size[1];
-        } catch (e) {
-            geom = "";
+        function onChosen(geometry: string): void {
+            root.pendingGeometry = geometry;
+            if (root.rememberSelection)
+                root.lastGeometry = geometry;
+            // The overlay hid itself on commit; give the compositor a frame to put
+            // the screen back before anything reads it, so neither the shot nor the
+            // recording's first frame has the dim in it.
+            afterSelection.interval = 160;
+            afterSelection.restart();
         }
-        // Nothing focused (or hyprctl said something unexpected): cancel
-        // silently, like the old `screenshot window` did.
-        if (geom === "") {
+
+        function onCancelled(): void {
             root.clearPending();
-            return;
         }
-        root.pendingGeometry = geom;
-        root.runGrim();
     }
 
     function runGrim(): void {
-        grimProc.command = root.pendingGeometry !== "" ? ["grim", "-g", root.pendingGeometry, root.pendingFile] : ["grim", root.pendingFile];
+        const base = root.pendingGeometry !== "" ? ["grim", "-g", root.pendingGeometry] : ["grim"];
+        // macOS's Show Mouse Pointer: grim's own cursor flag, so the pointer is
+        // drawn where it actually is rather than composited in afterwards.
+        grimProc.command = root.showPointer ? base.concat(["-c", root.pendingFile]) : base.concat([root.pendingFile]);
         grimProc.running = true;
     }
 
@@ -350,7 +364,7 @@ Singleton {
         const file = root.pendingFile;
         const temp = root.pendingTemp;
         root.clearPending();
-        if (root.saveTo === "clipboard") {
+        if (root.pendingClipboard || root.saveTo === "clipboard") {
             copyProc.command = ["sh", "-c", 'wl-copy --type image/png < "$1"', "sh", file];
             copyProc.running = true;
         }
@@ -363,13 +377,14 @@ Singleton {
             }
             root.thumbPath = file;
             root.thumbTemp = temp;
+            root.thumbVideo = false;
             root.thumbVisible = true;
         } else {
             if (temp) {
                 rmProc.command = ["rm", "-f", file];
                 rmProc.running = true;
             }
-            if (root.saveTo === "clipboard")
+            if (root.pendingClipboard || root.saveTo === "clipboard")
                 root.notify("screenshot", "Screenshot copied", "to the clipboard");
             else
                 root.notify("screenshot", "Screenshot saved", file);
@@ -389,6 +404,7 @@ Singleton {
 
     function dismissThumb(): void {
         root.thumbVisible = false;
+        root.thumbVideo = false;
         if (root.thumbTemp && root.thumbPath !== "") {
             rmProc.command = ["rm", "-f", root.thumbPath];
             rmProc.running = true;
@@ -447,6 +463,10 @@ Singleton {
 
     function clearPending(): void {
         root.pendingKind = "";
+        root.pendingClipboard = false;
+        // Whatever ended the pipeline, the crosshair goes with it: a stale overlay
+        // blocks the whole screen and belongs to nobody.
+        Selection.dismiss();
         root.pendingMode = "";
         root.pendingFile = "";
         root.pendingDir = "";
@@ -461,6 +481,22 @@ Singleton {
         // toolbar's save-to/timer/thumbnail options like macOS does.
         function screen(): void {
             root.beginCapture("screen");
+        }
+
+        // ⌃⌘⇧3 / ⌃⌘⇧4: the same captures, straight to the clipboard.
+        function screenClipboard(): void {
+            root.pendingClipboard = true;
+            root.beginCapture("screen");
+        }
+
+        function selectionClipboard(): void {
+            root.pendingClipboard = true;
+            root.beginCapture("selection");
+        }
+
+        // ⌘⇧4 then Space: pick a window by clicking it.
+        function pickWindow(): void {
+            root.beginCapture("window");
         }
 
         function selection(): void {

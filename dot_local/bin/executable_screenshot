@@ -2,7 +2,7 @@
 # Screenshots for Hyprland — a thin wrapper over the shell's capture singleton.
 #   screenshot region   — select an area
 #   screenshot full     — whole monitor
-#   screenshot window   — active window
+#   screenshot window   — pick a window by clicking it (the crosshair, then Space)
 #   screenshot output   — whole monitor (kept for old callers; same as full)
 #
 # The implementation lives in the shell now (dot_config/quickshell/Capture.qml):

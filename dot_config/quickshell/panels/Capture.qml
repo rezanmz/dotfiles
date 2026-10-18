@@ -5,21 +5,33 @@ import Quickshell.Wayland
 import qs
 import qs as Shell
 
-// The ⇧⌘5 capture toolbar: the macOS one, in this shell's style.
+// The ⇧⌘5 capture toolbar: the macOS Screenshot panel, in this shell's style.
 //
-// macOS has one dark rounded bar with grouped segmented buttons and thin
-// dividers: three mode buttons, an Options area, and the action buttons. This
-// is that shape in Dracula slate and neon. The options are inline rather than
-// behind an Options ▾ menu — there is room in the bar for them and one click
-// less per capture.
+// macOS's panel is one dark rounded bar: six tools split into two trios by a
+// divider — capture entire screen / window / portion, then record entire
+// screen / window / portion — an Options menu, and one primary button that
+// reads Capture or Record depending on which trio the selected tool is in.
+// The window tools mean "click the window": they keep routing through
+// Shell.Capture.beginCapture("window") / Shell.Capture.recordWindow(), which
+// open the shell's own picker (Selection.qml).
 //
-// A Record button flips the bar to its recording controls (Record Entire
-// Screen / Record Selected Portion, plus the microphone); the Capture button
-// flips it back. While a recording runs the primary button is Stop Recording.
+// The Options menu is macOS's, in macOS's order and wording: Save to (Desktop /
+// Documents / Clipboard / Other Location… — Other reveals the typed-directory
+// field in the bar), Timer (Off / 5s / 10s), Microphone (None / Default /
+// System audio — greyed while a capture tool is selected, because it only
+// applies to recordings), then the checkmarks Show Floating Thumbnail /
+// Remember Last Selection / Show Mouse Pointer.
 //
-// There is no bar widget for this panel to hang off (it is opened by keybind
-// or IPC, like ⌘⇧5), so unlike the other panels it is not built on Popup.qml —
-// it is its own window, bottom-centre like the macOS toolbar.
+// A running recording turns the primary button into Stop Recording. The
+// countdown slot and Reselect stay in the bar: a timed capture has to show its
+// remaining seconds somewhere, and Reselect draws a fresh crosshair over a
+// remembered selection.
+//
+// There is no bar widget for this panel to hang off (it is opened by keybind or
+// IPC, like ⌘⇧5), so unlike the other panels it is not built on Popup.qml — it
+// is its own window, bottom-centre like the macOS toolbar. The window is
+// created when the panel opens and destroyed when it closes (shell.qml's
+// LazyLoader), so the Options menu simply starts closed every time.
 //
 // `qs as Shell` is not decoration: this file defines the type `Capture`, which
 // would shadow the `Capture` singleton of `import qs` inside its own document,
@@ -27,11 +39,14 @@ import qs as Shell
 PanelWindow {
     id: root
 
+    // The Options menu is open.
+    property bool optionsOpen: false
+
     screen: Util.focusedScreen()
     anchors.bottom: true
     anchors.left: true
     anchors.right: true
-    implicitHeight: card.height + Theme.margin * 2
+    implicitHeight: card.height + Theme.margin * 2 + (root.optionsOpen ? menu.height + 10 : 0)
     color: "transparent"
     exclusiveZone: -1
     WlrLayershell.namespace: "quickshell-capture"
@@ -43,22 +58,23 @@ PanelWindow {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     focusable: true
 
-    // Input only on the card; the rest of the window is click-through, so an
-    // open toolbar never blocks the desktop around it.
+    // Input only on the card (and the Options menu while it is open); the rest
+    // of the window is click-through, so an open toolbar never blocks the
+    // desktop around it.
     mask: Region {
         shape: RegionShape.Rect
-        x: card.x
-        y: card.y
-        width: card.width
-        height: card.height
+        x: root.optionsOpen ? Math.min(card.x, menu.x) : card.x
+        y: root.optionsOpen ? Math.min(card.y, menu.y) : card.y
+        width: root.optionsOpen ? Math.max(card.x + card.width, menu.x + menu.width) - x : card.width
+        height: root.optionsOpen ? Math.max(card.y + card.height, menu.y + menu.height) - y : card.height
         radius: Theme.panelRadius
     }
 
     Component.onCompleted: Panels.register(root)
     Component.onDestruction: Panels.unregister(root)
 
-    // One segment or option chip. The active one is filled purple — the same
-    // "this is the one" fill the launcher and OSD use.
+    // One tool segment. The active one is filled purple — the same "this is the
+    // one" fill the launcher and OSD use.
     component Chip: Rectangle {
         id: chip
 
@@ -96,18 +112,21 @@ PanelWindow {
     }
 
     // An action button: filled for the primary action, outlined for the rest.
+    // `toggled` paints the outlined state as held down (the Options button
+    // while its menu is open).
     component Btn: Rectangle {
         id: btn
 
         property alias text: label.text
         property color accent: Theme.purple
         property bool filled: true
+        property bool toggled: false
         signal chosen()
 
         implicitWidth: label.implicitWidth + 28
         implicitHeight: 30
         radius: Theme.radius
-        color: btn.filled ? (btnHover.hovered ? Theme.mix(btn.accent, Theme.fg, 0.15) : btn.accent) : (btnHover.hovered ? Theme.alpha(Theme.selection, 0.8) : "transparent")
+        color: btn.filled ? (btnHover.hovered ? Theme.mix(btn.accent, Theme.fg, 0.15) : btn.accent) : ((btnHover.hovered || btn.toggled) ? Theme.alpha(Theme.selection, 0.8) : "transparent")
         border.width: btn.filled ? 0 : 1
         border.color: Theme.alpha(btn.accent, 0.7)
         Behavior on color {
@@ -136,7 +155,8 @@ PanelWindow {
         }
     }
 
-    // The thin divider between groups.
+    // The thin divider between the capture trio and the record trio, the way
+    // macOS splits them.
     component Divider: Item {
         implicitWidth: 1
         implicitHeight: 30
@@ -170,23 +190,89 @@ PanelWindow {
         }
     }
 
-    component OptLabel: Text {
-        color: Theme.comment
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSizeSmall
-        font.capitalization: Font.AllUppercase
+    // A menu section title, aligned with the menu items' labels (past the
+    // checkmark column).
+    component MenuHeader: Item {
+        id: head
+
+        property alias text: headerLabel.text
+        property bool dimmed: false
+
+        width: menuCol.width
+        height: 22
+
+        Text {
+            id: headerLabel
+            anchors.left: parent.left
+            anchors.leftMargin: 28
+            anchors.verticalCenter: parent.verticalCenter
+            color: head.dimmed ? Theme.alpha(Theme.comment, 0.5) : Theme.comment
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+            font.capitalization: Font.AllUppercase
+        }
     }
 
-    // An options group: a label, then its chips.
-    component OptGroup: RowLayout {
-        property alias text: labelText.text
+    // One menu row: a checkmark column, then the label. `checked` draws the
+    // macOS checkmark; `dimmed` greys the row and takes its clicks away, the
+    // way macOS dims what does not apply to the selected tool.
+    component MenuItem: Rectangle {
+        id: item
 
-        spacing: Theme.spacing
+        property alias text: label.text
+        property bool checked: false
+        property bool dimmed: false
+        signal chosen()
 
-        OptLabel {
-            id: labelText
-            Layout.alignment: Qt.AlignVCenter
+        width: menuCol.width
+        height: 26
+        radius: Theme.radius
+        color: !item.dimmed && itemHover.hovered ? Theme.hoverBg : "transparent"
+        Behavior on color {
+            ColorAnimation {
+                duration: Theme.animationFast
+            }
         }
+
+        Text {
+            id: tick
+            anchors.left: parent.left
+            anchors.leftMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            width: 14
+            text: item.checked ? "✓" : ""
+            color: Theme.purple
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+        }
+
+        Text {
+            id: label
+            anchors.left: tick.right
+            anchors.leftMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            color: item.dimmed ? Theme.comment : Theme.fg
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+        }
+
+        HoverHandler {
+            id: itemHover
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: !item.dimmed
+            cursorShape: Qt.PointingHandCursor
+            onClicked: item.chosen()
+        }
+    }
+
+    // The hairline between the menu's groups.
+    component MenuSep: Rectangle {
+        width: menuCol.width
+        height: 1
+        color: Theme.alpha(Theme.comment, 0.35)
     }
 
     // Escape closes the toolbar. This item is the toolbar's default focus holder:
@@ -251,81 +337,71 @@ PanelWindow {
             anchors.centerIn: parent
             spacing: Theme.spacing + 4
 
-            // The three capture modes, macOS's Entire Screen / Selected
-            // Portion / Window.
+            // macOS's capture trio: entire screen / window / portion. The
+            // window tool means "click the window" — it opens the picker.
             SegGroup {
-                visible: !Shell.Capture.recordingMode
-
                 Chip {
                     text: "Screen"
-                    active: Shell.Capture.mode === "screen"
-                    onChosen: Shell.Capture.mode = "screen"
-                }
-                Chip {
-                    text: "Selection"
-                    active: Shell.Capture.mode === "selection"
-                    onChosen: Shell.Capture.mode = "selection"
+                    active: !Shell.Capture.recordingMode && Shell.Capture.mode === "screen"
+                    onChosen: {
+                        Shell.Capture.mode = "screen";
+                        Shell.Capture.recordingMode = false;
+                    }
                 }
                 Chip {
                     text: "Window"
-                    active: Shell.Capture.mode === "window"
-                    onChosen: Shell.Capture.mode = "window"
-                }
-            }
-
-            // The recording targets — the bar's flipped state.
-            SegGroup {
-                visible: Shell.Capture.recordingMode
-
-                Chip {
-                    text: "Record Entire Screen"
-                    active: Shell.Capture.recordTarget === "screen"
-                    onChosen: Shell.Capture.recordTarget = "screen"
+                    active: !Shell.Capture.recordingMode && Shell.Capture.mode === "window"
+                    onChosen: {
+                        Shell.Capture.mode = "window";
+                        Shell.Capture.recordingMode = false;
+                    }
                 }
                 Chip {
-                    text: "Record Selected Portion"
-                    active: Shell.Capture.recordTarget === "selection"
-                    onChosen: Shell.Capture.recordTarget = "selection"
+                    text: "Portion"
+                    active: !Shell.Capture.recordingMode && Shell.Capture.mode === "selection"
+                    onChosen: {
+                        Shell.Capture.mode = "selection";
+                        Shell.Capture.recordingMode = false;
+                    }
                 }
             }
 
             Divider {
-                visible: !Shell.Capture.recordingMode
             }
 
-            // The options. macOS puts these behind an Options ▾; the bar has
-            // room to show them outright. Save-to/timer/thumbnail are capture
-            // options, the microphone is the recording one.
-            OptGroup {
-                visible: !Shell.Capture.recordingMode
-                text: "save to"
-
+            // The record trio, the same shapes in the same order.
+            SegGroup {
                 Chip {
-                    text: "Desktop"
-                    active: Shell.Capture.saveTo === "desktop"
-                    onChosen: Shell.Capture.saveTo = "desktop"
+                    text: "Screen"
+                    active: Shell.Capture.recordingMode && Shell.Capture.recordTarget === "screen"
+                    onChosen: {
+                        Shell.Capture.recordTarget = "screen";
+                        Shell.Capture.recordingMode = true;
+                    }
                 }
                 Chip {
-                    text: "Pictures"
-                    active: Shell.Capture.saveTo === "pictures"
-                    onChosen: Shell.Capture.saveTo = "pictures"
+                    text: "Window"
+                    active: Shell.Capture.recordingMode && Shell.Capture.recordTarget === "window"
+                    onChosen: {
+                        Shell.Capture.recordTarget = "window";
+                        Shell.Capture.recordingMode = true;
+                    }
                 }
                 Chip {
-                    text: "Clipboard"
-                    active: Shell.Capture.saveTo === "clipboard"
-                    onChosen: Shell.Capture.saveTo = "clipboard"
-                }
-                Chip {
-                    text: "Other…"
-                    active: Shell.Capture.saveTo === "other"
-                    onChosen: Shell.Capture.saveTo = "other"
+                    text: "Portion"
+                    active: Shell.Capture.recordingMode && Shell.Capture.recordTarget === "selection"
+                    onChosen: {
+                        Shell.Capture.recordTarget = "selection";
+                        Shell.Capture.recordingMode = true;
+                    }
                 }
             }
 
             // macOS's "Other Location": the path is typed rather than picked,
             // which avoids a file dialog the shell has no business opening.
+            // The Options menu's Save to entry reveals it.
             Row {
-                visible: Shell.Capture.saveTo === "other" && !Shell.Capture.recordingMode
+                visible: Shell.Capture.saveTo === "other"
                 spacing: 8
                 height: visible ? 24 : 0
 
@@ -362,107 +438,9 @@ PanelWindow {
                 }
             }
 
-            OptGroup {
-                visible: !Shell.Capture.recordingMode
-                text: "timer"
-
-                Chip {
-                    text: "Off"
-                    active: Shell.Capture.timer === 0
-                    onChosen: Shell.Capture.timer = 0
-                }
-                Chip {
-                    text: "5 s"
-                    active: Shell.Capture.timer === 5
-                    onChosen: Shell.Capture.timer = 5
-                }
-                Chip {
-                    text: "10 s"
-                    active: Shell.Capture.timer === 10
-                    onChosen: Shell.Capture.timer = 10
-                }
-            }
-
-            OptGroup {
-                visible: !Shell.Capture.recordingMode
-                text: "thumbnail"
-
-                Chip {
-                    text: "On"
-                    active: Shell.Capture.thumbnail
-                    onChosen: Shell.Capture.thumbnail = true
-                }
-                Chip {
-                    text: "Off"
-                    active: !Shell.Capture.thumbnail
-                    onChosen: Shell.Capture.thumbnail = false
-                }
-            }
-
-            // macOS's "Remember Last Selection": with it on, a selection capture
-            // reuses the previous geometry. slurp cannot pre-draw a frame, so
-            // Reselect is how you draw a new one.
-            OptGroup {
-                visible: !Shell.Capture.recordingMode
-                text: "selection"
-
-                Chip {
-                    text: "Ask every time"
-                    active: !Shell.Capture.rememberSelection
-                    onChosen: Shell.Capture.rememberSelection = false
-                }
-                Chip {
-                    text: "Remember"
-                    active: Shell.Capture.rememberSelection
-                    onChosen: Shell.Capture.rememberSelection = true
-                }
-                Chip {
-                    text: "Reselect"
-                    visible: Shell.Capture.rememberSelection && Shell.Capture.lastGeometry !== ""
-                    active: false
-                    onChosen: {
-                        Shell.Capture.reselect = true;
-                        Shell.Capture.mode = "selection";
-                        Shell.Capture.capture();
-                    }
-                }
-            }
-
-            OptGroup {
-                visible: Shell.Capture.recordingMode
-                text: "microphone"
-
-                Chip {
-                    text: "None"
-                    active: Shell.Capture.mic === "none"
-                    onChosen: Shell.Capture.mic = "none"
-                }
-                Chip {
-                    // Without a detectable default source the option
-                    // disappears entirely (Capture.micAvailable).
-                    visible: Shell.Capture.micAvailable
-                    text: "Default"
-                    active: Shell.Capture.mic === "default"
-                    onChosen: Shell.Capture.mic = "default"
-                }
-                Chip {
-                    // What you hear, rather than what the microphone hears: the
-                    // default sink's monitor (Capture.sinkMonitorName).
-                    visible: Shell.Capture.systemAudioAvailable
-                    text: "System audio"
-                    active: Shell.Capture.mic === "system"
-                    onChosen: Shell.Capture.mic = "system"
-                }
-            }
-
-            Divider {
-                visible: Shell.Capture.recordingMode
-            }
-
             // The timer's remaining seconds, in a fixed slot so the bar does
             // not resize while it counts down.
             Text {
-                visible: !Shell.Capture.recordingMode
                 Layout.preferredWidth: 130
                 Layout.alignment: Qt.AlignVCenter
                 horizontalAlignment: Text.AlignHCenter
@@ -472,39 +450,202 @@ PanelWindow {
                 font.pixelSize: Theme.fontSizeSmall
             }
 
-            // Capture mode: capture in the selected mode, or flip over to the
-            // recording controls.
+            // macOS's "Remember Last Selection" keeps the previous rectangle;
+            // the crosshair cannot pre-draw a frame, so Reselect is how you
+            // draw a new one: fresh crosshair, then a portion capture.
             Btn {
-                visible: !Shell.Capture.recordingMode
-                text: "Capture"
-                onChosen: Shell.Capture.capture()
-            }
-            Btn {
-                visible: !Shell.Capture.recordingMode
-                text: "Record"
+                visible: !Shell.Capture.recordingMode && Shell.Capture.rememberSelection && Shell.Capture.lastGeometry !== ""
+                text: "Reselect"
                 filled: false
-                onChosen: Shell.Capture.recordingMode = true
+                onChosen: {
+                    Shell.Capture.reselect = true;
+                    Shell.Capture.mode = "selection";
+                    Shell.Capture.capture();
+                }
             }
 
-            // Recording mode: the Capture button flips back (macOS uses it as
-            // the way out of the record state), Record starts, and a running
-            // recording gets a Stop Recording in red.
+            // macOS's Options menu, to the left of the primary button.
             Btn {
-                visible: Shell.Capture.recordingMode
-                text: "Capture"
+                text: "Options ▾"
                 filled: false
-                onChosen: Shell.Capture.recordingMode = false
+                toggled: root.optionsOpen
+                onChosen: root.optionsOpen = !root.optionsOpen
             }
+
+            // The one primary button: Capture or Record for the selected trio,
+            // Stop Recording (red) while that recording runs.
             Btn {
-                visible: Shell.Capture.recordingMode && !Recorder.recording
-                text: "Record"
-                onChosen: Shell.Capture.recordTarget === "screen" ? Shell.Capture.recordScreen() : Shell.Capture.recordSelection()
+                text: Recorder.recording && Shell.Capture.recordingMode ? "Stop Recording" : (Shell.Capture.recordingMode ? "Record" : "Capture")
+                accent: Recorder.recording && Shell.Capture.recordingMode ? Theme.red : Theme.purple
+                onChosen: {
+                    if (Recorder.recording && Shell.Capture.recordingMode) {
+                        Shell.Capture.stopRecording();
+                    } else if (Shell.Capture.recordingMode) {
+                        if (Shell.Capture.recordTarget === "screen")
+                            Shell.Capture.recordScreen();
+                        else if (Shell.Capture.recordTarget === "window")
+                            Shell.Capture.recordWindow();
+                        else
+                            Shell.Capture.recordSelection();
+                    } else {
+                        Shell.Capture.capture();
+                    }
+                }
             }
-            Btn {
-                visible: Shell.Capture.recordingMode && Recorder.recording
-                text: "Stop Recording"
-                accent: Theme.red
-                onChosen: Shell.Capture.stopRecording()
+        }
+    }
+
+    // macOS's Options menu: a dropdown above the bar. Save to, Timer and
+    // Microphone are pick-one lists whose choice is checkmarked and which close
+    // the menu on pick; the last three are checkmarks that toggle in place so
+    // several can be set at once.
+    Rectangle {
+        id: menu
+
+        visible: root.optionsOpen
+        anchors.bottom: card.top
+        anchors.bottomMargin: 10
+        anchors.right: card.right
+        width: 250
+        height: menuCol.implicitHeight + 16
+        radius: Theme.panelRadius
+        color: Theme.panelBg
+        border.width: 1
+        border.color: Theme.border
+
+        Column {
+            id: menuCol
+            anchors.fill: parent
+            anchors.margins: 8
+            spacing: 2
+
+            MenuHeader {
+                text: "save to"
+            }
+            MenuItem {
+                text: "Desktop"
+                checked: Shell.Capture.saveTo === "desktop"
+                onChosen: {
+                    Shell.Capture.saveTo = "desktop";
+                    root.optionsOpen = false;
+                }
+            }
+            MenuItem {
+                text: "Documents"
+                checked: Shell.Capture.saveTo === "documents"
+                onChosen: {
+                    Shell.Capture.saveTo = "documents";
+                    root.optionsOpen = false;
+                }
+            }
+            MenuItem {
+                text: "Clipboard"
+                checked: Shell.Capture.saveTo === "clipboard"
+                onChosen: {
+                    Shell.Capture.saveTo = "clipboard";
+                    root.optionsOpen = false;
+                }
+            }
+            MenuItem {
+                text: "Other Location…"
+                checked: Shell.Capture.saveTo === "other"
+                onChosen: {
+                    Shell.Capture.saveTo = "other";
+                    root.optionsOpen = false;
+                }
+            }
+
+            MenuSep {
+            }
+
+            MenuHeader {
+                text: "timer"
+            }
+            MenuItem {
+                text: "Off"
+                checked: Shell.Capture.timer === 0
+                onChosen: {
+                    Shell.Capture.timer = 0;
+                    root.optionsOpen = false;
+                }
+            }
+            MenuItem {
+                text: "5s"
+                checked: Shell.Capture.timer === 5
+                onChosen: {
+                    Shell.Capture.timer = 5;
+                    root.optionsOpen = false;
+                }
+            }
+            MenuItem {
+                text: "10s"
+                checked: Shell.Capture.timer === 10
+                onChosen: {
+                    Shell.Capture.timer = 10;
+                    root.optionsOpen = false;
+                }
+            }
+
+            MenuSep {
+            }
+
+            // The microphone only means something for recordings: while a
+            // capture tool is selected the section is greyed, macOS-style.
+            MenuHeader {
+                text: "microphone"
+                dimmed: !Shell.Capture.recordingMode
+            }
+            MenuItem {
+                text: "None"
+                dimmed: !Shell.Capture.recordingMode
+                checked: Shell.Capture.mic === "none"
+                onChosen: {
+                    Shell.Capture.mic = "none";
+                    root.optionsOpen = false;
+                }
+            }
+            MenuItem {
+                // Without a detectable default source the option disappears
+                // entirely (Capture.micAvailable).
+                visible: Shell.Capture.micAvailable
+                text: "Default"
+                dimmed: !Shell.Capture.recordingMode
+                checked: Shell.Capture.mic === "default"
+                onChosen: {
+                    Shell.Capture.mic = "default";
+                    root.optionsOpen = false;
+                }
+            }
+            MenuItem {
+                // What you hear, rather than what the microphone hears: the
+                // default sink's monitor (Capture.sinkMonitorName).
+                visible: Shell.Capture.systemAudioAvailable
+                text: "System Audio"
+                dimmed: !Shell.Capture.recordingMode
+                checked: Shell.Capture.mic === "system"
+                onChosen: {
+                    Shell.Capture.mic = "system";
+                    root.optionsOpen = false;
+                }
+            }
+
+            MenuSep {
+            }
+
+            MenuItem {
+                text: "Show Floating Thumbnail"
+                checked: Shell.Capture.thumbnail
+                onChosen: Shell.Capture.thumbnail = !Shell.Capture.thumbnail
+            }
+            MenuItem {
+                text: "Remember Last Selection"
+                checked: Shell.Capture.rememberSelection
+                onChosen: Shell.Capture.rememberSelection = !Shell.Capture.rememberSelection
+            }
+            MenuItem {
+                text: "Show Mouse Pointer"
+                checked: Shell.Capture.showPointer
+                onChosen: Shell.Capture.showPointer = !Shell.Capture.showPointer
             }
         }
     }

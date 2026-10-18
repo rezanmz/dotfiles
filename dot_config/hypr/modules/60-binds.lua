@@ -312,6 +312,10 @@ hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 hl.bind(mainMod .. " + SHIFT + 3", hl.dsp.exec_cmd("qs ipc call capture screen"))
 hl.bind(mainMod .. " + SHIFT + 4", hl.dsp.exec_cmd("qs ipc call capture selection"))
 hl.bind(mainMod .. " + SHIFT + 5", hl.dsp.exec_cmd("qs ipc call shell togglePanel capture"))
+-- Control added, as on macOS (⌃⌘⇧3 / ⌃⌘⇧4): the same captures, but they go to
+-- the clipboard and leave no file behind.
+hl.bind(mainMod .. " + CTRL + SHIFT + 3", hl.dsp.exec_cmd("qs ipc call capture screenClipboard"))
+hl.bind(mainMod .. " + CTRL + SHIFT + 4", hl.dsp.exec_cmd("qs ipc call capture selectionClipboard"))
 
 -- Media keys (Logitech MX Master and the Keychron consumer keys)
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })

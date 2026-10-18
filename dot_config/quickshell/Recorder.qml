@@ -22,6 +22,30 @@ Singleton {
 
     property bool recording: false
 
+    // When the running recording started (epoch ms) and how long it has run, in
+    // whole seconds — the bar's stop pill counts it up in mm:ss, the way the
+    // macOS menu-bar stop button shows its elapsed time. A recording the probe
+    // finds already running (started outside this shell) counts from the moment
+    // it was discovered.
+    property real startedAt: 0
+    property int elapsed: 0
+
+    onRecordingChanged: {
+        if (root.recording) {
+            root.startedAt = Date.now();
+            root.elapsed = 0;
+        }
+    }
+
+    // One tick a second, and only while a recording runs; the pill's mm:ss is
+    // the only reader.
+    Timer {
+        interval: 1000
+        running: root.recording
+        repeat: true
+        onTriggered: root.elapsed = Math.floor((Date.now() - root.startedAt) / 1000)
+    }
+
     Process {
         id: probe
 

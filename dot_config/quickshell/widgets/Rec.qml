@@ -6,27 +6,41 @@ import Quickshell
 //
 // Only exists while a recording is running: a red pill with a pulsing dot, so a
 // forgotten `wf-recorder` cannot go unnoticed. Clicking it stops the recording
-// through the same script the keybind uses.
+// through Recorder — the same SIGINT path the toolbar and the keybind use. It
+// sits at the far right of the bar, after the clock: the menu-bar position of
+// the macOS stop button it stands in for.
 BarItem {
     id: root
 
     readonly property bool active: Recorder.recording
+
+    // In the bar's RowLayout an invisible item is not laid out at all, so idle
+    // costs zero width — "visible only while recording", literally.
+    visible: root.active
 
     onClicked: Recorder.stop()
 
     // The content collapses to nothing when idle, so the bar does not reserve
     // space for a state that is usually off. (Sizing the BarItem itself from its
     // own content is a binding loop — BarItem measures the content it is given.)
+    //
+    // The pill fills its wrapper exactly, and the wrapper is hidden when idle.
+    // That last part matters: a Text paints its string regardless of its
+    // parent's size, so a label inside a zero-size pill still draws " REC" over
+    // the neighbouring icons — which is exactly how the earlier version
+    // overlapped the clock. Clipping the pill is the belt to that braces.
     Item {
-        implicitWidth: root.active ? label.implicitWidth + 14 : 0
+        visible: root.active
+        implicitWidth: root.active ? pillLabel.implicitWidth + 14 : 0
         implicitHeight: root.active ? 22 : 0
+        width: implicitWidth
+        height: implicitHeight
 
         Rectangle {
             id: pill
 
-            anchors.centerIn: parent
-            width: parent.implicitWidth
-            height: parent.implicitHeight
+            anchors.fill: parent
+            clip: true
             radius: Theme.radiusPill
             color: Theme.alpha(Theme.red, 0.16)
             border.width: 1
@@ -46,10 +60,10 @@ BarItem {
             }
 
             Text {
-                id: label
+                id: pillLabel
 
                 anchors.centerIn: parent
-                text: "\uf111  REC"
+                text: "  REC"
                 color: Theme.red
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall

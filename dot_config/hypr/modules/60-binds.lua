@@ -10,7 +10,7 @@
 --   SUPER+1..0    workspaces        SUPER+SHIFT+1..0  move window to workspace
 --   SUPER+S       scratchpad (magic)   SUPER+0  workspace 10 (mail)
 --   SUPER+arrows / h j k l  focus  SUPER+SHIFT+...  move window
---   PRINT         region screenshot SUPER+SHIFT+PRINT  full screenshot
+--   SUPER+CTRL+1..0 move window to ws   SUPER+SHIFT+3/4/5 capture trio
 
 local mainMod = "SUPER"
 
@@ -25,7 +25,6 @@ local fileManager = "kitty yazi"
 local lockCmd     = "hyprlock"
 
 local ipc     = "hyprctl dispatch"
-local helpers = os.getenv("HOME") .. "/.local/bin"
 
 -- Applications
 hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal))
@@ -273,10 +272,15 @@ hl.bind(mainMod .. " + CTRL + down",  hl.dsp.window.resize({ x = 0, y = 40,  rel
 -- Workspaces
 -- Workspaces 1-10. SUPER+0 reaches workspace 10, which is where mail lives.
 -- Nothing special about it: it behaves exactly like 1-9.
+-- Moving a window there is SUPER+CTRL+<n>. It used to be SUPER+SHIFT+<n>, but
+-- SUPER+SHIFT+3/4/5 are the macOS screenshot trio Reza asked for (there is no
+-- Print key on this keyboard), and Hyprland dispatches *all* matching binds —
+-- the two homes could not coexist without every capture also moving a window,
+-- so the move family moved rather than the captures.
 for i = 1, 10 do
     local key = i % 10
-    hl.bind(mainMod .. " + " .. key,         hl.dsp.focus({ workspace = i }))
-    hl.bind(mainMod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }))
+    hl.bind(mainMod .. " + " .. key, hl.dsp.focus({ workspace = i }))
+    hl.bind(mainMod .. " + CTRL + " .. key, hl.dsp.window.move({ workspace = i }))
 end
 
 hl.bind(mainMod .. " + S",         hl.dsp.workspace.toggle_special("magic"))
@@ -298,10 +302,16 @@ hl.bind(mainMod .. " + mouse_up",   hl.dsp.focus({ workspace = "e-1" }))
 hl.bind(mainMod .. " + mouse:272", hl.dsp.window.drag(),   { mouse = true })
 hl.bind(mainMod .. " + mouse:273", hl.dsp.window.resize(), { mouse = true })
 
--- Screenshots
-hl.bind("PRINT",         hl.dsp.exec_cmd(helpers .. "/screenshot region"))
-hl.bind(mainMod .. " + PRINT", hl.dsp.exec_cmd(helpers .. "/screenshot full"))
-hl.bind(mainMod .. " + SHIFT + PRINT", hl.dsp.exec_cmd(helpers .. "/screenshot window"))
+-- Screenshots and recording, the macOS ⇧⌘3/4/5 model.
+-- There is no Print key on this keyboard, so the trio is SUPER+SHIFT+3 (whole
+-- screen, ⌘⇧3), SUPER+SHIFT+4 (drag a selection, ⌘⇧4) and SUPER+SHIFT+5 (the
+-- capture toolbar, ⌘⇧5: modes, save-to, timer, thumbnail, recording). All of
+-- it goes through the shell's capture IPC (dot_config/quickshell/Capture.qml);
+-- ~/.local/bin/screenshot and record-toggle are thin wrappers over the same
+-- calls, kept for scripts and old muscle memory.
+hl.bind(mainMod .. " + SHIFT + 3", hl.dsp.exec_cmd("qs ipc call capture screen"))
+hl.bind(mainMod .. " + SHIFT + 4", hl.dsp.exec_cmd("qs ipc call capture selection"))
+hl.bind(mainMod .. " + SHIFT + 5", hl.dsp.exec_cmd("qs ipc call shell togglePanel capture"))
 
 -- Media keys (Logitech MX Master and the Keychron consumer keys)
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
@@ -323,6 +333,6 @@ hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("qs ipc call player previous"), 
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call shell togglePanel notifications"))
 -- Colour picker (hyprpicker copies the picked colour to the clipboard).
 hl.bind(mainMod .. " + SHIFT + P", hl.dsp.exec_cmd("hyprpicker --autocopy"))
--- Screen recording toggle.
--- wf-recorder: SUPER+SHIFT+R starts a region recording, pressing it again stops.
-hl.bind(mainMod .. " + SHIFT + R", hl.dsp.exec_cmd(helpers .. "/record-toggle"))
+-- Screen recording has no chord of its own: SUPER+SHIFT+5 opens the capture
+-- toolbar with Record/Stop Recording, and the REC pill in the bar is the stop
+-- button while one runs (the old SUPER+SHIFT+R toggle is gone).

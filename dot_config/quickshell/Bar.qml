@@ -126,7 +126,10 @@ PanelWindow {
                 Disk {}
             }
         }
-        Rec {}
         Clock {}
+        // Last, at the far right edge: the recording pill only exists while a
+        // recording runs (see Rec.qml), so it never sits in the middle of the
+        // readouts pushing them around.
+        Rec {}
     }
 }

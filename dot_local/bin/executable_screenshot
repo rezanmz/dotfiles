@@ -1,84 +1,27 @@
 #!/usr/bin/env sh
-# Screenshots for Hyprland.
-#   screenshot region   — select an area, then annotate
-#   screenshot full     — whole monitor, then annotate
-#   screenshot window   — active window, then annotate
-#   screenshot output   — whole monitor, no annotation editor
+# Screenshots for Hyprland — a thin wrapper over the shell's capture singleton.
+#   screenshot region   — select an area
+#   screenshot full     — whole monitor
+#   screenshot window   — active window
+#   screenshot output   — whole monitor (kept for old callers; same as full)
 #
-# The annotated image is copied to the clipboard and saved under
-# ~/Pictures/Screenshots (honouring XDG_PICTURES_DIR).
+# The implementation lives in the shell now (dot_config/quickshell/Capture.qml):
+# one code path for the macOS-style naming ("Screenshot 2026-10-17 at
+# 20.15.32.png"), the save location, the timer and the floating thumbnail —
+# annotation opens from the thumbnail (satty) instead of freezing the screen
+# here. This only forwards to the running shell over IPC.
 set -eu
 
 mode="${1:-region}"
 
-# Freeze the screen into a temp file first so slurp/satty are not in the shot.
-tmp="$(mktemp -t screenshot-XXXXXX.png)"
-trap 'rm -f "$tmp"' EXIT
-
 case "$mode" in
-    region)
-        geometry="$(slurp)" || exit 0
-        grim -g "$geometry" "$tmp"
-        ;;
-    full | output)
-        grim "$tmp"
-        ;;
-    window)
-        # hyprctl returns JSON; python3 is always present (kitty depends on it).
-        geometry="$(hyprctl activewindow -j | python3 -c '
-import json, sys
-w = json.load(sys.stdin)
-if not w or "at" not in w:
-    sys.exit(1)
-print(f"{w[\"at\"][0]},{w[\"at\"][1]} {w[\"size\"][0]}x{w[\"size\"][1]}")
-')" || exit 0
-        grim -g "$geometry" "$tmp"
-        ;;
+    region)        fn=selection ;;
+    full | output) fn=screen ;;
+    window)        fn=window ;;
     *)
         printf 'usage: %s [region|full|window|output]\n' "$0" >&2
         exit 2
         ;;
 esac
 
-dir="${XDG_PICTURES_DIR:-$HOME/Pictures}/Screenshots"
-mkdir -p "$dir"
-out="$dir/$(date +%Y-%m-%d_%H-%M-%S).png"
-
-copy_to_clipboard() {
-    if command -v wl-copy >/dev/null 2>&1; then
-        wl-copy --type image/png < "$1"
-    fi
-}
-
-notify() {
-    command -v notify-send >/dev/null 2>&1 && notify-send -a screenshot "$1" "$2" || true
-}
-
-if [ "$mode" = "output" ] || ! command -v satty >/dev/null 2>&1; then
-    cp "$tmp" "$out"
-    copy_to_clipboard "$out"
-    notify "Screenshot saved" "$out"
-    exit 0
-fi
-
-# Annotate with satty.
-#   Enter   -> copy the annotated image to the clipboard, save it, then exit
-#   Escape  -> discard (exit only; nothing is written)
-# Saving to file is what produces $out, so a copy is deliberately NOT forced
-# after escape — copying there would silently place an unannotated image on the
-# clipboard.
-if satty \
-    --filename "$tmp" \
-    --output-filename "$out" \
-    --copy-command wl-copy \
-    --early-exit \
-    --actions-on-enter save-to-clipboard \
-    --actions-on-enter save-to-file \
-    --actions-on-escape exit
-then
-    if [ -f "$out" ]; then
-        notify "Screenshot saved" "$out"
-    else
-        notify "Screenshot copied" "in clipboard (no file saved)"
-    fi
-fi
+exec qs ipc call capture "$fn"

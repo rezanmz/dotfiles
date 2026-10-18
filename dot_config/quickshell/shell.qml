@@ -6,7 +6,9 @@ import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
 import qs
+import qs as Qs
 import qs.panels
+import qs.panels as PanelTypes
 
 // Shell entry point.
 //
@@ -44,13 +46,23 @@ ShellRoot {
     Osd {}
     Launcher {}
 
+    // The floating capture thumbnail (macOS's post-shot peek), only while it is
+    // up. The binding also instantiates the capture singleton at startup, so
+    // its IPC handler exists before any keybind calls it.
+    LazyLoader {
+        active: Qs.Capture.thumbVisible
+        component: Component {
+            ScreenshotThumb {}
+        }
+    }
+
     // Bar panels. Each one is a window, and a Qt Quick window costs about 11 MiB
     // whether or not it is on screen (measured: seven resident panel windows
     // added ~80 MiB to the shell), so a panel is created when it opens and
     // destroyed when it closes. The compiled component is cached, so this is
     // window setup, not a re-parse.
     Variants {
-        model: ["system", "audio", "bluetooth", "notifications", "media", "network", "calendar", "tray", "idle"]
+        model: ["system", "audio", "bluetooth", "notifications", "media", "network", "calendar", "tray", "idle", "capture"]
 
         delegate: LazyLoader {
             required property string modelData
@@ -107,6 +119,13 @@ ShellRoot {
         Idle {}
     }
 
+    Component {
+        id: capturePanel
+        // Qualified: this file's `Capture` would otherwise have to pick between
+        // the singleton and this panel type (both modules are imported).
+        PanelTypes.Capture {}
+    }
+
     function panelComponent(name: string): var {
         switch (name) {
         case "system":
@@ -127,6 +146,8 @@ ShellRoot {
             return trayPanel;
         case "idle":
             return idlePanel;
+        case "capture":
+            return capturePanel;
         }
         return null;
     }

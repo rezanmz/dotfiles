@@ -3,15 +3,17 @@ import qs
 import Quickshell
 
 // Night light readout. Scroll to warm it up (down cools), which also turns it on
-// if it was off — the same thing dragging the panel's warmth slider does. Click
-// for the Control Centre.
+// if it was off — the same thing dragging the panel's warmth slider does. Right
+// click toggles the filter.
+//
+// No panel on left click, for the same reason as the brightness readout next to
+// it: three widgets shared the Control Centre's panel, so clicking a readout could
+// open the panel under a different one.
 //
 // It stays visible when off so the gesture is discoverable rather than a
 // hidden control you have to already know about.
 BarItem {
     id: root
-
-    panel: "controls"
 
     // Right click toggles it, the way right click mutes the volume readout.
     onClicked: button => {

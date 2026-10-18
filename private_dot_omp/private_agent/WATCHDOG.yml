@@ -6,10 +6,10 @@
 # per completed run. Per-advisor `reviewInterval` multiplies that (2 = every
 # second run).
 #
-# `tools: []` means the reviewer gets no investigative tools: it judges the
-# transcript it is handed instead of re-reading the repo. That is the single
-# biggest token lever here — a reviewer that greps can spend more than the
-# work it reviews.
+# `tools` is the reviewer's investigative surface. It can read, grep, and glob
+# to check a claim against the repo instead of trusting the transcript. That
+# costs tokens, so the bound is cadence (`agent-end`, one review per run) plus
+# `maxNotesPerUpdate`, not tool starvation.
 #
 # syncBacklog controls whether the primary WAITS for the verdict:
 #   off = advisory only (cheapest); 1|3|5 = wait at that threshold, max 30s;
@@ -29,7 +29,7 @@ advisors:
     reviewMode: agent-end
     reviewInterval: 1
     syncBacklog: off
-    tools: []
+    tools: [read, grep, glob]
     instructions: |
       Review the finished run, in this order:
       1. Every claim of "done", "verified", "passing", or "tested" must be

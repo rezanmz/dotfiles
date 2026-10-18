@@ -63,8 +63,9 @@ modelRoles:
 advisor:
   # Cost control, not removal. The previous setup reviewed EVERY tool round
   # with TWO advisors (reviewMode: turn x 2), which is why usage roughly
-  # doubled. Now: one reviewer, once per completed run, no investigative
-  # tools, two notes max, and only blockers may wake the primary.
+  # doubled. Now: one reviewer, once per completed run, two notes max, and only
+  # blockers may wake the primary. It keeps read/grep/glob so it can check a
+  # claim against the repo; cadence is what bounds the cost.
   enabled: true
   reviewMode: agent-end
   reviewInterval: 1

@@ -176,9 +176,9 @@ Scope {
                     }
                     onReleased: hideTimer.restart()
                     onWheel: wheel => {
-                        const d = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : (wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y : wheel.angleDelta.x);
-                        if (d !== 0)
-                            Sound.adjustVolume(d > 0 ? Sound.step : -Sound.step);
+                        const n = Wheel.steps(wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x, wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y : wheel.pixelDelta.x, "osd");
+                        if (n !== 0)
+                            Sound.adjustVolume(n * Sound.step);
                         hideTimer.restart();
                     }
                     onEntered: hideTimer.stop()

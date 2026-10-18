@@ -13,10 +13,7 @@ BarItem {
 
     panel: "controls"
 
-    onScrolled: delta => {
-        if (delta !== 0)
-            NightLight.adjustBrightness(delta > 0 ? 1 : -1);
-    }
+    onScrolled: steps => NightLight.adjustBrightness(steps)
 
     Text {
         text: "\uf185 " + NightLight.brightness + "%"

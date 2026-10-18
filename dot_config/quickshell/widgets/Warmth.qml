@@ -19,10 +19,7 @@ BarItem {
             NightLight.enabled = !NightLight.enabled;
     }
 
-    onScrolled: delta => {
-        if (delta !== 0)
-            NightLight.adjustWarmth(delta > 0 ? 1 : -1);
-    }
+    onScrolled: steps => NightLight.adjustWarmth(steps)
 
     Text {
         text: NightLight.enabled ? "\uf186 " + NightLight.temperature + "K" : "\uf186 off"

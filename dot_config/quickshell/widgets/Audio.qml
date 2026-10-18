@@ -20,7 +20,7 @@ BarItem {
     // as escapes so the file stays ASCII.
     readonly property string icon: root.volume < 0.34 ? "\uf026" : (root.volume < 0.67 ? "\uf027" : "\uf028")
 
-    onScrolled: delta => Sound.adjustVolume(delta > 0 ? Sound.step : -Sound.step)
+    onScrolled: steps => Sound.adjustVolume(steps * Sound.step)
     onClicked: button => {
         if (button === Qt.RightButton)
             Sound.toggleMute();

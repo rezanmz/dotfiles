@@ -85,7 +85,7 @@ Singleton {
     }
 
     function adjustWarmth(steps: int): void {
-        root.temperature = Math.max(2500, Math.min(6500, root.temperature - steps * 250));
+        root.temperature = Math.max(2500, Math.min(6500, root.temperature - steps * 200));
         root.enabled = true;
     }
 

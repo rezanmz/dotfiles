@@ -89,9 +89,11 @@ Item {
         // reports x rather than y; widgets only need the direction, so the first
         // non-zero value wins.
         onWheel: wheel => {
-            const a = wheel.angleDelta;
-            const p = wheel.pixelDelta;
-            root.scrolled(a.y !== 0 ? a.y : (a.x !== 0 ? a.x : (p.y !== 0 ? p.y : p.x)));
+            // A *count* of steps, not a raw delta: one step per detent, however the
+            // events were packed (see Wheel.qml).
+            const n = Wheel.steps(wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x, wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y : wheel.pixelDelta.x, "bar");
+            if (n !== 0)
+                root.scrolled(n);
         }
     }
 }

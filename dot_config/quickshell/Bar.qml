@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
+import qs
 import qs.widgets
 
 // The bar.
@@ -48,11 +49,9 @@ PanelWindow {
         // own wheel (volume, brightness, warmth) sit above this and accept the
         // event first, so they keep their own gesture.
         onWheel: wheel => {
-            const a = wheel.angleDelta;
-            const p = wheel.pixelDelta;
-            const d = a.y !== 0 ? a.y : (a.x !== 0 ? a.x : (p.y !== 0 ? p.y : p.x));
-            if (d !== 0)
-                NightLight.adjustBrightness(d > 0 ? 1 : -1);
+            const n = Wheel.steps(wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x, wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y : wheel.pixelDelta.x, "bar");
+            if (n !== 0)
+                NightLight.adjustBrightness(n);
         }
     }
 

@@ -21,10 +21,12 @@
 - `bash.patterns` and `~/.omp/agent/hooks/pre/00-guardrails.ts` deny force
   pushes, remote-download-to-shell, `rm -rf` of `/`/`~`/`$HOME`/cwd, `mkfs`,
   `dd` to block devices, and disk erase. Approval gates, not a sandbox.
-- A git snapshot is committed to `refs/omp-snapshots/<stamp>` at session
-  start (tracked and untracked files; the real index is untouched).
-  Recovery: `git for-each-ref refs/omp-snapshots` then
-  `git restore --source=<ref> -- .`
+- A git snapshot (`refs/omp-snapshots/<stamp>-<pid>-<n>`) is committed at
+  session start (tracked and untracked files; the real index is untouched),
+  and every `write`/`edit` copies the prior file bytes to
+  `~/.omp/agent/cache/preimages/<stamp>/files/<abs path>` with a
+  `manifest.jsonl` beside it. Recovery: `git restore --source=<ref> -- .`
+  or copy the pre-image back.
 - `checkpoint`/`rewind` are conversation-only. Never treat them as file undo.
 {{- if ne .machine "work" }}
 

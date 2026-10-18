@@ -54,10 +54,23 @@ modelRoles:
   commit: 9router/ocg/mimo-v2.6-flash:minimal
   tiny: 9router/ocg/beam-free
   task: 9router/ocg/mimo-v2.6-pro:high
-  advisor: 9router/ocg/mimo-v2.6-pro:xhigh
+  # Advisor: cheap + adequate for review. Was mimo-v2.6-pro:xhigh ($15 bucket,
+  # 113 units); glm-5.3-flash is ~3x cheaper per token and lives in the $60
+  # bucket, so advisor reviews stop competing with the work models.
+  advisor: 9router/ocg/glm-5.3-flash:high
 {{- end }}
 advisor:
-  enabled: false
+  # Cost control, not removal. The previous setup reviewed EVERY tool round
+  # with TWO advisors (reviewMode: turn x 2), which is why usage roughly
+  # doubled. Now: one reviewer, once per completed run, no investigative
+  # tools, two notes max, and only blockers may wake the primary.
+  enabled: true
+  reviewMode: agent-end
+  reviewInterval: 1
+  maxNotesPerUpdate: 2
+  continueSeverity: blocker
+  evictStaleResults: true
+  syncBacklog: off
 task:
   eager: preferred
   batch: true
@@ -186,11 +199,29 @@ defaultThinkingLevel: auto
 isolation:
   backend: auto
 memory:
+  # Personal machines use the Hindsight bank (first-turn auto-recall,
+  # auto-retain every 3 turns, mental models). Work machines stay local.
+  # This mirrors the shared-memory MCP split in mcp.json: the bank is
+  # personal-stack only, so both halves of the memory story agree per machine.
+{{- if eq .machine "work" }}
   backend: local
+{{- else }}
+  backend: hindsight
+{{- end }}
 autolearn:
-  # Exposes the `learn` tool; with memory.backend: local it appends durable
-  # lessons to the project's learned.md, injected from the next session.
+  # Exposes the `learn` tool on both backends: local appends to the project's
+  # learned.md; hindsight queues a retain.
   enabled: true
+{{- if ne .machine "work" }}
+hindsight:
+  apiUrl: https://memory.reza.network
+  # Per-machine secret in ~/.omp/agent/.env; never tracked.
+  apiToken: ${HINDSIGHT_MCP_TOKEN}
+  bankId: shared
+  scoping: per-project-tagged
+  recallTimeoutMs: 30000
+  retainMode: full-session
+{{- end }}
 bash:
   # Deny-only guardrails on top of approvalMode: yolo. `deny` (not `prompt`)
   # because a prompt cannot be answered in print/headless runs; a denial

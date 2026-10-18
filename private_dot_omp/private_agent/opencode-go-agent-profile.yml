@@ -1,0 +1,82 @@
+# Alternate Oh My Pi overlay: advisor on, async spawns on, daily roles.
+# Usage: omp --config ~/.omp/agent/opencode-go-agent-profile.yml
+#
+# Ported 2026-10-18. The `opencode-go/*` lane is dead on this machine: the
+# stored API key returns 401 "This API key has expired" (verified with a live
+# probe), and the last successful opencode-go request was 2026-10-11. Every id
+# below now points at the 9Router lane (`ocg/<slug>`) from models.yml, so the
+# overlay works without a second credential. Rename the file if the old name
+# is confusing; nothing references it.
+modelRoles:
+  default: 9router/ocg/gpt-5.6-luna:high
+  slow: 9router/ocg/kimi-k3:max
+  smol: 9router/ocg/deepseek-v4.1-flash:low
+  vision: 9router/ocg/gpt-5.6-luna:high
+  plan: 9router/ocg/kimi-k3:max
+  designer: 9router/ocg/gpt-5.6-luna:high
+  commit: 9router/ocg/deepseek-v4.1-flash:low
+  tiny: 9router/ocg/deepseek-v4.1-flash:minimal
+  task: 9router/ocg/gpt-5.6-luna:high
+  advisor: 9router/ocg/glm-5.3-flash:high
+advisor:
+  enabled: true
+  reviewMode: agent-end
+  reviewInterval: 1
+  maxNotesPerUpdate: 2
+  continueSeverity: blocker
+  syncBacklog: off
+
+async:
+  enabled: true
+
+task:
+  eager: preferred
+  batch: true
+  maxConcurrency: 4
+  maxRecursionDepth: 1
+  softRequestBudget: 100
+  enableEffort: true
+  enableLsp: true
+  showResolvedModelBadge: true
+  isolation:
+    mode: auto
+    apply: true
+    merge: patch
+  agentModelOverrides:
+    security-reviewer: "@slow"
+
+retry:
+  enabled: true
+  modelFallback: true
+  usageAwareFallback: false
+  fallbackChains:
+    default:
+      - 9router/ocg/deepseek-v4.1-flash:high
+      - openrouter/deepseek/deepseek-v4.1-flash:high
+    slow:
+      - 9router/ocg/mimo-v2.6-pro:xhigh
+      - openrouter/xiaomi/mimo-v2.6-pro:xhigh
+    plan:
+      - 9router/ocg/mimo-v2.6-pro:xhigh
+      - openrouter/xiaomi/mimo-v2.6-pro:xhigh
+    smol:
+      - 9router/ocg/mimo-v2.6-flash:minimal
+      - openrouter/xiaomi/mimo-v2.6-flash:minimal
+    task:
+      - 9router/ocg/deepseek-v4.1-flash:high
+      - openrouter/deepseek/deepseek-v4.1-flash:high
+    vision:
+      - 9router/ocg/glm-5.3-flash:high
+      - openrouter/z-ai/glm-5.3-flash:high
+    designer:
+      - 9router/ocg/glm-5.3-flash:high
+      - openrouter/z-ai/glm-5.3-flash:high
+    commit:
+      - 9router/ocg/mimo-v2.6-flash:minimal
+      - openrouter/xiaomi/mimo-v2.6-flash:minimal
+    tiny:
+      - 9router/ocg/mimo-v2.6-flash:minimal
+      - openrouter/xiaomi/mimo-v2.6-flash:minimal
+    advisor:
+      - 9router/ocg/mimo-v2.6-flash:high
+      - openrouter/xiaomi/mimo-v2.6-flash:high

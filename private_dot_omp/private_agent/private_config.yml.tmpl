@@ -54,10 +54,11 @@ modelRoles:
   commit: 9router/ocg/mimo-v2.6-flash:minimal
   tiny: 9router/ocg/beam-free
   task: 9router/ocg/mimo-v2.6-pro:high
-  # Advisor: cheap + adequate for review. Was mimo-v2.6-pro:xhigh ($15 bucket,
-  # 113 units); glm-5.3-flash is ~3x cheaper per token and lives in the $60
-  # bucket, so advisor reviews stop competing with the work models.
-  advisor: 9router/ocg/glm-5.3-flash:high
+  # Advisor: mimo-v2.6-pro (user preference). The cost win comes from cadence
+  # and context shape, not the model: one review per completed run, no
+  # investigative tools, two notes max, blocker-only wakeups. Measured review
+  # size on the previous model: 1 request, 2-12k input tokens per run.
+  advisor: 9router/ocg/mimo-v2.6-pro:xhigh
 {{- end }}
 advisor:
   # Cost control, not removal. The previous setup reviewed EVERY tool round
@@ -75,7 +76,9 @@ task:
   eager: preferred
   batch: true
   maxConcurrency: {{ if eq .machine "work" }}8{{ else }}4{{ end }}
-  maxRecursionDepth: {{ if eq .machine "work" }}2{{ else }}1{{ end }}
+  # Depth 2: a child may spawn one level of its own workers. Leaves are agents
+  # whose tool list omits `task` (e.g. verifier), so fan-out stays deliberate.
+  maxRecursionDepth: 2
   softRequestBudget: {{ if eq .machine "work" }}200{{ else }}100{{ end }}
   enableEffort: true
   enableLsp: true

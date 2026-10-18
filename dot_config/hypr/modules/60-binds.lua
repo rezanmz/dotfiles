@@ -322,9 +322,12 @@ hl.bind(mainMod .. " + SHIFT + CTRL + 3", hl.dsp.exec_cmd("qs ipc call capture s
 hl.bind(mainMod .. " + SHIFT + CTRL + 4", hl.dsp.exec_cmd("qs ipc call capture selectionClipboard"))
 
 -- Media keys (Logitech MX Master and the Keychron consumer keys)
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"),      { locked = true, repeating = true })
-hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),     { locked = true, repeating = true })
+-- Volume goes through the shell so the keys step exactly as much as the scroll
+-- does (wpctl's own 5% is 5.1% of what the bar shows, which read as a six-point
+-- jump). Same shape as the media keys below.
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("qs ipc call shell volumeUp"), { locked = true, repeating = true })
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("qs ipc call shell volumeDown"),    { locked = true, repeating = true })
+hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("qs ipc call shell toggleMute"),    { locked = true, repeating = true })
 hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),   { locked = true, repeating = true })
 -- Transport goes through the shell (MPRIS) rather than playerctl: playerctl was
 -- a dependency of waybar and went with it, which silently broke these keys. The

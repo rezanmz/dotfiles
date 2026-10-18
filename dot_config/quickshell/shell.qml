@@ -188,6 +188,24 @@ ShellRoot {
             Panels.openByName(name);
         }
 
+        // Volume keys. These used to run `wpctl set-volume 5%±` straight from a
+        // Hyprland bind, but wpctl's percentage is not exactly 5% of the value the
+        // bar shows (measured: the raw sink value went 74.90 -> 69.80, a 5.1%
+        // step), so with rounding a keypress could read as six points, "75 to 69".
+        // Going through the shell uses the same 5% the scroll uses, and the OSD
+        // still reacts because it watches the sink.
+        function volumeUp(): void {
+            Sound.adjustVolume(Sound.step);
+        }
+
+        function volumeDown(): void {
+            Sound.adjustVolume(-Sound.step);
+        }
+
+        function toggleMute(): void {
+            Sound.toggleMute();
+        }
+
         function closePanel(): void {
             Panels.close();
         }

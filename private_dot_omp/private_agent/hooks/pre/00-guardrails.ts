@@ -57,8 +57,9 @@ const BASH_RULES: Rule[] = [
     reason: "refuses disk erase",
   },
   {
-    // Protect the config sources of truth from accidental recursive removal.
-    re: /\brm\b[^\n]*(?:~\/\.(?:omp|ssh|gnupg)|~\/\.local\/share\/chezmoi)\b/,
+    // Protect the config sources of truth from recursive removal. Requires an
+    // -r flag so deleting a single file under those trees stays allowed.
+    re: /\brm\s+-[A-Za-z]*[rR][A-Za-z]*[^\n]*(?:~\/\.(?:omp|ssh|gnupg)|~\/\.local\/share\/chezmoi)/,
     reason: "refuses recursive removal of omp/chezmoi/ssh state",
   },
 ];

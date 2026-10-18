@@ -140,7 +140,7 @@ Singleton {
         if (!entry.seen)
             root.unseen++;
 
-        notif.closed.connect(reason => root.remove(entry));
+        notif.closed.connect(reason => root.retire(entry));
     }
 
     // Idempotent *and* re-entrancy safe. Clearing `tracked` makes the server
@@ -148,8 +148,23 @@ Singleton {
     // no guard that is an infinite loop, and the stack overflow it threw aborted
     // the removal half-way. That is the "blank card nothing can dismiss" bug: the
     // entry stayed in `popups` with no notification behind it.
+    // A card that expires or is swiped away leaves the popup area but stays in the
+    // centre. The history is the point (dunst's history_length kept dismissed
+    // notifications around): retiring must not delete what the user has not read.
+    function retire(entry): void {
+        if (!entry || entry.popup === false)
+            return;
+        entry.popup = false;
+        entry.removed = true;
+        if (!entry.seen) {
+            entry.seen = true;
+            root.unseen = Math.max(0, root.unseen - 1);
+        }
+        root.popups = root.popups.filter(e => e !== entry);
+    }
+
     function remove(entry): void {
-        if (!entry || entry.removed)
+        if (!entry || root.entries.indexOf(entry) === -1)
             return;
         entry.removed = true;
         entry.popup = false;

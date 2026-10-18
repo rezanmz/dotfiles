@@ -18,6 +18,12 @@ BarItem {
     // costs zero width — "visible only while recording", literally.
     visible: root.active
 
+    // Collapse the whole item when idle: an invisible item is not laid out in the
+    // bar's RowLayout and a later visible flip does not reliably re-run it, so the
+    // pill used to appear in the wrong place. Sizing from the label keeps this out
+    // of BarItem's binding-loop territory.
+    implicitWidth: root.active ? label.implicitWidth + 14 + Theme.modulePadding * 2 : 0
+
     onClicked: Recorder.stop()
 
     // The content collapses to nothing when idle, so the bar does not reserve

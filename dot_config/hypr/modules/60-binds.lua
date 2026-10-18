@@ -326,6 +326,15 @@ hl.bind("XF86AudioPause",       hl.dsp.exec_cmd("qs ipc call player toggle"),   
 hl.bind("XF86AudioNext",        hl.dsp.exec_cmd("qs ipc call player next"),     { locked = true })
 hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("qs ipc call player previous"), { locked = true })
 
+-- Panels that are not attached to a bar widget.
+--
+-- The keybind cheatsheet is generated from this file at runtime
+-- ("slash", not "/": the bind parser wants a keysym name)
+-- (dot_config/quickshell/Keybinds.qml), so it cannot drift from what is bound.
+hl.bind(mainMod .. " + slash", hl.dsp.exec_cmd("qs ipc call shell togglePanel keys"))
+-- Quick settings: do-not-disturb, cinema mode, night light, radios, volume.
+hl.bind(mainMod .. " + A", hl.dsp.exec_cmd("qs ipc call shell togglePanel controls"))
+
 -- Utilities.
 -- Notification centre: the shell keeps the history itself now (it is the
 -- notification server), so this opens a panel instead of piping `dunstctl

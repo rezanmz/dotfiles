@@ -35,6 +35,15 @@ Singleton {
     // widgets share one panel.
     property var anchors: ({})
 
+    // Used when a panel has no widget of its own (the cheatsheet, or the battery
+    // panel when nothing reports a battery and its readout has collapsed). Without
+    // it those panels open unpositioned.
+    property var fallbackAnchor: null
+
+    function registerFallback(item: var): void {
+        fallbackAnchor = item;
+    }
+
     function registerAnchor(name: string, item: var): void {
         if (name === "")
             return;
@@ -59,6 +68,8 @@ Singleton {
         const anchor = anchors[name];
         if (anchor !== undefined)
             anchorItem = anchor.item;
+        else if (fallbackAnchor !== null)
+            anchorItem = fallbackAnchor;
         current = name;
     }
 

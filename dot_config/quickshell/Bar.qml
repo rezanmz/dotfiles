@@ -111,6 +111,7 @@ PanelWindow {
             }
         }
         Bluetooth {}
+        Battery {}
         BarItem {
             panel: "system"
 
@@ -131,5 +132,6 @@ PanelWindow {
         // recording runs (see Rec.qml), so it never sits in the middle of the
         // readouts pushing them around.
         Rec {}
+        Controls {}
     }
 }

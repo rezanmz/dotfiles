@@ -62,7 +62,7 @@ ShellRoot {
     // destroyed when it closes. The compiled component is cached, so this is
     // window setup, not a re-parse.
     Variants {
-        model: ["system", "audio", "bluetooth", "notifications", "media", "network", "calendar", "tray", "idle", "capture"]
+        model: ["system", "audio", "bluetooth", "battery", "notifications", "media", "network", "calendar", "tray", "idle", "capture", "controls", "keys"]
 
         delegate: LazyLoader {
             required property string modelData
@@ -87,6 +87,11 @@ ShellRoot {
     Component {
         id: bluetoothPanel
         Bluetooth {}
+    }
+
+    Component {
+        id: batteryPanel
+        PanelTypes.Battery {}
     }
 
     Component {
@@ -120,6 +125,16 @@ ShellRoot {
     }
 
     Component {
+        id: keysPanel
+        PanelTypes.Keys {}
+    }
+
+    Component {
+        id: controlsPanel
+        Controls {}
+    }
+
+    Component {
         id: capturePanel
         // Qualified: this file's `Capture` would otherwise have to pick between
         // the singleton and this panel type (both modules are imported).
@@ -134,6 +149,8 @@ ShellRoot {
             return audioPanel;
         case "bluetooth":
             return bluetoothPanel;
+        case "battery":
+            return batteryPanel;
         case "notifications":
             return notificationsPanel;
         case "media":
@@ -146,11 +163,20 @@ ShellRoot {
             return trayPanel;
         case "idle":
             return idlePanel;
+        case "keys":
+            return keysPanel;
+        case "controls":
+            return controlsPanel;
         case "capture":
             return capturePanel;
         }
         return null;
     }
+
+    // Singletons are created on first reference; this is what starts Cinema and
+    // NightLight at boot (they cannot be instantiated explicitly: "Composite
+    // Singleton Type Cinema is not creatable").
+    readonly property var startupSingletons: [Cinema, NightLight]
 
     // Keyboard/bind entry points. The binds that used to launch a program
     // (SUPER+N for the notification history, SUPER+SPACE for the launcher) call
@@ -175,7 +201,13 @@ ShellRoot {
     }
 
     HyprlandFocusGrab {
-        active: Panels.anyOpen
+        // The notification centre takes keyboard focus for its search field
+        // (Popup.grabFocus = an xdg popup grab), and hyprland_focus_grab_v1
+        // clears "if another focus grab or similar action is started" — which
+        // would close the panel the instant it opens. Stand down for it: an
+        // xdg popup grab dismisses itself on outside click, and the panel's
+        // Popup syncs that back through Panels.close().
+        active: Panels.anyOpen && Panels.current !== "notifications"
         windows: Panels.registry
         onCleared: Panels.close()
     }

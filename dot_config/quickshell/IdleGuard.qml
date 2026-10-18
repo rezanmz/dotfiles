@@ -23,6 +23,10 @@ Singleton {
     // Media-triggered holding. On by default; the panel can turn it off.
     property bool autoInhibit: true
 
+    // Cinema mode: a fullscreen window is focused, so the screen should not blank
+    // or lock while it is up. Set by Cinema.qml.
+    property bool cinema: false
+
     property bool indefinite: false
     property int minutes: 0
     property real deadline: 0
@@ -38,7 +42,7 @@ Singleton {
 
     readonly property bool auto: root.autoInhibit && root.playing !== null
     readonly property bool manual: root.indefinite || root.deadline > 0
-    readonly property bool held: root.auto || root.manual
+    readonly property bool held: root.auto || root.manual || root.cinema
 
     readonly property int remaining: root.deadline > 0 ? Math.max(0, Math.round((root.deadline - Date.now()) / 1000)) : 0
 
@@ -71,6 +75,8 @@ Singleton {
 
     // Short by design: this is a bar readout.
     readonly property string label: {
+        if (root.cinema)
+            return "cinema";
         if (root.auto)
             return "playing";
         if (!root.manual)

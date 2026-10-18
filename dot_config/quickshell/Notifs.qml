@@ -28,6 +28,41 @@ Singleton {
     // just do not pop up. That is what dunst's pause did, minus the icon.
     property bool dnd: false
 
+    // Cinema mode (a fullscreen window is focused) suppresses popups the same way
+    // dnd does, but it is not the user's choice and must not flip the dnd toggle.
+    property bool suppress: false
+
+    // Per-application mutes: [{app, until}]. `until` is 0 for "until unmuted".
+    property var mutedApps: []
+
+    function isMuted(app: string): bool {
+        if (app === "")
+            return false;
+        const now = Date.now();
+        for (const entry of root.mutedApps) {
+            if (entry.app === app && (entry.until === 0 || entry.until > now))
+                return true;
+        }
+        return false;
+    }
+
+    function muteApp(app: string, minutes: int): void {
+        if (app === "")
+            return;
+        const until = minutes <= 0 ? 0 : Date.now() + minutes * 60000;
+        root.mutedApps = root.mutedApps.filter(e => e.app !== app).concat([{
+            "app": app,
+            "until": until
+        }]);
+    }
+
+    function unmuteApp(app: string): void {
+        root.mutedApps = root.mutedApps.filter(e => e.app !== app);
+    }
+
+    // Only the entries that are still in force, so the panel can show them.
+    readonly property var activeMutes: root.mutedApps.filter(e => e.until === 0 || e.until > Date.now())
+
     // Newest first. Each entry is a plain JS object so it can carry the state the
     // Notification itself has no room for (popup or not, and when it arrived).
     property var entries: []
@@ -72,10 +107,13 @@ Singleton {
         // forever when it was marked critical. It is kept in the history, but it
         // does not pop up and it does not ring the bell.
         const blank = notif.summary === "" && notif.body === "";
+        // A muted application, or cinema mode, keeps the notification in the
+        // history without showing it.
+        const silent = root.suppress || root.isMuted(notif.appName);
 
         const entry = {
             "notification": notif,
-            "popup": !root.dnd && !blank,
+            "popup": !root.dnd && !silent && !blank,
             "seen": Panels.current === "notifications" || blank,
             // The Notification has no timestamp of its own, and the centre shows
             // how old each entry is (dunst's history did).

@@ -10,6 +10,16 @@ pragma Singleton
 // throws "Property 'beginDrag' of object PiP is not a function". The windows are
 // PiPWindow.qml, instantiated once in shell.qml, reading this state.
 //
+// TWO WORKSPACES PER VIEW
+//   target — whose live content is shown (the pill that was dragged).
+//   home   — the workspace the view belongs to: the one that was focused when it
+//            was dragged out. A view is visible only while `home` is focused, so
+//            switching workspaces leaves it behind instead of dragging it along;
+//            you can watch workspace 10's build from workspace 1, and it stays
+//            there when you move on.
+// When you switch *to* the target's workspace the view closes: you are looking at
+// the real thing then.
+//
 // Geometry lives in a map that is *replaced* on every change rather than mutated,
 // so each window's margin binding re-evaluates without the window being recreated
 // (a drag would otherwise flicker once per frame).
@@ -22,13 +32,13 @@ import qs
 Singleton {
     id: root
 
-    // Workspace ids that have a floating view, in creation order.
+    // [{ target, home }], in creation order.
     property var previews: []
 
-    // id -> { x, y, w, h }. Replaced, never mutated.
+    // target -> { x, y, w, h }. Replaced, never mutated.
     property var geometry: ({})
 
-    // The preview currently being pulled out of the bar, or -1.
+    // The target currently being pulled out of the bar, or -1.
     property int dragId: -1
 
     readonly property int defaultWidth: 420
@@ -36,20 +46,30 @@ Singleton {
 
     readonly property var screenInfo: Util.focusedScreen()
 
-    readonly property var workspace: {
-        const list = Hyprland.workspaces.values;
-        for (let i = 0; i < list.length; i++) {
-            if (list[i].id === root.workspaceId)
-                return list[i];
-        }
-        return null;
+    readonly property int focusedId: Hyprland.focusedWorkspace ? Hyprland.focusedWorkspace.id : -1
+
+    function isFocused(id: int): bool {
+        return root.focusedId === id;
     }
 
-    // Kept for the scripts that use it: the id of the most recently opened view.
-    readonly property int workspaceId: root.previews.length > 0 ? root.previews[root.previews.length - 1] : -1
+    function homeOf(target: int): int {
+        for (const p of root.previews) {
+            if (p.target === target)
+                return p.home;
+        }
+        return -1;
+    }
 
-    function boxFor(id: int): var {
-        const box = root.geometry[id];
+    function hasPreview(target: int): bool {
+        for (const p of root.previews) {
+            if (p.target === target)
+                return true;
+        }
+        return false;
+    }
+
+    function boxFor(target: int): var {
+        const box = root.geometry[target];
         if (box !== undefined)
             return box;
         return {
@@ -70,9 +90,9 @@ Singleton {
         return Math.max(Theme.barHeight, Math.min(screen - height, y));
     }
 
-    function setGeometry(id: int, x: real, y: real, width: real, height: real): void {
+    function setGeometry(target: int, x: real, y: real, width: real, height: real): void {
         const next = Object.assign({}, root.geometry);
-        next[id] = {
+        next[target] = {
             "x": root.clampX(x, width),
             "y": root.clampY(y, height),
             "w": width,
@@ -81,8 +101,8 @@ Singleton {
         root.geometry = next;
     }
 
-    // The window a preview shows: the workspace's last focused toplevel, falling
-    // back to any window it holds.
+    // The window a view shows: the workspace's last focused toplevel, falling back
+    // to any window it holds.
     function targetFor(id: int): var {
         const list = Hyprland.workspaces.values;
         for (let i = 0; i < list.length; i++) {
@@ -110,29 +130,34 @@ Singleton {
         return null;
     }
 
-    function openFor(id: int): void {
-        if (root.previews.indexOf(id) !== -1)
+    // `home` defaults to the workspace you are on: a view belongs to the desktop
+    // it was pulled out on.
+    function openFor(target: int, home: int): void {
+        if (root.hasPreview(target))
             return;
-        const box = root.boxFor(id);
+        const box = root.boxFor(target);
         const next = Object.assign({}, root.geometry);
-        next[id] = box;
+        next[target] = box;
         root.geometry = next;
-        root.previews = root.previews.concat([id]);
+        root.previews = root.previews.concat([{
+            "target": target,
+            "home": home >= 0 ? home : root.focusedId
+        }]);
     }
 
-    function toggleFor(id: int): void {
-        if (root.previews.indexOf(id) !== -1)
-            root.close(id);
+    function toggleFor(target: int): void {
+        if (root.hasPreview(target))
+            root.close(target);
         else
-            root.openFor(id);
+            root.openFor(target, -1);
     }
 
-    function close(id: int): void {
-        root.previews = root.previews.filter(p => p !== id);
+    function close(target: int): void {
+        root.previews = root.previews.filter(p => p.target !== target);
         const next = Object.assign({}, root.geometry);
-        delete next[id];
+        delete next[target];
         root.geometry = next;
-        if (root.dragId === id)
+        if (root.dragId === target)
             root.dragId = -1;
     }
 
@@ -143,13 +168,13 @@ Singleton {
     }
 
     // Pulled out of the bar: a workspace pill hands over the pointer's screen
-    // position while it is dragged downward, and that workspace's view centres on
-    // it. Dragging another pill pulls out a second view — they coexist.
-    function beginDrag(id: int, x: real, y: real): void {
-        root.openFor(id);
-        root.dragId = id;
-        const box = root.boxFor(id);
-        root.setGeometry(id, x - box.w / 2, y, box.w, box.h);
+    // position while it is dragged downward, and the view centres on it. Its home
+    // is the workspace you were on, its target is the pill's.
+    function beginDrag(target: int, x: real, y: real): void {
+        root.openFor(target, root.focusedId);
+        root.dragId = target;
+        const box = root.boxFor(target);
+        root.setGeometry(target, x - box.w / 2, y, box.w, box.h);
     }
 
     function dragTo(x: real, y: real): void {
@@ -163,21 +188,20 @@ Singleton {
         root.dragId = -1;
     }
 
-    // Switching to the workspace makes its live view pointless: you are looking at
-    // the real thing now.
-    function switchTo(id: int): void {
-        Hyprland.dispatch("hl.dsp.focus({workspace = " + id + "})");
-        root.close(id);
+    // Switching to the workspace a view shows makes the view pointless.
+    function switchTo(target: int): void {
+        Hyprland.dispatch("hl.dsp.focus({workspace = " + target + "})");
+        root.close(target);
     }
 
-    function cycleSize(id: int): void {
-        const box = root.boxFor(id);
+    function cycleSize(target: int): void {
+        const box = root.boxFor(target);
         if (box.w < 380)
-            root.setGeometry(id, box.x, box.y, 420, 300);
+            root.setGeometry(target, box.x, box.y, 420, 300);
         else if (box.w < 560)
-            root.setGeometry(id, box.x, box.y, 620, 420);
+            root.setGeometry(target, box.x, box.y, 620, 420);
         else
-            root.setGeometry(id, box.x, box.y, 320, 220);
+            root.setGeometry(target, box.x, box.y, 320, 220);
     }
 
     // Workspaces that hold windows and are not the one you are on.
@@ -200,21 +224,23 @@ Singleton {
             return;
         }
         for (const ws of others) {
-            if (root.previews.indexOf(ws.id) === -1) {
-                root.openFor(ws.id);
+            if (!root.hasPreview(ws.id)) {
+                root.openFor(ws.id, -1);
                 return;
             }
         }
         root.closeAll();
     }
 
-    // A workspace you have just switched to no longer needs a live view.
+    // A view whose *target* has just been focused is redundant — you are looking
+    // at the real thing. Views whose home is elsewhere simply stop being visible;
+    // they are not closed, so returning to that workspace brings them back.
     Connections {
         target: Hyprland
 
         function onFocusedWorkspaceChanged(): void {
             const ws = Hyprland.focusedWorkspace;
-            if (ws && root.previews.indexOf(ws.id) !== -1)
+            if (ws && root.hasPreview(ws.id))
                 root.close(ws.id);
         }
     }
@@ -223,7 +249,7 @@ Singleton {
         target: "pip"
 
         function open(id: int): void {
-            root.openFor(id);
+            root.openFor(id, -1);
         }
         function toggle(id: int): void {
             root.toggleFor(id);

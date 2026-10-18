@@ -301,6 +301,51 @@ PanelWindow {
                     active: Shell.Capture.saveTo === "clipboard"
                     onChosen: Shell.Capture.saveTo = "clipboard"
                 }
+                Chip {
+                    text: "Other…"
+                    active: Shell.Capture.saveTo === "other"
+                    onChosen: Shell.Capture.saveTo = "other"
+                }
+            }
+
+            // macOS's "Other Location": the path is typed rather than picked,
+            // which avoids a file dialog the shell has no business opening.
+            Row {
+                visible: Shell.Capture.saveTo === "other" && !Shell.Capture.recordingMode
+                spacing: 8
+                height: visible ? 24 : 0
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "folder"
+                    color: Theme.comment
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSizeSmall
+                    font.capitalization: Font.AllUppercase
+                }
+
+                Rectangle {
+                    width: 260
+                    height: 22
+                    radius: Theme.radius
+                    color: Theme.alpha(Theme.selection, 0.6)
+                    border.width: 1
+                    border.color: Theme.borderStrong
+
+                    TextInput {
+                        anchors.fill: parent
+                        anchors.leftMargin: 6
+                        anchors.rightMargin: 6
+                        verticalAlignment: TextInput.AlignVCenter
+                        text: Shell.Capture.customDir
+                        color: Theme.fg
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSizeSmall
+                        selectByMouse: true
+                        onTextChanged: Shell.Capture.customDir = text
+                        Keys.onEscapePressed: Shell.Capture.customDir = ""
+                    }
+                }
             }
 
             OptGroup {
@@ -340,6 +385,35 @@ PanelWindow {
                 }
             }
 
+            // macOS's "Remember Last Selection": with it on, a selection capture
+            // reuses the previous geometry. slurp cannot pre-draw a frame, so
+            // Reselect is how you draw a new one.
+            OptGroup {
+                visible: !Shell.Capture.recordingMode
+                text: "selection"
+
+                Chip {
+                    text: "Ask every time"
+                    active: !Shell.Capture.rememberSelection
+                    onChosen: Shell.Capture.rememberSelection = false
+                }
+                Chip {
+                    text: "Remember"
+                    active: Shell.Capture.rememberSelection
+                    onChosen: Shell.Capture.rememberSelection = true
+                }
+                Chip {
+                    text: "Reselect"
+                    visible: Shell.Capture.rememberSelection && Shell.Capture.lastGeometry !== ""
+                    active: false
+                    onChosen: {
+                        Shell.Capture.reselect = true;
+                        Shell.Capture.mode = "selection";
+                        Shell.Capture.capture();
+                    }
+                }
+            }
+
             OptGroup {
                 visible: Shell.Capture.recordingMode
                 text: "microphone"
@@ -356,6 +430,14 @@ PanelWindow {
                     text: "Default"
                     active: Shell.Capture.mic === "default"
                     onChosen: Shell.Capture.mic = "default"
+                }
+                Chip {
+                    // What you hear, rather than what the microphone hears: the
+                    // default sink's monitor (Capture.sinkMonitorName).
+                    visible: Shell.Capture.systemAudioAvailable
+                    text: "System audio"
+                    active: Shell.Capture.mic === "system"
+                    onChosen: Shell.Capture.mic = "system"
                 }
             }
 

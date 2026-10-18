@@ -27,17 +27,22 @@ Scope {
         delegate: PanelWindow {
             id: window
 
-            required property int modelData
+            required property var modelData
 
-            readonly property var box: PiP.geometry[modelData] !== undefined ? PiP.geometry[modelData] : {
+            readonly property var box: PiP.geometry[window.modelData.target] !== undefined ? PiP.geometry[window.modelData.target] : {
                 "x": 40,
                 "y": 56,
                 "w": PiP.defaultWidth,
                 "h": PiP.defaultHeight
             }
 
-            readonly property var target: PiP.targetFor(modelData)
-            readonly property var workspace: PiP.workspaceFor(modelData)
+            readonly property var target: PiP.targetFor(window.modelData.target)
+            readonly property var workspace: PiP.workspaceFor(window.modelData.target)
+
+            // A view belongs to the workspace it was pulled out on: switching
+            // workspaces leaves it behind instead of carrying it along, and
+            // returning brings it back.
+            visible: PiP.isFocused(window.modelData.home)
 
             // Header strip height, and the size of the corner grab area.
             readonly property int headerHeight: 30
@@ -105,9 +110,9 @@ Scope {
                 onPositionChanged: mouse => {
                     console.log("PDRAG2 mode=" + dragArea.mode + " mouse=" + Math.round(mouse.x) + "," + Math.round(mouse.y) + " box=" + Math.round(window.box.x) + "," + Math.round(window.box.y) + " grab=" + Math.round(dragArea.grabDX) + "," + Math.round(dragArea.grabDY));  // TEMPORARY
                     if (dragArea.mode === 1)
-                        PiP.setGeometry(window.modelData, mouse.x - dragArea.grabDX, mouse.y - dragArea.grabDY, window.box.w, window.box.h);
+                        PiP.setGeometry(window.modelData.target, mouse.x - dragArea.grabDX, mouse.y - dragArea.grabDY, window.box.w, window.box.h);
                     else if (dragArea.mode === 2)
-                        PiP.setGeometry(window.modelData, window.box.x, window.box.y, Math.max(240, mouse.x - window.box.x), Math.max(180, mouse.y - window.box.y));
+                        PiP.setGeometry(window.modelData.target, window.box.x, window.box.y, Math.max(240, mouse.x - window.box.x), Math.max(180, mouse.y - window.box.y));
                 }
                 onReleased: dragArea.mode = 0
                 onCanceled: dragArea.mode = 0
@@ -196,7 +201,7 @@ Scope {
                             anchors.fill: parent
                             anchors.margins: -4
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: PiP.switchTo(window.modelData)
+                            onClicked: PiP.switchTo(window.modelData.target)
                         }
                     }
 
@@ -214,7 +219,7 @@ Scope {
                             anchors.fill: parent
                             anchors.margins: -4
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: PiP.cycleSize(window.modelData)
+                            onClicked: PiP.cycleSize(window.modelData.target)
                         }
                     }
 
@@ -232,7 +237,7 @@ Scope {
                             anchors.fill: parent
                             anchors.margins: -4
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: PiP.close(window.modelData)
+                            onClicked: PiP.close(window.modelData.target)
                         }
                     }
                 }

@@ -38,7 +38,15 @@ Singleton {
     property bool thumbnail: true           // show the floating thumbnail after a capture
     property bool recordingMode: false      // the toolbar is showing its recording controls
     property string recordTarget: "selection" // "screen" | "selection"
-    property string mic: "none"             // "none" | "default" (the default source)
+    property string mic: "none"             // "none" | "default" (the default source) | "system" (the sink monitor)
+    // macOS's "Other Location": a typed directory, used when saveTo is "other".
+    property string customDir: ""
+    // macOS's "Remember Last Selection": a plain selection capture reuses the
+    // previous geometry instead of asking again. slurp cannot pre-draw a frame, so
+    // the toolbar's Reselect button is the way to draw a new one.
+    property bool rememberSelection: false
+    property string lastGeometry: ""
+    property bool reselect: false
 
     // ---- timer countdown (the toolbar displays it) --------------------
     property int countdown: 0
@@ -57,6 +65,28 @@ Singleton {
     // Empty means no detection worked and the option degrades to None-only.
     property string micName: ""
     readonly property bool micAvailable: root.micName !== ""
+
+    // System audio: the default sink's monitor, which is what "record what you
+    // hear" means in pipewire. `pactl get-default-sink` gives the sink, and its
+    // monitor is always <sink>.monitor.
+    property string sinkMonitorName: ""
+    readonly property bool systemAudioAvailable: root.sinkMonitorName !== ""
+
+    Process {
+        id: sinkProc
+
+        command: ["pactl", "get-default-sink"]
+        running: true
+        stdout: StdioCollector {
+            id: sinkOut
+
+            waitForEnd: true
+            onStreamFinished: {
+                const sink = sinkOut.text.trim();
+                root.sinkMonitorName = sink === "" ? "" : sink + ".monitor";
+            }
+        }
+    }
 
     readonly property string home: Quickshell.env("HOME")
 
@@ -92,6 +122,8 @@ Singleton {
         }
         if (root.saveTo === "pictures") {
             root.pendingDir = root.home + "/Pictures/Screenshots";
+        } else if (root.saveTo === "other" && root.customDir !== "") {
+            root.pendingDir = root.customDir;
         } else {
             root.pendingDir = root.home + "/Desktop";
         }
@@ -228,6 +260,14 @@ Singleton {
             return;
         }
         if (root.pendingMode === "selection") {
+            // Remembered selection: reuse the last geometry instead of asking
+            // again (macOS's "Remember Last Selection"). Reselect forces slurp.
+            if (root.rememberSelection && root.lastGeometry !== "" && !root.reselect) {
+                root.pendingGeometry = root.lastGeometry;
+                root.runGrim();
+                return;
+            }
+            root.reselect = false;
             slurpProc.running = true;
         } else if (root.pendingMode === "window") {
             winProc.running = true;
@@ -251,6 +291,8 @@ Singleton {
                 return;
             }
             root.pendingGeometry = slurpOut.text.trim();
+            if (root.rememberSelection)
+                root.lastGeometry = root.pendingGeometry;
             if (root.pendingKind === "record")
                 root.startRecording(root.pendingGeometry);
             else
@@ -336,7 +378,7 @@ Singleton {
 
     function startRecording(geom: string): void {
         root.recordingFile = root.pendingFile;
-        const audio = root.mic === "default" ? root.micName : "";
+        const audio = root.mic === "system" ? root.sinkMonitorName : (root.mic === "default" ? root.micName : "");
         root.clearPending();
         root.recordingMode = true;
         Recorder.start(root.recordingFile, geom, audio);

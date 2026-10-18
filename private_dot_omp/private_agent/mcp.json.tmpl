@@ -6,7 +6,7 @@
       "url": "https://memory.reza.network/mcp/shared/",
       "timeout": 120000,
       "headers": {
-        "Authorization": "!printf 'Bearer %s' \"$(grep -m1 '^HINDSIGHT_MCP_TOKEN=' ~/.omp/agent/.env | cut -d= -f2-)\""
+        "Authorization": "!printf 'Bearer %s' \"$(grep -m1 '^HINDSIGHT_API_TOKEN=' ~/.omp/agent/.env | cut -d= -f2-)\""
       }
     }
 {{- end }}

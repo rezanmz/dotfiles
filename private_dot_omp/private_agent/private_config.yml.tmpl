@@ -219,8 +219,10 @@ autolearn:
 {{- if ne .machine "work" }}
 hindsight:
   apiUrl: https://memory.reza.network
-  # Per-machine secret in ~/.omp/agent/.env; never tracked.
-  apiToken: ${HINDSIGHT_MCP_TOKEN}
+  # Token is NOT set here: omp does not expand ${VAR} inside config values
+  # (the literal string is sent as the bearer and every call 401s). The
+  # setting's own env binding applies instead: HINDSIGHT_API_TOKEN in
+  # ~/.omp/agent/.env, which omp loads into the process environment.
   bankId: shared
   scoping: per-project-tagged
   recallTimeoutMs: 30000

@@ -29,7 +29,9 @@ advisors:
     reviewMode: agent-end
     reviewInterval: 1
     syncBacklog: off
-    tools: [read, grep, glob]
+    # `tools` omitted on purpose: the documented default is read/grep/glob
+    # plus `recall` when the active memory backend provides it. An explicit
+    # list would silently drop recall (and warn on machines without Hindsight).
     instructions: |
       Review the finished run, in this order:
       1. Every claim of "done", "verified", "passing", or "tested" must be

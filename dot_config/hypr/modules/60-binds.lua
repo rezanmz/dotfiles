@@ -344,7 +344,7 @@ hl.bind("XF86AudioPrev",        hl.dsp.exec_cmd("qs ipc call player previous"), 
 -- (dot_config/quickshell/Keybinds.qml), so it cannot drift from what is bound.
 hl.bind(mainMod .. " + slash", hl.dsp.exec_cmd("qs ipc call shell togglePanel keys"))
 -- Quick settings: do-not-disturb, cinema mode, night light, radios, volume.
-hl.bind(mainMod .. " + A", hl.dsp.exec_cmd("qs ipc call shell togglePanel controls"))
+hl.bind(mainMod .. " + A", hl.dsp.exec_cmd("qs ipc call shell togglePanel power"))
 
 -- Utilities.
 -- Notification centre: the shell keeps the history itself now (it is the

@@ -4,7 +4,8 @@ import qs
 import Quickshell
 import Quickshell.Services.Notifications
 
-// Notification centre: history, search, per-app mutes, do-not-disturb, clear.
+// Notification centre: history, search, per-app mutes, do-not-disturb, cinema
+// mode, clear.
 //
 // This is the `notif-history` script's job (SUPER+N), except the list is already
 // in memory — the old one re-read `dunstctl history`, piped JSON through python
@@ -285,6 +286,26 @@ Popup {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
                 onClicked: Notifs.toggleDnd()
+            }
+        }
+
+        // Cinema mode, next to do-not-disturb because it is the same idea:
+        // notification suppression, this time driven by what is on screen. A
+        // three-state readout — "active" while a fullscreen window is focused,
+        // "auto" while armed, "off" when the behaviour is disabled — because it
+        // is normally driven by the window state, not by the user. Click arms
+        // and disarms it. Moved here from the Control Centre when it was
+        // dismantled.
+        Text {
+            text: "cinema mode is " + (Cinema.active ? "active" : (Cinema.enabled ? "auto" : "off"))
+            color: Cinema.active ? Theme.green : (Cinema.enabled ? Theme.cyan : Theme.comment)
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: Cinema.enabled = !Cinema.enabled
             }
         }
 

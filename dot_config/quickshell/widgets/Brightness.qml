@@ -9,7 +9,7 @@ import Quickshell
 // merely meant to look at throw a full panel over the screen — and since the
 // brightness, warmth and control-centre widgets all claimed that one panel, the
 // panel could anchor under a different readout than the one clicked. Right click
-// resets to 100%; the way into the Control Centre is its own widget.
+// resets to 100%. There is no panel for this by design: scrolling is the control.
 //
 // The colour tells you whether it is still at its native value: grey at 100%,
 // purple once it has moved, so a dimmed screen is visible in the bar.

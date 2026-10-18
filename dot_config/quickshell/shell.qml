@@ -62,7 +62,7 @@ ShellRoot {
     // destroyed when it closes. The compiled component is cached, so this is
     // window setup, not a re-parse.
     Variants {
-        model: ["system", "audio", "bluetooth", "battery", "notifications", "media", "network", "calendar", "tray", "idle", "capture", "controls", "keys"]
+        model: ["system", "audio", "bluetooth", "battery", "notifications", "media", "network", "calendar", "tray", "idle", "capture", "power", "keys"]
 
         delegate: LazyLoader {
             required property string modelData
@@ -130,8 +130,8 @@ ShellRoot {
     }
 
     Component {
-        id: controlsPanel
-        Controls {}
+        id: powerPanel
+        Power {}
     }
 
     Component {
@@ -165,8 +165,8 @@ ShellRoot {
             return idlePanel;
         case "keys":
             return keysPanel;
-        case "controls":
-            return controlsPanel;
+        case "power":
+            return powerPanel;
         case "capture":
             return capturePanel;
         }
@@ -223,17 +223,18 @@ ShellRoot {
     // not) counts as outside. The toplevel watch below catches the rest, such as
     // a workspace switch with the keyboard.
     HyprlandFocusGrab {
-        // The notification centre is the one panel that takes an xdg popup grab of
-        // its own (its search field has to be typed into), and
+        // The notification centre and the power panel take an xdg popup grab of
+        // their own — the centre because its search field has to be typed into,
+        // the power panel so Escape can cancel a half-armed row — and
         // hyprland_focus_grab_v1 clears "if another focus grab or similar action
         // is started" — a layer grab alongside it would close the panel the
-        // instant it opened. It dismisses itself: its xdg grab closes on outside
-        // click and the panel syncs that back through Panels.close().
+        // instant it opened. Both dismiss themselves: their xdg grab closes on
+        // outside click and the panels sync that back through Panels.close().
         // Not while the crosshair is up, and not while one is being set up: it takes
         // exclusive keyboard focus, which clears this grab regardless of what is
         // whitelisted, and the clear closes the very panel the user is trying to
         // photograph (a calendar, a tray menu).
-        active: Panels.anyOpen && Panels.current !== "notifications" && !Selection.starting
+        active: Panels.anyOpen && Panels.current !== "notifications" && Panels.current !== "power" && !Selection.starting
         windows: Panels.registry
         onCleared: Panels.close()
     }

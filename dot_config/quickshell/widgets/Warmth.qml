@@ -6,9 +6,8 @@ import Quickshell
 // if it was off — the same thing dragging the panel's warmth slider does. Right
 // click toggles the filter.
 //
-// No panel on left click, for the same reason as the brightness readout next to
-// it: three widgets shared the Control Centre's panel, so clicking a readout could
-// open the panel under a different one.
+// No panel on left click, like the brightness readout next to it: scrolling is the
+// control, and a readout that opens a panel is a surprise rather than a shortcut.
 //
 // It stays visible when off so the gesture is discoverable rather than a
 // hidden control you have to already know about.

@@ -2,13 +2,15 @@ import QtQuick
 import QtQuick.Layouts
 import qs
 import Quickshell.Io
-import Quickshell.Services.Pipewire
 
 // Audio panel: the mixer, and where `pavucontrol` used to be launched from.
 //
 // Output volume, mic mute, output device switching, and per-application
 // streams with their own volume — all of it through the Pipewire service, so
-// the numbers here and the bar readout are the same objects.
+// the numbers here and the bar readout are the same objects. The default
+// device pickers (output and input) and the volume feedback toggle live here
+// too, moved over when the Control Centre was dismantled: choosing devices is
+// the mixer's job.
 //
 // A playing stream can also be routed: press its row and drag it onto an output
 // row. The move itself runs `pactl move-sink-input` (see routeStream).
@@ -94,7 +96,7 @@ Popup {
                 return;
             root.dragArmed = true;
         }
-        root.dropTarget = root.hitSink(x, y);
+        root.dropTarget = outputPicker.hitNode(x, y);
     }
 
     function endDrag(commit: bool): void {
@@ -105,20 +107,6 @@ Popup {
         root.dragArmed = false;
         if (node && sink)
             root.routeStream(node, sink);
-    }
-
-    // The output row under a window-coordinate point, or null. The coordinates
-    // are window-wide so the hit test does not care which row the drag began in.
-    function hitSink(x, y): var {
-        for (let i = 0; i < sinkRepeater.count; i++) {
-            const item = sinkRepeater.itemAt(i);
-            if (!item)
-                continue;
-            const p = item.mapFromItem(null, x, y);
-            if (p.x >= 0 && p.x <= item.width && p.y >= 0 && p.y <= item.height)
-                return item.node;
-        }
-        return null;
     }
 
     // --- routing -------------------------------------------------------------
@@ -201,6 +189,52 @@ Popup {
 
     Process {
         id: routeMove
+    }
+
+    // `pactl set-default-sink/-source <name>` — the pickers' way to move the
+    // pipewire default (verified to take effect; wpctl's ids are its own
+    // numbering and did not match pipewire's).
+    Process {
+        id: defaultRun
+    }
+
+    function setDefault(kind: string, name: string): void {
+        defaultRun.command = ["pactl", "set-default-" + kind, name];
+        defaultRun.running = true;
+        if (kind === "source")
+            root.defaultSourceName = name;
+    }
+
+    // The current default *input*, as the pulse layer names it. Quickshell's
+    // defaultAudioSource is null whenever the default input is a sink monitor
+    // (this machine's usual state — there is no microphone), so the panel asks
+    // `pactl`, the same interface set-default-source speaks. Re-asked on open,
+    // on each pick, and every couple of seconds while the panel is open, so an
+    // outside change (pavucontrol, the pickers themselves) is reflected.
+    property string defaultSourceName: ""
+
+    Process {
+        id: sourceProbe
+
+        command: ["pactl", "get-default-source"]
+        stdout: StdioCollector {
+            id: sourceProbeOut
+
+            waitForEnd: true
+            onStreamFinished: root.defaultSourceName = sourceProbeOut.text.trim()
+        }
+    }
+
+    onOpenChanged: {
+        if (root.open)
+            sourceProbe.running = true;
+    }
+
+    Timer {
+        interval: 2000
+        repeat: true
+        running: root.open
+        onTriggered: sourceProbe.running = true
     }
 
     component StreamRow: Item {
@@ -325,24 +359,111 @@ Popup {
         }
     }
 
-    // An output row. While a stream is in flight these are the drop targets:
-    // every one lights up, the one under the pointer lights up harder.
-    component SinkRow: Item {
-        id: sinkRow
+    // One switchable row, the shell's row idiom (the idle panel's and the power
+    // panel's): hover fills the row, the active choice carries the purple left
+    // bar, and the right-hand detail is green while a thing is on and
+    // comment-grey while it is off. Used by the volume feedback toggle and as
+    // the device pickers' header.
+    component ToggleRow: Item {
+        id: row
 
-        required property var node
+        property string label: ""
+        property string detail: ""
+        property bool active: false
+        property color accent: Theme.purple
+        property color labelColor: Theme.fg
+        property color detailColor: row.active ? Theme.green : Theme.comment
+        signal chosen()
 
         width: parent.width
-        implicitHeight: 24
-
-        readonly property bool armed: root.dragArmed
-        readonly property bool hovered: root.dropTarget === sinkRow.node
+        implicitHeight: Math.max(32, detailText.implicitHeight + 10)
 
         Rectangle {
             anchors.fill: parent
             radius: Theme.radius
-            color: sinkRow.hovered ? Theme.alpha(Theme.purple, 0.25) : (sinkRow.armed ? Theme.alpha(Theme.purple, 0.12) : "transparent")
-            border.width: sinkRow.hovered ? 1 : 0
+            color: hover.hovered ? Theme.hoverBg : (row.active ? Theme.alpha(Theme.selection, 0.55) : "transparent")
+            Behavior on color {
+                ColorAnimation {
+                    duration: Theme.animationFast
+                }
+            }
+
+            // The active choice carries the same left bar the launcher's
+            // selection uses, so "this is the one" reads the same everywhere.
+            Rectangle {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.bottom: parent.bottom
+                anchors.margins: 6
+                width: 3
+                radius: 2
+                visible: row.active
+                color: row.accent
+            }
+        }
+
+        Text {
+            id: labelText
+
+            anchors.left: parent.left
+            anchors.leftMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+            text: row.label
+            color: row.labelColor
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+        }
+
+        Text {
+            id: detailText
+
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.max(0, row.width - labelText.width - 40)
+            horizontalAlignment: Text.AlignRight
+            wrapMode: Text.WordWrap
+            maximumLineCount: 2
+            text: row.detail
+            color: row.detailColor
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+        }
+
+        HoverHandler {
+            id: hover
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: row.chosen()
+        }
+    }
+
+    // One choice in a device picker: filled dot on the current default, hollow
+    // on the rest, purple while it is the one or under the pointer. The output
+    // picker's rows are also the drag-to-route drop targets: while a stream is
+    // in flight every one lights up, the one under the pointer harder.
+    component DeviceRow: Item {
+        id: deviceRow
+
+        property var node: null
+        property bool current: false
+        property bool drops: false
+        signal choose()
+
+        readonly property bool dropArmed: deviceRow.drops && root.dragArmed
+        readonly property bool dropHover: deviceRow.drops && root.dropTarget === deviceRow.node
+
+        width: parent.width
+        implicitHeight: 24
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.radius
+            color: deviceRow.dropHover || hover.hovered ? Theme.alpha(Theme.purple, 0.25) : (deviceRow.dropArmed ? Theme.alpha(Theme.purple, 0.12) : "transparent")
+            border.width: deviceRow.dropHover ? 1 : 0
             border.color: Theme.purple
         }
 
@@ -350,34 +471,106 @@ Popup {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            text: (sinkRow.node === Sound.sink ? "\uf111  " : "\uf10c  ") + (sinkRow.node.description || sinkRow.node.name)
-            color: sinkRow.node === Sound.sink || sinkRow.hovered ? Theme.purple : Theme.comment
+            text: (deviceRow.current ? String.fromCodePoint(0xF111) + "  " : String.fromCodePoint(0xF10C) + "  ") + (deviceRow.node.description || deviceRow.node.name)
+            color: deviceRow.current || hover.hovered || deviceRow.dropHover ? Theme.purple : Theme.comment
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSmall
             elide: Text.ElideRight
         }
 
+        HoverHandler {
+            id: hover
+        }
+
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            // preferredDefaultAudioSink is the hint to pipewire about which
-            // node should be default; setting it is how the output device is
-            // switched without a separate tool.
-            onClicked: Pipewire.preferredDefaultAudioSink = sinkRow.node
+            onClicked: deviceRow.choose()
+        }
+    }
+
+    // A pick-one device row: the header reads the current default (following
+    // changes made outside the shell, by pavucontrol or a pactl call), and a
+    // click widens the row into the device list with the current one marked.
+    // With one device (or none) there is nothing to pick and the row stays a
+    // readout. The rows double as the stream-dragging drop surface, so they
+    // show while a drag is in flight even when the list is folded.
+    component DevicePicker: Item {
+        id: picker
+
+        property string label: ""
+        property var devices: []
+        // Pulse name of the current default ("a sink's node name for output,
+        // `<sink>.monitor` or the node name for input).
+        property string currentName: ""
+        property string noneText: ""
+        property bool expanded: false
+        property bool drops: false
+        signal pick(string name)
+
+        readonly property bool choosable: picker.devices.length > 1
+        readonly property bool dropRows: picker.drops && root.dragArmed
+
+        // The current device's human name, whatever list it came from.
+        readonly property string currentLabel: {
+            for (let i = 0; i < picker.devices.length; i++) {
+                if (picker.devices[i].name === picker.currentName)
+                    return picker.devices[i].description || picker.devices[i].name;
+            }
+            return picker.currentName !== "" ? picker.currentName : picker.noneText;
+        }
+
+        width: parent.width
+        implicitHeight: header.implicitHeight + list.height
+
+        ToggleRow {
+            id: header
+
+            label: picker.label
+            detail: picker.currentLabel
+            enabled: picker.choosable
+            onChosen: picker.expanded = !picker.expanded
+        }
+
+        Column {
+            id: list
+
+            anchors.top: header.bottom
+            width: parent.width
+
+            Repeater {
+                id: rows
+
+                model: picker.expanded || picker.dropRows ? picker.devices : null
+                delegate: DeviceRow {
+                    required property var modelData
+
+                    node: modelData
+                    current: modelData.name === picker.currentName
+                    drops: picker.drops
+                    onChoose: picker.pick(modelData.name)
+                }
+            }
+        }
+
+        // The row under a window-coordinate point, or null. The coordinates
+        // are window-wide so the hit test does not care which row the drag
+        // began in.
+        function hitNode(x: real, y: real): var {
+            for (let i = 0; i < rows.count; i++) {
+                const item = rows.itemAt(i);
+                if (!item)
+                    continue;
+                const p = item.mapFromItem(null, x, y);
+                if (p.x >= 0 && p.x <= item.width && p.y >= 0 && p.y <= item.height)
+                    return item.node;
+            }
+            return null;
         }
     }
 
     Section {
         text: "output"
-    }
-
-    Text {
-        text: Sound.sinkName === "" ? "no output device" : Sound.sinkName
-        color: Theme.fg
-        font.family: Theme.fontFamily
-        font.pixelSize: Theme.fontSize
-        elide: Text.ElideRight
-        width: parent.width
     }
 
     RowLayout {
@@ -428,22 +621,37 @@ Popup {
         }
     }
 
-    Section {
-        text: "outputs"
-        visible: Sound.sinks.length > 1
+    // Volume feedback (macOS's "Play feedback when volume is changed") and the
+    // default-device pickers, moved here from the Control Centre when it was
+    // dismantled: the mixer is where device choice and volume behaviour live.
+    ToggleRow {
+        label: "volume feedback"
+        detail: Feedback.enabled ? "on" : "off"
+        active: Feedback.enabled
+        onChosen: Feedback.enabled = !Feedback.enabled
     }
 
-    Repeater {
-        id: sinkRepeater
+    // Device pickers: output and input, both following the current default
+    // wherever it was set — here, or pavucontrol. The output picker is also
+    // where a dragged stream is dropped (see DeviceRow), so its rows show up
+    // whenever a drag is in flight.
+    DevicePicker {
+        id: outputPicker
 
-        model: Sound.sinks
+        label: "output"
+        devices: Sound.sinks
+        currentName: Sound.sink ? Sound.sink.name : ""
+        noneText: "no output device"
+        drops: true
+        onPick: name => root.setDefault("sink", name)
+    }
 
-        delegate: SinkRow {
-            required property var modelData
-
-            node: modelData
-            visible: Sound.sinks.length > 1
-        }
+    DevicePicker {
+        label: "input"
+        devices: Sound.sources
+        currentName: root.defaultSourceName
+        noneText: "no input device"
+        onPick: name => root.setDefault("source", name)
     }
 
     Section {

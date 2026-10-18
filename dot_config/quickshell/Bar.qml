@@ -111,8 +111,8 @@ PanelWindow {
         Media {}
         Audio {}
 
-        // Scroll to adjust, click for the Control Centre: the two screen-wide
-        // things that are not per-application like the volume is.
+        // Scroll to adjust: the two screen-wide things that are not
+        // per-application like the volume is. Readouts, no panel on click.
         Brightness {}
         Warmth {}
 
@@ -154,6 +154,6 @@ PanelWindow {
         // recording runs (see Rec.qml), so it never sits in the middle of the
         // readouts pushing them around.
         Rec {}
-        Controls {}
+        Power {}
     }
 }

@@ -84,6 +84,14 @@ Item {
             if (root.panel !== "" && mouse.button === root.panelButton)
                 Panels.toggle(root.panel, root);
         }
-        onWheel: wheel => root.scrolled(wheel.angleDelta.y)
+        // Any axis and either encoding counts. A high-resolution or smooth wheel
+        // reports pixelDelta and leaves angleDelta at zero, and a tilted wheel
+        // reports x rather than y; widgets only need the direction, so the first
+        // non-zero value wins.
+        onWheel: wheel => {
+            const a = wheel.angleDelta;
+            const p = wheel.pixelDelta;
+            root.scrolled(a.y !== 0 ? a.y : (a.x !== 0 ? a.x : (p.y !== 0 ? p.y : p.x)));
+        }
     }
 }

@@ -77,6 +77,18 @@ Singleton {
         root.enabled = true;
     }
 
+    // The two gestures the bar offers: one wheel notch of brightness, one of
+    // warmth. Shared so the readouts, the bar background and the panel's sliders
+    // all move by the same amounts.
+    function adjustBrightness(steps: int): void {
+        root.brightness = Math.max(60, Math.min(root.brightnessMax, root.brightness + steps * 5));
+    }
+
+    function adjustWarmth(steps: int): void {
+        root.temperature = Math.max(2500, Math.min(6500, root.temperature - steps * 250));
+        root.enabled = true;
+    }
+
     // ---- the daemon's socket ---------------------------------------------
 
     // One request per connection, then hang up.

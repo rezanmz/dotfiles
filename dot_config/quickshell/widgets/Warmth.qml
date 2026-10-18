@@ -20,8 +20,8 @@ BarItem {
     }
 
     onScrolled: delta => {
-        NightLight.temperature = Math.max(2500, Math.min(6500, NightLight.temperature + (delta > 0 ? -250 : 250)));
-        NightLight.enabled = true;
+        if (delta !== 0)
+            NightLight.adjustWarmth(delta > 0 ? 1 : -1);
     }
 
     Text {

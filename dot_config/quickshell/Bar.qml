@@ -42,6 +42,18 @@ PanelWindow {
     MouseArea {
         anchors.fill: parent
         onClicked: Panels.close()
+
+        // Scrolling the bar itself — the gaps, the clock, a readout with no
+        // gesture of its own — adjusts the brightness. Widgets that handle their
+        // own wheel (volume, brightness, warmth) sit above this and accept the
+        // event first, so they keep their own gesture.
+        onWheel: wheel => {
+            const a = wheel.angleDelta;
+            const p = wheel.pixelDelta;
+            const d = a.y !== 0 ? a.y : (a.x !== 0 ? a.x : (p.y !== 0 ? p.y : p.x));
+            if (d !== 0)
+                NightLight.adjustBrightness(d > 0 ? 1 : -1);
+        }
     }
 
     // The bar's bottom edge: the shell's signature hairline, a Dracula-spectrum

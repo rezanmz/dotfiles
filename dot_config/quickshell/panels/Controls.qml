@@ -143,6 +143,15 @@ Popup {
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
+
+            // One notch moves a twentieth of the row's range, the same gesture the
+            // volume row and the bar readouts use.
+            onWheel: wheel => {
+                const d = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x;
+                if (d !== 0)
+                    slider.moved(Math.max(slider.from, Math.min(slider.to, slider.value + (d > 0 ? 1 : -1) * (slider.to - slider.from) / 20)));
+            }
+
             onPressed: mouse => slider.moved(slider.valueAt(mouse.x))
             onPositionChanged: mouse => {
                 if (pressed)

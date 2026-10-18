@@ -14,6 +14,18 @@
   works", "tests pass", or "verified" without having just run the check.
 - Commits: one-line imperative messages prefixed with the area (`omp: ...`,
   `git: ...`, `zsh: ...`). Commits must be signed via the git config; never
+  bypass signing or pass `--no-verify`.
+
+## Guardrails (installed)
+
+- `bash.patterns` and `~/.omp/agent/hooks/pre/00-guardrails.ts` deny force
+  pushes, remote-download-to-shell, `rm -rf` of `/`/`~`/`$HOME`/cwd, `mkfs`,
+  `dd` to block devices, and disk erase. Approval gates, not a sandbox.
+- A git snapshot is committed to `refs/omp-snapshots/<stamp>` at session
+  start (tracked and untracked files; the real index is untouched).
+  Recovery: `git for-each-ref refs/omp-snapshots` then
+  `git restore --source=<ref> -- .`
+- `checkpoint`/`rewind` are conversation-only. Never treat them as file undo.
 {{- if ne .machine "work" }}
 
 ## Shared long-term memory

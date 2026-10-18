@@ -187,7 +187,47 @@ isolation:
   backend: auto
 memory:
   backend: local
+autolearn:
+  # Exposes the `learn` tool; with memory.backend: local it appends durable
+  # lessons to the project's learned.md, injected from the next session.
+  enabled: true
+bash:
+  # Deny-only guardrails on top of approvalMode: yolo. `deny` (not `prompt`)
+  # because a prompt cannot be answered in print/headless runs; a denial
+  # returns a reason the model can adapt to. First matching rule wins, so the
+  # --force-with-lease allow must precede the broader --force deny. These
+  # cover literal commands only; the pre/00-guardrails hook covers eval and
+  # flag-order variants. Neither is containment.
+  patterns:
+    - match: "git push --force-with-lease*"
+      approval: allow
+    - match: "git push --force*"
+      approval: deny
+    - match: "git push -f*"
+      approval: deny
+    - match: "git push * -f*"
+      approval: deny
+    - match: "curl * | sh*"
+      approval: deny
+    - match: "curl * | bash*"
+      approval: deny
+    - match: "wget * | sh*"
+      approval: deny
+    - match: "wget * | bash*"
+      approval: deny
+    - match: "dd * of=/dev/*"
+      approval: deny
+    - match: "mkfs*"
+      approval: deny
+    - match: "diskutil erase*"
+      approval: deny
+lsp:
+  # Surface type/lint errors as soon as an edit lands, not only on write.
+  diagnosticsOnEdit: true
 checkpoint:
+  # Conversation-only context checkpoint (pairs with `rewind`). It does NOT
+  # restore files; refs/omp-snapshots from the session-start hook is the
+  # file-level undo.
   enabled: true
 secrets:
   enabled: true

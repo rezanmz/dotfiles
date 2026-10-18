@@ -7,8 +7,17 @@ import Quickshell
 // they are not clipped by the 44px bar and can overlap windows. `name` is the
 // key in Panels — the popup is visible exactly while that key is current.
 //
-// Dismissal is handled by the HyprlandFocusGrab in shell.qml (per upstream's
-// recommendation over PopupWindow.grabFocus, which cannot change while open).
+// Dismissal is the HyprlandFocusGrab in shell.qml (per upstream's recommendation
+// over PopupWindow.grabFocus, which cannot change while open — and which measured
+// worse here: a grabbing popup took the keyboard but no longer dismissed on an
+// outside click at all, window or desktop).
+//
+// Escape is a separate matter: a popup has no keyboard focus, so the popup panels
+// cannot close on Escape — the bar-level owner (a full-screen click-through layer
+// surface) turned out to cost the click dismissal, so Escape is handled only by
+// the panels that hold the keyboard themselves: the cheatsheet and the capture
+// toolbar (layer-shell, WlrKeyboardFocus.Exclusive) and the notification centre
+// (its search field needs an xdg popup grab, so it takes one).
 PopupWindow {
     id: root
 
@@ -63,6 +72,7 @@ PopupWindow {
         onTriggered: root.hiding = false
     }
 
+
     // Whitelisted for the focus grab while open, otherwise a click on the panel's
     // own controls counts as "outside" and closes it. Panels are destroyed when
     // they close (see shell.qml), so the registry has to be kept clean.
@@ -81,6 +91,14 @@ PopupWindow {
         radius: Theme.panelRadius
         border.width: 1
         border.color: Theme.border
+
+        // Escape closes the panel, for the one popup panel whose window takes the
+        // keyboard: the notification centre, which holds an xdg popup grab for its
+        // search field. The other popups never see a key press — a popup without a
+        // grab has no keyboard focus — so they do not close on Escape. Nothing
+        // inside a panel handles Escape before this, except the network password
+        // prompt, which accepts the event and keeps the panel open.
+        Keys.onEscapePressed: Panels.close()
 
         // Same hairline as the bar's bottom edge, on the card's top edge.
         Rectangle {

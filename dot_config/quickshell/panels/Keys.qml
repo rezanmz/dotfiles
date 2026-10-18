@@ -37,9 +37,13 @@ PanelWindow {
 
     screen: Util.focusedScreen()
     anchors.top: true
+    anchors.bottom: true
     anchors.left: true
     anchors.right: true
-    implicitHeight: topGap + card.implicitHeight + Theme.margin
+    // One strip down from the top: the bar keeps its own clicks, and the window
+    // still covers the whole screen below it, so "click somewhere else" works
+    // everywhere (see the mouse area below).
+    margins.top: Theme.barHeight
     color: "transparent"
     exclusiveZone: -1
     WlrLayershell.namespace: "quickshell-keys"
@@ -48,8 +52,18 @@ PanelWindow {
     // while it is up — the launcher and the switcher do the same.
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
+    // Escape closes the panel. A Shortcut rather than Keys.onEscapePressed: this
+    // document's own type is named Keys, which shadows the Keys attached object
+    // here (same reason the singleton is called Keybinds), so `Keys.on...` cannot
+    // be written in this file at all. The panel owns the keyboard while it is up,
+    // and nothing in it claims Escape, so the window shortcut fires.
+    Shortcut {
+        sequence: "Escape"
+        onActivated: Panels.close()
+    }
+
     // The bar is an exclusive zone at the top; drop below it.
-    readonly property int topGap: Theme.barHeight + Theme.margin
+    readonly property int topGap: Theme.margin
 
     property string query: ""
     property bool shown: false
@@ -89,6 +103,7 @@ PanelWindow {
         root.shown = true;
         search.forceActiveFocus();
     }
+
     Component.onDestruction: Panels.unregister(root)
 
     component SectionLabel: Text {
@@ -96,6 +111,14 @@ PanelWindow {
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSizeSmall
         font.capitalization: Font.AllUppercase
+    }
+
+    // Anywhere that is not the card is "outside": clicking it closes the panel.
+    // First child, so the card and every row inside it keep their own clicks.
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.AllButtons
+        onClicked: Panels.close()
     }
 
     Rectangle {

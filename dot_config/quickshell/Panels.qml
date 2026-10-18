@@ -1,6 +1,6 @@
 pragma Singleton
 
-// Which panel is open, and the window registry the focus grab needs.
+// Which panel is open, and which widget each panel hangs under.
 //
 // The old bar could only run a command on click; the shell can show a real
 // panel, so something has to own "only one panel at a time" — clicking a second
@@ -13,10 +13,11 @@ Singleton {
     // Name of the open panel, or "" when none is open.
     property string current: ""
 
-    // Windows whitelisted for the Hyprland focus grab while a panel is open.
-    // Popups register themselves; the bar registers itself. Anything not in
-    // this list counts as "outside" and dismisses the panel.
+    // Windows the Hyprland focus grab allows while a panel is open: the bar and
+    // the open panel. Anything else counts as "outside" and dismisses. Popups
+    // register themselves on completion and unregister on destruction.
     property var registry: []
+
 
     readonly property bool anyOpen: current !== ""
 
@@ -39,6 +40,7 @@ Singleton {
     // panel when nothing reports a battery and its readout has collapsed). Without
     // it those panels open unpositioned.
     property var fallbackAnchor: null
+
 
     function registerFallback(item: var): void {
         fallbackAnchor = item;
@@ -77,11 +79,6 @@ Singleton {
         current = name;
     }
 
-    function close(): void {
-        if (current !== "")
-        current = "";
-    }
-
     function register(w: var): void {
         registry = registry.concat([w]);
     }
@@ -89,4 +86,11 @@ Singleton {
     function unregister(w: var): void {
         registry = registry.filter(x => x !== w);
     }
+
+    function close(): void {
+        if (current !== "")
+        current = "";
+    }
+
+
 }

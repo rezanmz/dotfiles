@@ -189,6 +189,20 @@ PanelWindow {
         }
     }
 
+    // Escape closes the toolbar. This item is the toolbar's default focus holder:
+    // the window takes keyboard focus, but with no item holding it a key press has
+    // nowhere to go and Escape did nothing. The custom-directory field takes focus
+    // while it is being edited and handles Escape itself, so clearing the field
+    // does not also take the toolbar down.
+    Item {
+        anchors.fill: parent
+        focus: true
+
+        Keys.onEscapePressed: Panels.close()
+
+        Component.onCompleted: forceActiveFocus()
+    }
+
     Rectangle {
         id: card
 

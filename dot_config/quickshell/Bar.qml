@@ -31,11 +31,17 @@ PanelWindow {
     WlrLayershell.namespace: "quickshell-bar"
     WlrLayershell.layer: WlrLayer.Top
 
-    // Whitelisted for the focus grab so clicking the bar itself never counts as
-    // "clicked outside".
     Component.onCompleted: {
         Panels.register(bar);
         Panels.barWindow = bar;
+    }
+
+    // The empty stretch of the bar counts as "outside": clicking it closes the
+    // panel. First child, so it sits behind every widget and a widget's own click
+    // handler still wins.
+    MouseArea {
+        anchors.fill: parent
+        onClicked: Panels.close()
     }
 
     // The bar's bottom edge: the shell's signature hairline, a Dracula-spectrum

@@ -200,15 +200,20 @@ ShellRoot {
         }
     }
 
+    // Clicking outside dismisses the panel: the bar, the open panel and the
+    // keyboard seat are allowed, anything else (any window, focused already or
+    // not) counts as outside. The toplevel watch below catches the rest, such as
+    // a workspace switch with the keyboard.
     HyprlandFocusGrab {
-        // The notification centre takes keyboard focus for its search field
-        // (Popup.grabFocus = an xdg popup grab), and hyprland_focus_grab_v1
-        // clears "if another focus grab or similar action is started" — which
-        // would close the panel the instant it opens. Stand down for it: an
-        // xdg popup grab dismisses itself on outside click, and the panel's
-        // Popup syncs that back through Panels.close().
+        // The notification centre is the one panel that takes an xdg popup grab of
+        // its own (its search field has to be typed into), and
+        // hyprland_focus_grab_v1 clears "if another focus grab or similar action
+        // is started" — a layer grab alongside it would close the panel the
+        // instant it opened. It dismisses itself: its xdg grab closes on outside
+        // click and the panel syncs that back through Panels.close().
         active: Panels.anyOpen && Panels.current !== "notifications"
         windows: Panels.registry
         onCleared: Panels.close()
     }
+
 }

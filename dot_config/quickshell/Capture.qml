@@ -95,6 +95,11 @@ Singleton {
 
     readonly property string home: Quickshell.env("HOME")
 
+    // The panel that was open when a capture began, so it can be put back if the
+    // compositor took it away (the notification centre's own popup grab dies when
+    // the crosshair takes the keyboard, and nothing else can photograph it).
+    property string restorePanel: ""
+
     // ---- the one in-flight pipeline -----------------------------------
     // A capture (or the slurp before a recording) is a chain of child
     // processes; this is its state, cleared when the chain ends either way.
@@ -189,6 +194,9 @@ Singleton {
         // press Shift-Command-4, drag over the menu items" — and closing the panel
         // made that impossible to plan.
         const closingToolbar = Panels.current === "capture";
+        // Anything else that was open gets put back when the shot is done; the
+        // frozen frame already has it either way.
+        root.restorePanel = closingToolbar ? "" : Panels.current;
         if (closingToolbar)
             Panels.close();
         root.pendingKind = "capture";
@@ -448,6 +456,14 @@ Singleton {
 
     // ---- thumbnail -----------------------------------------------------
 
+    // Put back a panel the capture took away, once, and only if it is really gone.
+    function reopenPanel(): void {
+        const name = root.restorePanel;
+        root.restorePanel = "";
+        if (name !== "" && Panels.current !== name && Panels.current === "")
+            Panels.openByName(name);
+    }
+
     function dismissThumb(): void {
         root.thumbVisible = false;
         root.thumbVideo = false;
@@ -510,6 +526,9 @@ Singleton {
     function clearPending(): void {
         root.pendingKind = "";
         root.pendingClipboard = false;
+        // Every way a pipeline can end goes through here — shot taken, cancelled,
+        // failed — so this is where a panel the capture took away comes back.
+        root.reopenPanel();
         // Whatever ended the pipeline, the crosshair goes with it: a stale overlay
         // blocks the whole screen and belongs to nobody.
         Selection.dismiss();

@@ -35,6 +35,12 @@ Singleton {
     // A selection is in progress: the frozen shot was taken, the window is up.
     property bool active: false
 
+    // A selection is being *set up* — begin() was called, the crosshair is not up
+    // yet. The focus grab in shell.qml stands down from the moment this is true:
+    // waiting for the window to map was one frame too late, and the grab's clear
+    // closed the panel the user was trying to photograph.
+    property bool starting: false
+
     // "region" (crosshair) or "window" (hover a window, click it). Space swaps.
     property string mode: "region"
 
@@ -84,6 +90,7 @@ Singleton {
     // presetGeometry: "" for a fresh crosshair, or a previous "x,y WxH" to
     // pre-draw (the user can still drag a new one, or press Enter to take it).
     function begin(m: string, presetGeometry: string, forWhat: string): void {
+        root.starting = true;
         root.purpose = forWhat === "record" ? "record" : "capture";
         root.armed = false;
         root.mode = m === "window" ? "window" : "region";
@@ -112,6 +119,7 @@ Singleton {
 
     function cancel(): void {
         root.active = false;
+        root.starting = false;
         root.cancelled();
     }
 
@@ -120,6 +128,7 @@ Singleton {
     // a replaced request), so the crosshair can never be left up with no owner.
     function dismiss(): void {
         root.active = false;
+        root.starting = false;
     }
 
     function commit(): void {
@@ -127,6 +136,7 @@ Singleton {
             return;
         const g = root.geometry;
         root.active = false;
+        root.starting = false;
         root.chosen(g);
     }
 

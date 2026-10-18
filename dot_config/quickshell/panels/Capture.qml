@@ -13,7 +13,11 @@ import qs as Shell
 // reads Capture or Record depending on which trio the selected tool is in.
 // The window tools mean "click the window": they keep routing through
 // Shell.Capture.beginCapture("window") / Shell.Capture.recordWindow(), which
-// open the shell's own picker (Selection.qml).
+// open the shell's own picker (Selection.qml). The trios are kept visually
+// distinct the way macOS keeps them distinct by iconography: a CAPTURE/RECORD
+// label per group, mode glyphs on the chips (red record dot on the record
+// trio), red accent on active record chips, and the record group goes live-red
+// while a recording runs.
 //
 // The Options menu is macOS's, in macOS's order and wording: Save to (Desktop /
 // Documents / Clipboard / Other Location… — Other reveals the typed-directory
@@ -73,31 +77,52 @@ PanelWindow {
     Component.onCompleted: Panels.register(root)
     Component.onDestruction: Panels.unregister(root)
 
-    // One tool segment. The active one is filled purple — the same "this is the
-    // one" fill the launcher and OSD use.
+    // One tool segment. The active one is filled — purple for the capture
+    // tools, red for the record tools — the same "this is the one" fill the
+    // launcher and OSD use. Every chip carries a glyph so the two trios cannot
+    // be confused: capture chips show the mode's capture glyph, record chips a
+    // red record dot plus the same mode glyph. The codepoints are Hack Nerd
+    // Font, rendered and checked one by one the way widgets/Rec.qml validated
+    // its stop symbol (U+23FA "⏺" is not in the font and renders as tofu).
     component Chip: Rectangle {
         id: chip
 
         property alias text: label.text
+        property string glyph: ""
+        property color glyphColor: Theme.cyan
+        property color accent: Theme.purple
         property bool active: false
         signal chosen()
 
-        implicitWidth: label.implicitWidth + 20
+        implicitWidth: inner.implicitWidth + 20
         implicitHeight: 28
         radius: Theme.radius
-        color: chip.active ? Theme.purple : (chipHover.hovered ? Theme.alpha(Theme.selection, 0.8) : "transparent")
+        color: chip.active ? chip.accent : (chipHover.hovered ? Theme.alpha(Theme.selection, 0.8) : "transparent")
         Behavior on color {
             ColorAnimation {
                 duration: Theme.animationFast
             }
         }
 
-        Text {
-            id: label
+        Row {
+            id: inner
             anchors.centerIn: parent
-            color: chip.active ? Theme.bg : Theme.fg
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSmall
+            spacing: 5
+
+            Text {
+                visible: chip.glyph !== ""
+                text: chip.glyph
+                color: chip.active ? Theme.bg : chip.glyphColor
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+            }
+
+            Text {
+                id: label
+                color: chip.active ? Theme.bg : Theme.fg
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+            }
         }
 
         HoverHandler {
@@ -170,14 +195,17 @@ PanelWindow {
     }
 
     // A grouped segmented control: chips in a shared rounded container, so
-    // they read as one choice like macOS's segmented buttons.
+    // they read as one choice like macOS's segmented buttons. `live` paints the
+    // record group as running.
     component SegGroup: Rectangle {
         id: group
 
+        property bool live: false
+
         radius: Theme.radius
-        color: Theme.alpha(Theme.selection, 0.35)
+        color: group.live ? Theme.alpha(Theme.red, 0.16) : Theme.alpha(Theme.selection, 0.35)
         border.width: 1
-        border.color: Theme.alpha(Theme.border, 0.6)
+        border.color: group.live ? Theme.alpha(Theme.red, 0.8) : Theme.alpha(Theme.border, 0.6)
         implicitWidth: segRow.implicitWidth + 4
         implicitHeight: segRow.implicitHeight + 4
 
@@ -188,6 +216,21 @@ PanelWindow {
             anchors.centerIn: parent
             spacing: 0
         }
+    }
+
+    // A short label beside each trio — without one the two groups read
+    // identically. The record label goes red and reads "recording" while a
+    // recording runs, so the label, the group, its active chip and the primary
+    // button all say the same thing.
+    component GroupLabel: Text {
+        property bool live: false
+
+        Layout.alignment: Qt.AlignVCenter
+        color: live ? Theme.red : Theme.comment
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeSmall
+        font.capitalization: Font.AllUppercase
+        font.bold: live
     }
 
     // A menu section title, aligned with the menu items' labels (past the
@@ -337,11 +380,17 @@ PanelWindow {
             anchors.centerIn: parent
             spacing: Theme.spacing + 4
 
-            // macOS's capture trio: entire screen / window / portion. The
-            // window tool means "click the window" — it opens the picker.
+            // macOS's capture trio: entire screen / window / portion, each with
+            // its capture glyph. The window tool means "click the window" — it
+            // opens the picker.
+            GroupLabel {
+                text: "capture"
+            }
+
             SegGroup {
                 Chip {
                     text: "Screen"
+                    glyph: String.fromCodePoint(0xF108)  // desktop display
                     active: !Shell.Capture.recordingMode && Shell.Capture.mode === "screen"
                     onChosen: {
                         Shell.Capture.mode = "screen";
@@ -350,6 +399,7 @@ PanelWindow {
                 }
                 Chip {
                     text: "Window"
+                    glyph: String.fromCodePoint(0xF2D0)  // window
                     active: !Shell.Capture.recordingMode && Shell.Capture.mode === "window"
                     onChosen: {
                         Shell.Capture.mode = "window";
@@ -358,6 +408,7 @@ PanelWindow {
                 }
                 Chip {
                     text: "Portion"
+                    glyph: String.fromCodePoint(0xF125)  // crop marks
                     active: !Shell.Capture.recordingMode && Shell.Capture.mode === "selection"
                     onChosen: {
                         Shell.Capture.mode = "selection";
@@ -369,10 +420,22 @@ PanelWindow {
             Divider {
             }
 
-            // The record trio, the same shapes in the same order.
+            // The record trio: the same modes, each chip led by a red record
+            // dot, the whole group red-accented and "live" while a recording
+            // runs.
+            GroupLabel {
+                text: Recorder.recording ? "recording" : "record"
+                live: Recorder.recording
+            }
+
             SegGroup {
+                live: Recorder.recording
+
                 Chip {
                     text: "Screen"
+                    glyph: String.fromCodePoint(0xF111) + " " + String.fromCodePoint(0xF108)  // ⏺ + display
+                    glyphColor: Theme.red
+                    accent: Theme.red
                     active: Shell.Capture.recordingMode && Shell.Capture.recordTarget === "screen"
                     onChosen: {
                         Shell.Capture.recordTarget = "screen";
@@ -381,6 +444,9 @@ PanelWindow {
                 }
                 Chip {
                     text: "Window"
+                    glyph: String.fromCodePoint(0xF111) + " " + String.fromCodePoint(0xF2D0)  // ⏺ + window
+                    glyphColor: Theme.red
+                    accent: Theme.red
                     active: Shell.Capture.recordingMode && Shell.Capture.recordTarget === "window"
                     onChosen: {
                         Shell.Capture.recordTarget = "window";
@@ -389,6 +455,9 @@ PanelWindow {
                 }
                 Chip {
                     text: "Portion"
+                    glyph: String.fromCodePoint(0xF111) + " " + String.fromCodePoint(0xF125)  // ⏺ + crop marks
+                    glyphColor: Theme.red
+                    accent: Theme.red
                     active: Shell.Capture.recordingMode && Shell.Capture.recordTarget === "selection"
                     onChosen: {
                         Shell.Capture.recordTarget = "selection";

@@ -106,8 +106,19 @@ Popup {
         id: slider
 
         property real value: 0
+        property real from: 0
+        property real to: 1
         property color fillColour: Theme.purple
         signal moved(real value)
+
+        // Where the fill ends: the value as a fraction of the slider's range.
+        readonly property real fraction: (slider.to - slider.from) === 0 ? 0 : Math.max(0, Math.min(1, (slider.value - slider.from) / (slider.to - slider.from)))
+
+        // A click at x reports the value that position stands for.
+        function valueAt(x: real): real {
+            const f = Math.max(0, Math.min(1, x / width));
+            return slider.from + f * (slider.to - slider.from);
+        }
 
         implicitHeight: 20
 
@@ -123,7 +134,7 @@ Popup {
 
         Rectangle {
             anchors.verticalCenter: parent.verticalCenter
-            width: track.width * Math.max(0, Math.min(1, slider.value))
+            width: track.width * slider.fraction
             height: 6
             radius: 3
             color: slider.fillColour
@@ -132,10 +143,10 @@ Popup {
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onPressed: mouse => slider.moved(mouse.x / width)
+            onPressed: mouse => slider.moved(slider.valueAt(mouse.x))
             onPositionChanged: mouse => {
                 if (pressed)
-                    slider.moved(mouse.x / width);
+                    slider.moved(slider.valueAt(mouse.x));
             }
         }
     }
@@ -146,6 +157,10 @@ Popup {
 
         property string label: ""
         property real value: 0
+        property real from: 0
+        property real to: 1
+        // Shown on the right; empty means the 0..1 percent form.
+        property string valueText: ""
         property color fillColour: Theme.purple
         signal moved(real value)
 
@@ -170,6 +185,8 @@ Popup {
             anchors.rightMargin: 10
             anchors.verticalCenter: parent.verticalCenter
             value: sliderRow.value
+            from: sliderRow.from
+            to: sliderRow.to
             fillColour: sliderRow.fillColour
             onMoved: value => sliderRow.moved(value)
         }
@@ -181,7 +198,7 @@ Popup {
             anchors.verticalCenter: parent.verticalCenter
             width: 40
             horizontalAlignment: Text.AlignRight
-            text: Math.round(sliderRow.value * 100) + "%"
+            text: sliderRow.valueText !== "" ? sliderRow.valueText : Math.round(sliderRow.value * 100) + "%"
             color: Theme.comment
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSmall
@@ -223,23 +240,33 @@ Popup {
 
     ToggleRow {
         label: "Night light"
-        detail: NightLight.enabled ? "on" : "off"
+        detail: !NightLight.available ? "hyprsunset not running" : (NightLight.enabled ? NightLight.temperature + " K" : "off")
         active: NightLight.enabled
         accent: Theme.pink
+        detailColor: !NightLight.available ? Theme.red : (NightLight.enabled ? Theme.pink : Theme.comment)
         onChosen: NightLight.enabled = !NightLight.enabled
     }
 
+    // Warmth, not strength: the same control everyone else has, in Kelvin. The
+    // slider runs neutral -> warmest, so dragging right warms, and moving it turns
+    // the filter on rather than leaving a change you cannot see.
     SliderRow {
-        label: "strength"
-        value: NightLight.strength
+        label: "warmth"
+        from: 0
+        to: 4000
+        value: NightLight.neutral - NightLight.temperature
+        valueText: NightLight.temperature + " K"
         fillColour: Theme.pink
-        onMoved: value => NightLight.strength = Math.max(0, Math.min(1, value))
+        onMoved: value => {
+            NightLight.temperature = Math.round(NightLight.neutral - value);
+            NightLight.enabled = true;
+        }
     }
 
     ToggleRow {
         label: "Warm"
-        detail: Math.round(NightLight.strengthWarm * 100) + "%"
-        active: NightLight.enabled && Math.abs(NightLight.strength - NightLight.strengthWarm) < 0.005
+        detail: NightLight.warm + " K"
+        active: NightLight.enabled && NightLight.temperature === NightLight.warm
         accent: Theme.pink
         detailColor: Theme.comment
         onChosen: NightLight.setWarm()
@@ -247,11 +274,25 @@ Popup {
 
     ToggleRow {
         label: "Warmer"
-        detail: Math.round(NightLight.strengthWarmer * 100) + "%"
-        active: NightLight.enabled && Math.abs(NightLight.strength - NightLight.strengthWarmer) < 0.005
+        detail: NightLight.warmer + " K"
+        active: NightLight.enabled && NightLight.temperature === NightLight.warmer
         accent: Theme.pink
         detailColor: Theme.comment
         onChosen: NightLight.setWarmer()
+    }
+
+    // Brightness is hyprsunset's gamma ramp: 100% leaves the panel alone, below
+    // that dims, above lifts past what the monitor's own controls allow. It is the
+    // only brightness a desktop monitor without DDC can have, and unlike a shader
+    // it stays out of screenshots.
+    SliderRow {
+        label: "brightness"
+        from: 60
+        to: NightLight.brightnessMax
+        value: NightLight.brightness
+        valueText: NightLight.brightness + "%"
+        fillColour: Theme.purple
+        onMoved: value => NightLight.brightness = Math.round(value)
     }
 
     Section {

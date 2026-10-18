@@ -299,9 +299,9 @@ Singleton {
             // skipping the crosshair; the toolbar's Reselect clears it.
             const preset = (root.rememberSelection && !root.reselect) ? root.lastGeometry : "";
             root.reselect = false;
-            Selection.begin("region", preset);
+            Selection.begin("region", preset, root.pendingKind);
         } else if (root.pendingMode === "window") {
-            Selection.begin("window", "");
+            Selection.begin("window", "", root.pendingKind);
         } else {
             root.runGrim();
         }
@@ -363,8 +363,12 @@ Singleton {
     function captureDone(): void {
         const file = root.pendingFile;
         const temp = root.pendingTemp;
+        // Read the clipboard intent before clearPending() resets it: this used to
+        // test the flag after clearing, so a Control capture never reached wl-copy
+        // and left its file behind in /tmp.
+        const clipboard = root.pendingClipboard || root.saveTo === "clipboard";
         root.clearPending();
-        if (root.pendingClipboard || root.saveTo === "clipboard") {
+        if (clipboard) {
             copyProc.command = ["sh", "-c", 'wl-copy --type image/png < "$1"', "sh", file];
             copyProc.running = true;
         }
@@ -384,7 +388,7 @@ Singleton {
                 rmProc.command = ["rm", "-f", file];
                 rmProc.running = true;
             }
-            if (root.pendingClipboard || root.saveTo === "clipboard")
+            if (clipboard)
                 root.notify("screenshot", "Screenshot copied", "to the clipboard");
             else
                 root.notify("screenshot", "Screenshot saved", file);

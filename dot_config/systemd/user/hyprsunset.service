@@ -1,0 +1,21 @@
+[Unit]
+Description=Colour temperature and gamma for the display (hyprsunset)
+Documentation=https://wiki.hypr.land/Hypr-Ecosystem/hyprsunset/
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# Started neutral; the shell sets the temperature and gamma over its socket
+# (see dot_config/quickshell/NightLight.qml). hyprsunset applies a colour
+# transform matrix through hyprland-ctm-control-v1, which is why the tint is
+# absent from screenshots and recordings - unlike the overlay it replaces.
+# --gamma_max raises the ceiling the shell's brightness slider can reach: at 100%
+# gamma nothing can be made brighter than the panel allows, and a desktop monitor
+# has no software brightness at all.
+ExecStart=/usr/bin/hyprsunset -t 6500 --gamma_max 150
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

@@ -38,6 +38,16 @@ Singleton {
     // "region" (crosshair) or "window" (hover a window, click it). Space swaps.
     property string mode: "region"
 
+    // "capture" (release takes the shot) or "record" (release arms the frame and
+    // a Record button starts it). macOS makes the same distinction: ⌘⇧4 captures
+    // the moment you let go, while Screenshot's record-a-portion shows a frame
+    // with a Record button on it. Auto-starting a recording on release was what
+    // made the overlay feel like it had locked the screen.
+    property string purpose: "capture"
+
+    // In record mode a chosen frame sits ready until it is started.
+    property bool armed: false
+
     // The frozen screen shown back to the user, and the file it comes from.
     property string frozenPath: "/tmp/qs-capture-frozen.png"
 
@@ -69,7 +79,9 @@ Singleton {
 
     // presetGeometry: "" for a fresh crosshair, or a previous "x,y WxH" to
     // pre-draw (the user can still drag a new one, or press Enter to take it).
-    function begin(m: string, presetGeometry: string): void {
+    function begin(m: string, presetGeometry: string, forWhat: string): void {
+        root.purpose = forWhat === "record" ? "record" : "capture";
+        root.armed = false;
         root.mode = m === "window" ? "window" : "region";
         root.hoveredWindow = null;
         root.hoveredTitle = "";
@@ -253,7 +265,7 @@ Singleton {
         // until there is a selection to protect: before the drag the screen looks
         // exactly as it did, which is what macOS does.
         readonly property color dim: Qt.rgba(0, 0, 0, 0.42)
-        readonly property bool dimming: root.hasSelection
+        readonly property bool dimming: root.hasSelection && !root.hasPreset
 
         Rectangle {
             color: win.dim
@@ -383,7 +395,17 @@ Singleton {
                 id: hint
 
                 anchors.centerIn: parent
-                text: root.mode === "window" ? "click a window to capture · Space for a region · Esc to cancel" : (root.hasPreset ? "drag a new region, or Enter to use the last one · Space for a window · Esc to cancel" : "drag to select · Space for a window · Esc to cancel")
+                text: {
+                    if (root.purpose === "record" && root.armed)
+                        return "press Enter or click Record to start recording · drag again to redo · Esc to cancel";
+                    if (root.mode === "window")
+                        return "click a window · Space for a region · Esc to cancel";
+                    if (root.purpose === "record")
+                        return "drag to choose what to record · Esc to cancel";
+                    if (root.hasPreset)
+                        return "drag a new region, or Enter to use the last one · Space for a window · Esc to cancel";
+                    return "drag to select · Space for a window · Esc to cancel";
+                }
                 color: "#e8e8e8"
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
@@ -439,8 +461,50 @@ Singleton {
                 if (root.mode === "window")
                     return;
                 dragging = false;
-                if (root.hasSelection)
+                if (!root.hasSelection)
+                    return;
+                if (root.purpose === "record")
+                    root.armed = true;
+                else
                     root.commit();
+            }
+        }
+
+        // Record mode: the frame is ready, this starts it. Declared after the
+        // mouse area, so it is the topmost item and takes the click itself.
+        Rectangle {
+            id: recordButton
+
+            visible: root.purpose === "record" && root.armed && root.hasSelection
+            x: root.selX + root.selW - width
+            // Inside the frame when it reaches the bottom of the screen, below it
+            // otherwise — the same rule the size label uses.
+            y: (root.selY + root.selH + height + 8 > win.height) ? (root.selY + root.selH - height - 8) : (root.selY + root.selH + 8)
+            width: recordLabel.implicitWidth + 28
+            height: recordLabel.implicitHeight + 12
+            radius: 4
+            color: Theme.alpha(Theme.red, recordHover.hovered ? 0.95 : 0.8)
+            border.width: 1
+            border.color: Theme.alpha(Theme.fg, 0.35)
+
+            Text {
+                id: recordLabel
+
+                anchors.centerIn: parent
+                text: "⏺  Record"
+                color: Theme.bg
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+            }
+
+            HoverHandler {
+                id: recordHover
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.commit()
             }
         }
 

@@ -314,8 +314,12 @@ hl.bind(mainMod .. " + SHIFT + 4", hl.dsp.exec_cmd("qs ipc call capture selectio
 hl.bind(mainMod .. " + SHIFT + 5", hl.dsp.exec_cmd("qs ipc call shell togglePanel capture"))
 -- Control added, as on macOS (⌃⌘⇧3 / ⌃⌘⇧4): the same captures, but they go to
 -- the clipboard and leave no file behind.
-hl.bind(mainMod .. " + CTRL + SHIFT + 3", hl.dsp.exec_cmd("qs ipc call capture screenClipboard"))
-hl.bind(mainMod .. " + CTRL + SHIFT + 4", hl.dsp.exec_cmd("qs ipc call capture selectionClipboard"))
+-- The modifiers must be in bit order (SHIFT before CTRL): written the other way
+-- round the chord is accepted by the config and never registered, which looks
+-- exactly like the key doing nothing. Verified against `hyprctl binds` (modmask
+-- 69 = SUPER+SHIFT+CTRL).
+hl.bind(mainMod .. " + SHIFT + CTRL + 3", hl.dsp.exec_cmd("qs ipc call capture screenClipboard"))
+hl.bind(mainMod .. " + SHIFT + CTRL + 4", hl.dsp.exec_cmd("qs ipc call capture selectionClipboard"))
 
 -- Media keys (Logitech MX Master and the Keychron consumer keys)
 hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 5%+"), { locked = true, repeating = true })
@@ -349,3 +353,4 @@ hl.bind(mainMod .. " + SHIFT + P", hl.dsp.exec_cmd("hyprpicker --autocopy"))
 -- Screen recording has no chord of its own: SUPER+SHIFT+5 opens the capture
 -- toolbar with Record/Stop Recording, and the REC pill in the bar is the stop
 -- button while one runs (the old SUPER+SHIFT+R toggle is gone).
+

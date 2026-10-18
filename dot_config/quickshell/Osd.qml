@@ -48,6 +48,9 @@ Scope {
 
         function onVolumeChanged(): void {
             root.show("volume");
+            // Only once the startup enumeration is over; see the armed timer.
+            if (root.armed)
+                Feedback.volumeTick();
         }
         function onMutedChanged(): void {
             root.show("volume");
@@ -69,10 +72,20 @@ Scope {
             implicitWidth: 300
             implicitHeight: 54
             color: "transparent"
-            // No reserved space, and no input region: an OSD must never move
-            // windows or eat clicks.
+            // No reserved space, and the input region is the card alone: the OSD
+            // must never move windows or eat clicks meant for what is behind it,
+            // but the card itself is a slider you can drag (macOS's volume HUD is
+            // grabbable, and a HUD that looks like a slider and ignores you is
+            // what this used to be).
             exclusiveZone: 0
-            mask: Region {}
+            mask: Region {
+                shape: RegionShape.Rect
+                x: 0
+                y: 0
+                width: card.width
+                height: card.height
+                radius: Theme.radiusPill
+            }
             WlrLayershell.namespace: "quickshell-osd"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
@@ -116,6 +129,44 @@ Scope {
                     }
                 }
 
+                // Dragging anywhere on the card sets the volume across the track's
+                // span, and hovering or dragging holds the OSD up instead of
+                // letting it fade out under your hand.
+                MouseArea {
+                    id: drag
+
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+
+                    function setFromX(x: real): void {
+                        const left = track.mapToItem(card, 0, 0).x;
+                        const f = Math.max(0, Math.min(1, (x - left) / track.width));
+                        Sound.setVolume(f);
+                    }
+
+                    onPressed: mouse => {
+                        hideTimer.stop();
+                        setFromX(mouse.x);
+                    }
+                    onPositionChanged: mouse => {
+                        if (pressed)
+                            setFromX(mouse.x);
+                    }
+                    onReleased: hideTimer.restart()
+                    onWheel: wheel => {
+                        const d = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : (wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y : wheel.angleDelta.x);
+                        if (d !== 0)
+                            Sound.adjustVolume(d > 0 ? Sound.step : -Sound.step);
+                        hideTimer.restart();
+                    }
+                    onEntered: hideTimer.stop()
+                    onExited: {
+                        if (!pressed)
+                            hideTimer.restart();
+                    }
+                }
+
                 Row {
                     anchors.centerIn: parent
                     spacing: 12
@@ -139,6 +190,8 @@ Scope {
                     }
 
                     Rectangle {
+                        id: track
+
                         anchors.verticalCenter: parent.verticalCenter
                         width: 170
                         height: 6

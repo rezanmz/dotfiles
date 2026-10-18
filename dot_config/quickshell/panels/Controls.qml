@@ -304,6 +304,14 @@ Popup {
         onMoved: value => NightLight.brightness = Math.round(value)
     }
 
+    ToggleRow {
+        label: "volume feedback"
+        detail: Feedback.enabled ? "on" : "off"
+        active: Feedback.enabled
+        accent: Theme.purple
+        onChosen: Feedback.enabled = !Feedback.enabled
+    }
+
     Section {
         text: "devices"
     }

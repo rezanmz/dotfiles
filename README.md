@@ -22,7 +22,7 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/hypr/hyprpaper.conf` | Wallpaper (`wallpaper { }` blocks) |
 | `dot_config/hypr/hypridle.conf` | DPMS off, lock, and suspend timers |
 | `dot_config/hypr/hyprlock.conf` | Lock screen |
-| `dot_config/quickshell/` | Desktop shell — one `quickshell` process: bar, notification popups and centre, OSD, launcher (apps, session actions, inline maths, `cliphist`), SUPER+Tab workspace switcher with live thumbnails, a picture-in-picture view of another workspace (`SUPER+W`), and the idle panel (timed holds, plus an automatic hold while media plays); replaces waybar, dunst, anyrun, snappy-switcher and the `gpu-usage`, `net-speed`, `notif-history`, `clipboard-pick` helpers |
+| `dot_config/quickshell/` | Desktop shell — one `quickshell` process: bar, notification popups and centre, OSD, launcher (apps, session actions, inline maths, `cliphist`), SUPER+Tab workspace switcher with live thumbnails, drag-out picture-in-picture views of other workspaces, the macOS-style capture toolbar, and the idle panel (timed holds, plus an automatic hold while media plays); replaces waybar, dunst, anyrun, snappy-switcher and the `gpu-usage`, `net-speed`, `notif-history`, `clipboard-pick` helpers |
 | `dot_config/systemd/user/` | `quickshell.service`, `wl-clip-persist.service`, `udiskie.service` |
 | `dot_config/udiskie/` | Removable-drive automount (USB sticks, SD cards) |
 | `dot_local/bin/executable_*` | `screenshot`, `record-toggle`, `set-wallpaper`, `wifi-tune`, `gdrive-export`, `ly-theme` |
@@ -31,10 +31,23 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 
 `PACKAGES.md` lists package prerequisites; chezmoi never installs packages. The
 shell is driven from `60-binds.lua` through `qs ipc`: `SUPER+SPACE` toggles the
-launcher, `SUPER+C` the clipboard history, `SUPER+N` the notification centre,
-`SUPER+Tab` the workspace switcher (hold SUPER, tap Tab, release to switch), and
-`SUPER+W` cycles a floating picture-in-picture view through the other workspaces
-that hold windows.
+launcher, `SUPER+C` the clipboard history, `SUPER+N` the notification centre, and
+`SUPER+Tab` the workspace switcher (hold SUPER, tap Tab, release to switch).
+
+Screenshots and recording follow macOS: `SUPER+SHIFT+3` captures the whole
+screen, `SUPER+SHIFT+4` a dragged selection, and `SUPER+SHIFT+5` opens the capture
+toolbar (Screen / Selection / Window, where files go, timer, floating thumbnail,
+and the recording controls — with a microphone option for system or input audio).
+Captures are saved to `~/Desktop` as `Screenshot <date> at <time>.png` and a
+floating thumbnail appears bottom-right; recordings land in `~/Videos/Recordings`,
+and a red `REC` pill sits at the right end of the bar while one runs. The old
+`Print` binds are gone (no Print key on this keyboard) and, because Hyprland
+dispatches *all* matching binds, moving a window to a workspace moved from
+`SUPER+SHIFT+1..0` to `SUPER+CTRL+1..0` to free the macOS trio.
+
+A live floating view of another workspace is pulled out by dragging its workspace
+pill downward; several can be up at once, and one closes when you switch to the
+workspace it shows.
 
 Hyprland 0.55+ reads `hyprland.lua` in preference to `hyprland.conf`. Note that
 Hyprland's Lua `require()` resolves against the **current working directory**

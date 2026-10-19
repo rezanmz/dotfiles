@@ -70,6 +70,14 @@ hl.animation({ leaf = "zoomFactor",    enabled = true, speed = 7,    bezier = "q
 
 hl.config({
     dwindle = {
+        -- New windows always become the right (or bottom) child of the split,
+        -- never the left/top one. With the default force_split = 0 the side
+        -- followed the cursor: a pointer left of the focused tile's center
+        -- parked the new window to the left, which read as random. 2 makes the
+        -- position deterministic and independent of the mouse.
+        force_split = 2,
+        -- Freeze each node's axis at creation, so a side-by-side split keeps
+        -- splitting side-by-side even after the column gets narrow.
         preserve_split = true,
     },
 })

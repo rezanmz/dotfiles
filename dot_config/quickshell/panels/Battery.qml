@@ -36,6 +36,10 @@ Popup {
         // the same left bar the launcher's selection uses, in red.
         readonly property bool low: row.device.percent <= 20
 
+        // Whether the device is on a charger. The kernel knows this (see
+        // Charging.qml); BlueZ and Quickshell do not.
+        readonly property bool charging: Charging.isCharging(row.device.address)
+
         Rectangle {
             anchors.fill: parent
             radius: Theme.radius
@@ -89,6 +93,20 @@ Popup {
             horizontalAlignment: Text.AlignRight
             text: row.device.percent + "%"
             color: Batteries.colorFor(row.device.percent)
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
+        }
+
+        // A bolt next to the percentage for a device on its charger. It is
+        // the same mark the bar uses (see Charging.qml), so the two agree on
+        // what "charging" looks like.
+        Text {
+            anchors.right: percent.left
+            anchors.rightMargin: 4
+            anchors.verticalCenter: percent.verticalCenter
+            visible: row.charging
+            text: Charging.glyph
+            color: Theme.yellow
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSmall
         }

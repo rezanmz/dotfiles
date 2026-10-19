@@ -41,7 +41,11 @@ Item {
         id: label
 
         anchors.centerIn: parent
-        text: !root.online ? "offline \uf127" : (root.wifi ? Util.pad(root.signal, 3) + "% \uf1eb" : "eth \uf6ff")
+        // The ethernet glyph is U+F0E8 (a network tree), not the U+F6FF the
+        // waybar config used: that codepoint is not in Hack Nerd Font, so it
+        // drew as an empty tofu box. It was carried over from the waybar
+        // config, where the same substitution happened.
+        text: !root.online ? "offline \uf127" : (root.wifi ? Util.pad(root.signal, 3) + "% \uf1eb" : "eth \uf0e8")
         color: root.online ? Theme.cyan : Theme.red
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize

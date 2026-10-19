@@ -24,7 +24,14 @@ Item {
     signal clicked(int button)
     signal scrolled(int delta)
 
-    implicitWidth: contentArea.implicitWidth + Theme.modulePadding * 2
+    // A hairline to the left of the module, to mark where one group of
+    // readouts ends and the next begins. The bar is a single run of modules
+    // and without a break the eye has to work out which numbers belong
+    // together; the divider is a mark, not a border -- it is short, faint and
+    // inset from the top and bottom so it does not close the bar off.
+    property bool separator: false
+
+    implicitWidth: contentArea.implicitWidth + Theme.modulePadding * 2 + (root.separator ? Theme.separatorWidth : 0)
     implicitHeight: Theme.barHeight
 
     // The window this item lives in — popups anchored to it need it.
@@ -44,6 +51,18 @@ Item {
     HoverHandler {
         id: hover
         enabled: root.interactive
+    }
+
+    // The hairline, drawn to the left of the module's own padding so it sits
+    // in the gap between two groups rather than crowding the content.
+    Rectangle {
+        visible: root.separator
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.separatorWidth / 2
+        anchors.verticalCenter: parent.verticalCenter
+        width: 1
+        height: parent.height - Theme.separatorHeight * 2
+        color: Theme.alpha(Theme.comment, 0.35)
     }
 
     Rectangle {

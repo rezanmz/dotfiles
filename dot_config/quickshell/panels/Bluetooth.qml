@@ -33,6 +33,10 @@ Popup {
 
         readonly property bool connected: device.connected
 
+        // Whether the device is on a charger. The kernel knows this (see
+        // Charging.qml); BlueZ and Quickshell do not.
+        readonly property bool charging: Charging.isCharging(row.device.address)
+
         Text {
             id: name
 
@@ -52,8 +56,11 @@ Popup {
             anchors.right: battery.left
             anchors.rightMargin: 10
             anchors.verticalCenter: parent.verticalCenter
-            text: row.connected ? "connected" : (row.device.paired ? "paired" : "new")
-            color: row.connected ? Theme.green : Theme.comment
+            // A charging device is still connected, so the state says
+            // "charging" rather than both -- the word carries what the bolt
+            // in the bar carries.
+            text: row.charging ? "charging" : (row.connected ? "connected" : (row.device.paired ? "paired" : "new"))
+            color: row.charging ? Theme.yellow : (row.connected ? Theme.green : Theme.comment)
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSizeSmall
         }

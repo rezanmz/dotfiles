@@ -48,6 +48,12 @@ Singleton {
     readonly property int animationFast: 120
     readonly property int animationNormal: 180
 
+    // The hairline that divides one group of bar readouts from the next.
+    // separatorWidth is the gap it occupies, separatorHeight the inset from
+    // the top and bottom so it reads as a mark rather than a border.
+    readonly property int separatorWidth: 9
+    readonly property int separatorHeight: 8
+
     // ---- signature -----------------------------------------------------
     // One Dracula-spectrum hairline per surface: the bar's bottom edge, the top
     // edge of every panel and card. Same three stops everywhere, so the surfaces

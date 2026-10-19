@@ -45,6 +45,11 @@ Singleton {
                 "name": name,
                 "kind": kindFromIcon(d.icon),
                 "percent": Math.round(d.battery * 100),
+                // The Bluetooth address, so the charging state (which the
+                // kernel reports keyed by address) can be matched to this
+                // device. Empty for the UPower devices below, which are not
+                // Bluetooth devices.
+                "address": d.address,
                 "source": "bluetooth"
             });
         }
@@ -62,6 +67,9 @@ Singleton {
                 "name": name,
                 "kind": kindFromType(d.type),
                 "percent": Math.round(d.percentage * 100),
+                // Not a Bluetooth device, so there is no address to match a
+                // charging state against.
+                "address": "",
                 "source": "upower"
             });
         }

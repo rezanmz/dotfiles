@@ -120,8 +120,15 @@ PanelWindow {
         // one click target, one highlight. The readouts inside are plain items
         // (no hover, no click, no panel of their own); the Row is sized from its
         // children so BarItem's content width picks the whole group up.
+        //
+        // The separators mark where one group ends and the next begins. The
+        // right-hand cluster falls into three: the things you adjust by
+        // scrolling (volume, brightness, warmth), the network readouts, and
+        // the device and system ones. Without the marks the bar is one long
+        // run of numbers and the eye has to work out which belong together.
         BarItem {
             panel: "network"
+            separator: true
 
             Row {
                 spacing: 0
@@ -136,6 +143,7 @@ PanelWindow {
         Battery {}
         BarItem {
             panel: "system"
+            separator: true
 
             Row {
                 spacing: 0

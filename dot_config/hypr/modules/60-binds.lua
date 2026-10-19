@@ -6,6 +6,7 @@
 --   SUPER+Tab     window switcher (snappy-switcher, hold and release)
 --   SUPER+Q twice close window (confirm)   SUPER+E  file manager
 --   SUPER+SHIFT+Q twice exit Hyprland (confirm)
+--   SUPER+SHIFT+E dolphin (native file manager)
 --   SUPER+L       lock
 --   SUPER+1..0    workspaces        SUPER+SHIFT+1..0  move window to workspace
 --   SUPER+S       scratchpad (magic)   SUPER+0  workspace 10 (mail)
@@ -22,6 +23,10 @@ local terminal    = "kitty"
 -- so nothing is started per keypress.
 local launcher    = "qs ipc call launcher toggleApps"
 local fileManager = "kitty yazi"
+-- Dolphin, the native file manager, on its own chord (SUPER+SHIFT+E).
+-- SUPER+E stays with yazi in a terminal: dolphin is a GUI app, so it is a
+-- different thing to reach for, not a second spelling of the same one.
+local dolphin     = "dolphin"
 local lockCmd     = "hyprlock"
 
 local ipc     = "hyprctl dispatch"
@@ -29,6 +34,12 @@ local ipc     = "hyprctl dispatch"
 -- Applications
 hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + E",      hl.dsp.exec_cmd(fileManager))
+-- Dolphin, the native file manager. It is a GUI app, so it runs outside the
+-- terminal the way the desktop entry does — `dolphin` is on the session PATH.
+-- The last comment line is the label the keybind cheatsheet shows, so it says
+-- what the chord opens, not how the command happens to be spelled.
+-- Dolphin (native file manager).
+hl.bind(mainMod .. " + SHIFT + E", hl.dsp.exec_cmd(dolphin))
 hl.bind(mainMod .. " + B",      hl.dsp.exec_cmd(terminal .. " -e bluetui"))
 -- Window switcher: hold-and-release, the Alt-Tab muscle memory.
 --

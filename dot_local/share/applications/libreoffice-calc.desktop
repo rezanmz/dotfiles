@@ -18,14 +18,22 @@
 # (Dracula) and the Papirus-Dark icon theme, so LibreOffice matches the rest
 # of the desktop. The GTK4 backend is still experimental upstream.
 #
-# WHY THE VARIABLE IS SET HERE, INLINE
+# WHY THIS POINTS AT THE WRAPPER
 #
 # ~/.config/environment.d/70-libreoffice.conf carries the same setting, but
 # that file is read once by the systemd-environment-d-generator at session
 # start. A desktop file Exec= line does not go through the generator, and
 # neither do `hyprctl dispatch exec` or a bare `env` call, so those paths
-# would silently fall back to auto-detection. Pinning it in Exec= makes the
-# backend deterministic for every launch path.
+# would silently fall back to auto-detection.
+#
+# The wrapper (~/.local/bin/libreoffice) applies the pin on every launch
+# path, and it is also where the headless profile isolation lives, so the
+# desktop entries and the wrapper cannot drift apart.
+#
+# The first Exec token is deliberately the wrapper path and not "env": the
+# launcher indexes an entry by the basename of that token (execBasename in
+# quickshell Launcher.qml), so an Exec line starting with "env" would make
+# this entry searchable as "env" rather than "libreoffice".
 #
 # MAINTENANCE: generated from the packaged entry. After a LibreOffice update,
 # re-run the generator; only the Exec lines are intentional changes.
@@ -53,7 +61,7 @@ Terminal=false
 Icon=libreoffice-calc
 Type=Application
 Categories=Office;Spreadsheet;X-Red-Hat-Base;
-Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice --calc %U
+Exec=/home/reza/.local/bin/libreoffice --calc %U
 MimeType=application/clarisworks;application/csv;application/excel;application/msexcel;application/tab-separated-values;application/vnd.apache.parquet;application/vnd.apple.numbers;application/vnd.lotus-1-2-3;application/vnd.ms-excel;application/vnd.ms-excel.sheet.binary.macroEnabled.12;application/vnd.ms-excel.sheet.macroEnabled.12;application/vnd.ms-excel.template.macroEnabled.12;application/vnd.ms-works;application/vnd.oasis.opendocument.chart;application/vnd.oasis.opendocument.chart-template;application/vnd.oasis.opendocument.spreadsheet;application/vnd.oasis.opendocument.spreadsheet-flat-xml;application/vnd.oasis.opendocument.spreadsheet-template;application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;application/vnd.openxmlformats-officedocument.spreadsheetml.template;application/vnd.stardivision.calc;application/vnd.stardivision.chart;application/vnd.sun.xml.calc;application/vnd.sun.xml.calc.template;application/x-123;application/x-dbase;application/x-dbf;application/x-dos_ms_excel;application/x-excel;application/x-gnumeric;application/x-iwork-numbers-sffnumbers;application/x-ms-excel;application/x-msexcel;application/x-quattropro;application/x-starcalc;application/x-starchart;text/comma-separated-values;text/csv;text/spreadsheet;text/tab-separated-values;text/x-comma-separated-values;text/x-csv;
 Name=LibreOffice Calc
 GenericName=Spreadsheet
@@ -72,4 +80,4 @@ Actions=NewDocument;
 Name=New Spreadsheet
 Name[en]=New Spreadsheet
 Icon=document-new
-Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice --calc
+Exec=/home/reza/.local/bin/libreoffice --calc

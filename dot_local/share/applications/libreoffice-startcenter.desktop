@@ -18,14 +18,22 @@
 # (Dracula) and the Papirus-Dark icon theme, so LibreOffice matches the rest
 # of the desktop. The GTK4 backend is still experimental upstream.
 #
-# WHY THE VARIABLE IS SET HERE, INLINE
+# WHY THIS POINTS AT THE WRAPPER
 #
 # ~/.config/environment.d/70-libreoffice.conf carries the same setting, but
 # that file is read once by the systemd-environment-d-generator at session
 # start. A desktop file Exec= line does not go through the generator, and
 # neither do `hyprctl dispatch exec` or a bare `env` call, so those paths
-# would silently fall back to auto-detection. Pinning it in Exec= makes the
-# backend deterministic for every launch path.
+# would silently fall back to auto-detection.
+#
+# The wrapper (~/.local/bin/libreoffice) applies the pin on every launch
+# path, and it is also where the headless profile isolation lives, so the
+# desktop entries and the wrapper cannot drift apart.
+#
+# The first Exec token is deliberately the wrapper path and not "env": the
+# launcher indexes an entry by the basename of that token (execBasename in
+# quickshell Launcher.qml), so an Exec line starting with "env" would make
+# this entry searchable as "env" rather than "libreoffice".
 #
 # MAINTENANCE: generated from the packaged entry. After a LibreOffice update,
 # re-run the generator; only the Exec lines are intentional changes.
@@ -54,7 +62,7 @@ NoDisplay=false
 Icon=libreoffice-startcenter
 Type=Application
 Categories=Office;X-Red-Hat-Base;X-SuSE-Core-Office;
-Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice %U
+Exec=/home/reza/.local/bin/libreoffice %U
 MimeType=application/vnd.openofficeorg.extension;x-scheme-handler/vnd.libreoffice.cmis;x-scheme-handler/vnd.sun.star.webdav;x-scheme-handler/vnd.sun.star.webdavs;x-scheme-handler/vnd.libreoffice.command;x-scheme-handler/ms-word;x-scheme-handler/ms-powerpoint;x-scheme-handler/ms-excel;x-scheme-handler/ms-visio;x-scheme-handler/ms-access;
 Name=LibreOffice
 GenericName=Office
@@ -71,26 +79,26 @@ Actions=Writer;Calc;Impress;Draw;Base;Math;
 
 [Desktop Action Writer]
 Name=Writer
-Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice --writer
+Exec=/home/reza/.local/bin/libreoffice --writer
 
 [Desktop Action Calc]
 Name=Calc
-Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice --calc
+Exec=/home/reza/.local/bin/libreoffice --calc
 
 [Desktop Action Impress]
 Name=Impress
-Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice --impress
+Exec=/home/reza/.local/bin/libreoffice --impress
 
 [Desktop Action Draw]
 Name=Draw
-Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice --draw
+Exec=/home/reza/.local/bin/libreoffice --draw
 
 [Desktop Action Base]
 Name=Base
-Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice --base
+Exec=/home/reza/.local/bin/libreoffice --base
 
 [Desktop Action Math]
 Name=Math
-Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice --math
+Exec=/home/reza/.local/bin/libreoffice --math
 
 ##End of actions menu

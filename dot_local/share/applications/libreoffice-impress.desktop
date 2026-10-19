@@ -18,14 +18,22 @@
 # (Dracula) and the Papirus-Dark icon theme, so LibreOffice matches the rest
 # of the desktop. The GTK4 backend is still experimental upstream.
 #
-# WHY THE VARIABLE IS SET HERE, INLINE
+# WHY THIS POINTS AT THE WRAPPER
 #
 # ~/.config/environment.d/70-libreoffice.conf carries the same setting, but
 # that file is read once by the systemd-environment-d-generator at session
 # start. A desktop file Exec= line does not go through the generator, and
 # neither do `hyprctl dispatch exec` or a bare `env` call, so those paths
-# would silently fall back to auto-detection. Pinning it in Exec= makes the
-# backend deterministic for every launch path.
+# would silently fall back to auto-detection.
+#
+# The wrapper (~/.local/bin/libreoffice) applies the pin on every launch
+# path, and it is also where the headless profile isolation lives, so the
+# desktop entries and the wrapper cannot drift apart.
+#
+# The first Exec token is deliberately the wrapper path and not "env": the
+# launcher indexes an entry by the basename of that token (execBasename in
+# quickshell Launcher.qml), so an Exec line starting with "env" would make
+# this entry searchable as "env" rather than "libreoffice".
 #
 # MAINTENANCE: generated from the packaged entry. After a LibreOffice update,
 # re-run the generator; only the Exec lines are intentional changes.
@@ -53,7 +61,7 @@ Terminal=false
 Icon=libreoffice-impress
 Type=Application
 Categories=Office;Presentation;X-Red-Hat-Base;
-Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice --impress %U
+Exec=/home/reza/.local/bin/libreoffice --impress %U
 MimeType=application/mspowerpoint;application/vnd.apple.keynote;application/vnd.ms-powerpoint;application/vnd.ms-powerpoint.presentation.macroEnabled.12;application/vnd.ms-powerpoint.slideshow.macroEnabled.12;application/vnd.ms-powerpoint.template.macroEnabled.12;application/vnd.oasis.opendocument.presentation;application/vnd.oasis.opendocument.presentation-flat-xml;application/vnd.oasis.opendocument.presentation-template;application/vnd.openxmlformats-officedocument.presentationml.presentation;application/vnd.openxmlformats-officedocument.presentationml.slide;application/vnd.openxmlformats-officedocument.presentationml.slideshow;application/vnd.openxmlformats-officedocument.presentationml.template;application/vnd.stardivision.impress;application/vnd.sun.xml.impress;application/vnd.sun.xml.impress.template;application/x-iwork-keynote-sffkey;application/x-starimpress;
 Name=LibreOffice Impress
 GenericName=Presentation
@@ -72,4 +80,4 @@ Actions=NewDocument;
 Name=New Presentation
 Name[en]=New Presentation
 Icon=document-new
-Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice --impress
+Exec=/home/reza/.local/bin/libreoffice --impress

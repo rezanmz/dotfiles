@@ -1,12 +1,19 @@
 #!/bin/sh
 # Generates ~/.local/share/applications/libreoffice-*.desktop overrides from
 # the packaged /usr/share/applications/libreoffice-*.desktop entries, changing
-# only the Exec= lines so that:
+# only the Exec= lines so that they point at the ~/.local/bin/libreoffice
+# wrapper.
 #
-#   - the VCL backend is pinned to gtk3 (see the header block written into
-#     each file), and
-#   - the absolute /usr/bin/libreoffice is used rather than a bare
-#     "libreoffice", so the launcher does not depend on PATH.
+# The wrapper is the single source of truth for two things:
+#
+#   - the VCL backend pin (SAL_USE_VCLPLUGIN=gtk3), and
+#   - the headless profile isolation.
+#
+# Pointing Exec at the wrapper rather than inlining the variable keeps the
+# desktop entries and the wrapper from drifting apart. It also matters for
+# the launcher: its execBasename() indexes an entry by the basename of the
+# first Exec token, so an Exec line starting with "env" would make all eight
+# entries searchable as "env" instead of "libreoffice".
 #
 # Run this after a LibreOffice update that changes the packaged entries.
 # The chezmoi source of truth is dot_local/share/applications/ in the dotfiles
@@ -21,6 +28,7 @@ set -e
 
 SRC_DIR="${1:-/usr/share/applications}"
 OUT_DIR=/home/reza/.local/share/chezmoi/dot_local/share/applications
+WRAPPER=/home/reza/.local/bin/libreoffice
 
 HEADER='#
 # User-level override of the packaged LibreOffice desktop entry.
@@ -42,14 +50,22 @@ HEADER='#
 # (Dracula) and the Papirus-Dark icon theme, so LibreOffice matches the rest
 # of the desktop. The GTK4 backend is still experimental upstream.
 #
-# WHY THE VARIABLE IS SET HERE, INLINE
+# WHY THIS POINTS AT THE WRAPPER
 #
 # ~/.config/environment.d/70-libreoffice.conf carries the same setting, but
 # that file is read once by the systemd-environment-d-generator at session
 # start. A desktop file Exec= line does not go through the generator, and
 # neither do `hyprctl dispatch exec` or a bare `env` call, so those paths
-# would silently fall back to auto-detection. Pinning it in Exec= makes the
-# backend deterministic for every launch path.
+# would silently fall back to auto-detection.
+#
+# The wrapper (~/.local/bin/libreoffice) applies the pin on every launch
+# path, and it is also where the headless profile isolation lives, so the
+# desktop entries and the wrapper cannot drift apart.
+#
+# The first Exec token is deliberately the wrapper path and not "env": the
+# launcher indexes an entry by the basename of that token (execBasename in
+# quickshell Launcher.qml), so an Exec line starting with "env" would make
+# this entry searchable as "env" rather than "libreoffice".
 #
 # MAINTENANCE: generated from the packaged entry. After a LibreOffice update,
 # re-run the generator; only the Exec lines are intentional changes.
@@ -70,10 +86,14 @@ for src in "$SRC_DIR"/libreoffice-*.desktop; do
 
     {
         printf '%s\n' "$HEADER"
-        # The packaged Exec lines start with a bare "libreoffice"; replace
-        # that command word with the absolute path, keeping any arguments
-        # that follow it.
-        sed -e 's|^Exec=libreoffice\b|Exec=env SAL_USE_VCLPLUGIN=gtk3 /usr/bin/libreoffice|' \
+        # The packaged Exec lines start with a bare "libreoffice"; point them
+        # at the wrapper instead. The wrapper is the single source of truth
+        # for the VCL pin and the headless profile isolation, and keeping the
+        # first Exec token a real executable name matters: the launcher's
+        # execBasename() indexes entries by cmd[0]'s basename, so a leading
+        # "env" would make all eight entries searchable as "env" instead of
+        # "libreoffice".
+        sed -e "s|^Exec=libreoffice\\b|Exec=$WRAPPER|" \
             "$real"
     } > "$out"
 

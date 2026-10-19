@@ -19,19 +19,51 @@ hl.monitor({
     scale    = "auto",
 })
 
--- 2. This desk's panel: 31.5" 4K at 120 Hz. 139 PPI is dense, so 1.25 gives
---    ~111 effective PPI (about a 27" 1440p feel) without fractional-scaling
---    blur in XWayland apps.
+-- 2. This desk's panel: Dell UltraSharp U3225QE, 31.5" 4K at 120 Hz.
+--    The link is HDMI 2.1 FRL (1188 MHz pixel clock at 3840x2160@120), so the
+--    full 4K120 mode is already running -- nothing is being throttled.
+--    Scale 1.5 gives a 2560x1440 logical desktop (~93 effective PPI).
+--    10-bit + EDID wide gamut use the same FRL link; the panel's HDMI Forum
+--    block declares DC_36bit and BT2020RGB, and no underruns were observed
+--    while 10-bit was active.
+--    vrr = 1 keeps adaptive sync armed so it engages on its own once the
+--    kernel exposes vrr_capable on this connector.
+--
+--    VRR STATUS (2026-10-19): the panel advertises "VRRmin: 48 Hz, VRRmax:
+--    120 Hz" in its HDMI Forum VSDB, and the OSD confirms "HDMI 2.1 FRL6(VRR)"
+--    -- but the running kernel reports the connector property
+--    vrr_capable = 0, so Hyprland cannot turn adaptive sync on. That parsing
+--    gap (HDMI Forum VRR, which the panel uses, versus AMD's proprietary
+--    FreeSync VSDB) is fixed upstream in Linux 7.4, alongside HDMI 2.1 VRR
+--    support proper. Until then vrr = 1 is a no-op and the panel runs at a
+--    fixed 120 Hz.
 hl.monitor({
     output   = "HDMI-A-1",
     mode     = "3840x2160@120",
     position = "0x0",
-    scale    = 1.25,
+    scale    = 1.5,
+    bitdepth = 10,
+    cm       = "edid",
+    vrr      = 1,
 })
 
 -- 3. GUI overrides. Absent file is not an error: a fresh machine has none.
+--    hl.monitor() MERGES into the existing rule for the same output and the
+--    last call wins per field, so this file owns scale/position/mode.
 local override = configDir .. "/monitors.lua"
 local chunk = loadfile(override)
 if chunk then
     chunk()
 end
+
+-- 4. Re-arm VRR after the GUI override.
+--    nwg-displays writes "vrr = 0/1" unconditionally, mirroring the kernel's
+--    reported adaptive-sync state. Since the kernel cannot expose vrr_capable
+--    on this HDMI connector yet, the GUI would keep writing vrr = 0 and the
+--    panel would stay locked to a fixed 120 Hz forever -- even after a kernel
+--    upgrade makes VRR possible.
+--    This rule touches ONLY vrr, so the GUI keeps full ownership of geometry.
+hl.monitor({
+    output = "HDMI-A-1",
+    vrr    = 1,
+})

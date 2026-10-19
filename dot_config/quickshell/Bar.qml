@@ -140,7 +140,6 @@ PanelWindow {
             }
         }
         Bluetooth {}
-        Battery {}
         BarItem {
             panel: "system"
             separator: true

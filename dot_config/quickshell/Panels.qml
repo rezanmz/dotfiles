@@ -36,9 +36,9 @@ Singleton {
     // widgets share one panel.
     property var anchors: ({})
 
-    // Used when a panel has no widget of its own (the cheatsheet, or the battery
-    // panel when nothing reports a battery and its readout has collapsed). Without
-    // it those panels open unpositioned.
+    // Used when a panel has no widget of its own (the cheatsheet, and any
+    // panel opened without a click). Without it those panels open
+    // unpositioned.
     property var fallbackAnchor: null
 
 

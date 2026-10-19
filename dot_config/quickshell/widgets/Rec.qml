@@ -87,8 +87,8 @@ BarItem {
                 // The stop symbol is the circle-and-square U+F28D
                 // (fa-stop_circle), the Hack Nerd Font point for it — literal
                 // U+23F9 "⏹" is not in the font and would fall back to another
-                // one mid-label. Built from the codepoint, like Battery.qml's
-                // glyphs.
+                // one mid-label. Built from the codepoint, like Power.qml's
+                // glyph.
                 text: String.fromCodePoint(0xF28D) + "  REC  " + root.elapsedText
                 color: Theme.red
                 font.family: Theme.fontFamily

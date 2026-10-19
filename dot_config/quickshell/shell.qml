@@ -62,7 +62,7 @@ ShellRoot {
     // destroyed when it closes. The compiled component is cached, so this is
     // window setup, not a re-parse.
     Variants {
-        model: ["system", "audio", "bluetooth", "battery", "notifications", "media", "network", "calendar", "tray", "idle", "capture", "power", "keys"]
+        model: ["system", "audio", "bluetooth", "notifications", "media", "network", "calendar", "tray", "idle", "capture", "power", "keys"]
 
         delegate: LazyLoader {
             required property string modelData
@@ -87,11 +87,6 @@ ShellRoot {
     Component {
         id: bluetoothPanel
         Bluetooth {}
-    }
-
-    Component {
-        id: batteryPanel
-        PanelTypes.Battery {}
     }
 
     Component {
@@ -149,8 +144,6 @@ ShellRoot {
             return audioPanel;
         case "bluetooth":
             return bluetoothPanel;
-        case "battery":
-            return batteryPanel;
         case "notifications":
             return notificationsPanel;
         case "media":

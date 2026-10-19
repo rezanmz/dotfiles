@@ -258,6 +258,7 @@ Singleton {
 
         const devices = root.adapter.devices.values;
         const seen = {};
+        const pending = Object.assign({}, root.pendingReconnects);
         let found = 0;
 
         for (let i = 0; i < devices.length; i++) {
@@ -270,16 +271,16 @@ Singleton {
             // A device that has just appeared and is not connected yet, and
             // that asked to be reconnected, is asked again. The request is
             // only made once per appearance: BlueZ does the retrying.
-            if (!d.connected && root.wantsAutoConnect(address) && !root.pendingReconnects[address]) {
-                root.pendingReconnects[address] = true;
+            if (!d.connected && root.wantsAutoConnect(address) && !pending[address]) {
+                pending[address] = true;
                 d.connect();
             }
             if (!d.connected)
                 continue;
 
             // The device is connected, so it is no longer waiting.
-            if (root.pendingReconnects[address])
-                delete root.pendingReconnects[address];
+            if (pending[address])
+                delete pending[address];
 
             if (!root.seenAddresses[address])
                 found++;
@@ -287,6 +288,13 @@ Singleton {
 
         root.foundCount = found;
         root.seenAddresses = seen;
+        // The pending map is replaced rather than edited in place: a QML
+        // property only emits its change signal when it is assigned, and an
+        // in-place edit would leave the timer's `running` binding looking at
+        // the old value -- so the timer would never start for a device that
+        // drops while nothing is scanning, and would never stop once the
+        // device was back.
+        root.pendingReconnects = pending;
     }
 
     // A tick that keeps the device list in view. It is cheap -- the list is

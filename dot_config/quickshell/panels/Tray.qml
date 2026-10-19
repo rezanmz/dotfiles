@@ -26,7 +26,6 @@ Popup {
 
     readonly property var entries: root.opener.children.values
 
-    Component.onCompleted:
     Text {
         width: parent.width
         text: TrayMenu.item ? (TrayMenu.item.title || TrayMenu.item.id || "") : ""
@@ -38,26 +37,33 @@ Popup {
     }
 
     // Back row, only when inside a submenu.
-    Row {
+    Item {
         width: parent.width
-        spacing: 8
-        visible: TrayMenu.stack.length > 1
         height: 24
+        visible: TrayMenu.stack.length > 1
 
-        Text {
-            text: "\uf104"
-            color: Theme.purple
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSmall
+        Row {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 8
+
+            Text {
+                text: "\uf104"
+                color: Theme.purple
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+            }
+
+            Text {
+                text: "back"
+                color: Theme.comment
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+            }
         }
 
-        Text {
-            text: "back"
-            color: Theme.comment
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSizeSmall
-        }
-
+        // Not inside the Row: a Row positions its children, so a MouseArea that
+        // fills it cannot be laid out by it.
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor

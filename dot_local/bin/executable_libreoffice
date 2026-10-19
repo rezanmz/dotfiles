@@ -1,0 +1,58 @@
+#!/bin/sh
+# Wrapper around /usr/bin/libreoffice.
+# (chezmoi-managed: dot_local/bin/libreoffice. ~/.local/bin is first on PATH.)
+#
+# WHY THIS EXISTS
+#
+# 1. VCL backend. On Wayland, LibreOffice's Qt6/KF6 backend causes visible
+#    scroll lag, and its GTK4 backend is still experimental upstream. The GTK3
+#    backend is the stable one, and it also picks up the system GTK theme
+#    (Dracula) and the Papirus-Dark icon theme, so LibreOffice matches the rest
+#    of the desktop. Forcing it here means the choice holds for every launch
+#    path: the launcher, a terminal, or "Open With" in a file manager.
+#
+# 2. Headless profile isolation. `soffice --headless --convert-to ...` is a
+#    silent no-op when a GUI instance already holds the default profile: the
+#    new invocation attaches to the running instance instead of starting a
+#    headless one, and no output file appears. Giving headless runs their own
+#    UserInstallation avoids that entirely.
+#
+# The wrapper only ever adds a headless profile. It never changes how a
+# graphical launch behaves, and an explicit -env:UserInstallation on the
+# command line is always respected.
+
+REAL=/usr/bin/libreoffice
+
+if [ ! -x "$REAL" ]; then
+    echo "libreoffice: $REAL is missing - is libreoffice-fresh installed?" >&2
+    exit 127
+fi
+
+# 1. Stable VCL backend. An explicit value from the caller wins.
+SAL_USE_VCLPLUGIN="${SAL_USE_VCLPLUGIN:-gtk3}"
+export SAL_USE_VCLPLUGIN
+
+# 2. Private profile for headless/convert runs.
+headless=0
+has_profile=0
+for arg in "$@"; do
+    case "$arg" in
+        -env:UserInstallation=*) has_profile=1 ;;
+        --headless|--convert-to|--cat) headless=1 ;;
+    esac
+done
+
+if [ "$headless" -eq 1 ] && [ "$has_profile" -eq 0 ]; then
+    # A per-run profile keeps concurrent conversions from fighting over one
+    # UserInstallation lock. Profiles live under the runtime dir, so they are
+    # discarded on logout; the find below clears out stragglers meanwhile.
+    base="${XDG_RUNTIME_DIR:-/tmp}/libreoffice-headless"
+    mkdir -p "$base" 2>/dev/null || base="/tmp/libreoffice-headless"
+    mkdir -p "$base" || exit 1
+    find "$base" -mindepth 1 -maxdepth 1 -type d -mtime +2 -exec rm -rf {} + 2>/dev/null
+    profile_dir="$base/run-$$-$(date +%s)"
+    mkdir -p "$profile_dir" || exit 1
+    set -- "-env:UserInstallation=file://$profile_dir" "$@"
+fi
+
+exec "$REAL" "$@"

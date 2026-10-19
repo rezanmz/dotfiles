@@ -40,12 +40,19 @@ modelRoles:
   # models.yml). Picks are headroom-first: the monthly Go allowance is a
   # DOLLAR bucket, so each primary is the best intelligence-per-dollar that
   # still has room, and no two hot roles share a bucket.
-  #   default  deepseek-v4.1-flash  II 39.5  $80 bucket  302 units  fastest strong model
-  #   slow/plan/task/advisor  mimo-v2.6-pro  II 46.3  $15 bucket  113 units
+  #   default  minimax-m3.1-flash-free  II 42.0  FREE + UNLIMITED (limited-time promo)
+  #   task     minimax-m3.1-flash-free  II 42.0  FREE + UNLIMITED (limited-time promo)
+  #   slow/plan/advisor  mimo-v2.6-pro  II 46.3  $15 bucket  113 units
   #   vision/designer  glm-5.3-flash  II 41.8  $60 bucket  212 units  image+video+pdf
   #   smol/commit  mimo-v2.6-flash  II 37.9  $60 bucket  962 units
   #   tiny  beam-free  II 30.3  free+unlimited, 228 tok/s
-  default: 9router/ocg/deepseek-v4.1-flash:high
+  # default/task sit on the free M3.1 Flash lane because it is the one model
+  # that consumes NO dollar bucket: measured 45-75 TPS through the router vs
+  # ~106 for deepseek-v4.1-flash, and verbose, but free and it out-scores what
+  # it replaced (AA-index 42 vs 39.5). The promo can end without notice, so
+  # both roles keep deepseek-v4.1-flash at the head of the fallback chain —
+  # reverting is then just the primary line.
+  default: 9router/ocg/minimax-m3.1-flash-free:high
   slow: 9router/ocg/mimo-v2.6-pro:xhigh
   smol: 9router/ocg/mimo-v2.6-flash:minimal
   vision: 9router/ocg/glm-5.3-flash:high
@@ -53,7 +60,7 @@ modelRoles:
   designer: 9router/ocg/glm-5.3-flash:high
   commit: 9router/ocg/mimo-v2.6-flash:minimal
   tiny: 9router/ocg/beam-free
-  task: 9router/ocg/mimo-v2.6-pro:high
+  task: 9router/ocg/minimax-m3.1-flash-free:high
   # Advisor: mimo-v2.6-pro (user preference). The cost win comes from cadence
   # and context shape, not the model: one review per completed run, no
   # investigative tools, two notes max, blocker-only wakeups. Measured review
@@ -140,10 +147,10 @@ retry:
     # failed silently and the chain fell through to nothing. All fallbacks now
     # live under `9router` (same vendor, second account) or `openrouter`.
     default:
+      - 9router/ocg/deepseek-v4.1-flash:high
       - 9router/ocg/glm-5.3-flash:high
       - 9router/ocg/mimo-v2.6-flash:high
       - openrouter/deepseek/deepseek-v4.1-flash:high
-      - openrouter/meta/muse-spark-1.3-contributor:high
     slow:
       - 9router/ocg/glm-5.3-flash:xhigh
       - 9router/ocg/muse-spark-1.3-contributor:xhigh
@@ -160,8 +167,8 @@ retry:
       - openrouter/xiaomi/mimo-v2.6-flash:minimal
       - openrouter/qwen/qwen3.8-flash:minimal
     task:
-      - 9router/ocg/glm-5.3-flash:high
       - 9router/ocg/deepseek-v4.1-flash:high
+      - 9router/ocg/mimo-v2.6-pro:high
       - openrouter/xiaomi/mimo-v2.6-pro:high
       - openrouter/z-ai/glm-5.3-flash:high
     vision:

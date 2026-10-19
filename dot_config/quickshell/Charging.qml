@@ -11,8 +11,11 @@ pragma Singleton
 //     daemon binary).
 //   - Quickshell's BluetoothDevice exposes batteryAvailable and battery, and
 //     no charging flag -- not in 0.3.2, not in upstream master.
-//   - UPower would answer it, but only through a Bluetooth backend; this
-//     machine's UPower has none, so it sees no HID++ device at all.
+//   - UPower would answer it too, through its own device list: it does see
+//     the HID++ device, but as a power supply rather than as a Bluetooth
+//     device, so it reports the level and the state without the address that
+//     would tie it back to a Bluetooth device. The kernel node carries the
+//     address, which is what the bar needs.
 //
 // What does answer it is the kernel. The hid-logitech-hidpp driver creates a
 // power_supply node for every Logitech HID++ device it drives and maps the
@@ -102,25 +105,25 @@ Singleton {
 
     // The kernel spells a charging device "Charging" and a device that has
     // finished charging "Full"; both mean the device is on power. The other
-    // two are the device running on its own and on power but not taking any
-    // (a full battery does not count as charging, but for the bar the icon is
-    // the same question either way).
+    // two are the device running on its own and on power but not taking any.
     //
-    // The status is kept as the kernel spells it, capitalised, because the
-    // panel shows it as a word.
+    // The status is everything after the address, not just the second word:
+    // one of the kernel's statuses is two words ("Not charging"), and taking
+    // only the first would turn it into a status that is not one of them.
     function apply(text: string): void {
         const out = {};
         for (const line of text.split("\n")) {
             const trimmed = line.trim();
             if (trimmed === "")
                 continue;
-            const parts = trimmed.split(/\s+/);
-            if (parts.length < 2)
+            const separator = trimmed.indexOf(" ");
+            if (separator < 0)
                 continue;
-            const status = parts[1].toLowerCase();
+            const address = trimmed.slice(0, separator).toLowerCase();
+            const status = trimmed.slice(separator + 1).trim().toLowerCase();
             if (status !== "charging" && status !== "full" && status !== "discharging" && status !== "not charging")
                 continue;
-            out[parts[0].toLowerCase()] = status.charAt(0).toUpperCase() + status.slice(1);
+            out[address] = status.charAt(0).toUpperCase() + status.slice(1);
         }
         root.chargingByAddress = out;
     }

@@ -106,6 +106,60 @@ sudo /usr/lib/systemd/system-generators/zram-generator /tmp/zg /tmp/zg /tmp/zg
 ls /tmp/zg          # expect dev-zram0.swap + systemd-zram-setup@zram0.service.d
 ```
 
+### Sleep and hibernate policy
+
+The power button **suspends**; it does not power off. A long press does
+nothing at all. The machine hibernates on its own only if it is still asleep
+45 minutes after a suspend.
+
+| Action | What happens |
+| --- | --- |
+| Power button | Suspend (S3, deep). RAM stays powered; resume is ~1 s. |
+| Power button, held | Nothing. |
+| Idle for 20 min | Suspend, via `hypridle`. |
+| Suspend for 45 min | Hibernate: the whole of RAM is written to the disk swap. |
+| Hibernated machine, power button | Resume from the image, ~15 s. |
+
+`systemd-logind` owns the key handling and `systemd-sleep` owns the states.
+Both are configured by drop-ins that this repository installs with
+`run_onchange_after_install-sleep-policy.sh`:
+
+- `/etc/systemd/logind.conf.d/10-sleep-policy.conf` — `HandlePowerKey=suspend`,
+  `HandlePowerKeyLongPress=ignore`, `HandleLidSwitch=ignore` (this is a
+  tower), `HandleHibernateKey=suspend-then-hibernate`.
+- `/etc/systemd/sleep.conf.d/10-sleep-policy.conf` — `AllowHibernation=yes`,
+  `HibernateDelaySec=45min`, `SuspendState=mem`, `MemorySleepMode=deep`.
+
+Hibernation needs a **disk-backed** swap device, and three things have to
+agree for the boot to find the image again:
+
+1. A disk swap LV (40 GiB) enabled in `/etc/fstab` at priority 10. zram is
+   priority 100, so it stays the preferred swap for ordinary memory
+   pressure, but a hibernation image cannot go to zram.
+2. `resume=UUID=<the disk swap>` in `/etc/kernel/cmdline`. This is the file
+   that matters: the presets' `ALL_cmdline` makes mkinitcpio embed it into
+   the UKI, and the kernel takes its command line from the UKI. The copy in
+   `/etc/default/grub` only covers the classic non-UKI entry path.
+3. The `resume` hook in `/etc/mkinitcpio.conf`, so the initramfs can load
+   the image out of the swap device.
+
+If the image is missing the boot still succeeds: the kernel logs
+`PM: Image not found (code -22)` and carries on as a normal cold boot.
+
+Verify without rebooting:
+
+```sh
+busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
+    org.freedesktop.login1.Manager HandlePowerKey   # want "suspend"
+systemd-analyze cat-config systemd/sleep.conf | grep HibernateDelaySec
+grep resume= /proc/cmdline
+lsinitcpio /boot/initramfs-linux.img | grep hooks/resume
+```
+
+`/etc/systemd/logind.conf.d/10-sleep-policy.conf` is re-read on
+`systemctl reload systemd-logind`, so a change to the key handling takes
+effect without a reboot.
+
 ### Default kernel: mainline first, LTS as fallback
 
 Two kernels are installed: `linux` (mainline, newer) and `linux-lts`. This

@@ -17,12 +17,28 @@ Singleton {
     // Every node is tracked rather than only the default sink: the mixer panel
     // lists per-application streams, and those need binding to be adjustable.
     // There are a handful of nodes on this machine, so this is not a cost.
+    //
+    // The default sink and source are deliberately NOT tracked separately.
+    // A tracker over [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource]
+    // crashes quickshell 0.3.2 when the default device goes away (USB audio
+    // removed on resume from suspend, or the sink unplugged):
+    //
+    //   1. The device's pipewire node is destroyed. That destroys the
+    //      PwNodeIface cached on the node.
+    //   2. The tracker's `objects` binding re-evaluates on objectsChanged and
+    //      asks for Pipewire.defaultAudioSink again.
+    //   3. Pipewire::defaultAudioSink() returns PwNodeIface::instance(node),
+    //      the iface cached on the node that is already being destroyed.
+    //   4. That pointer is dangling. Qt wraps it, and
+    //      QQmlData::wasDeleted() dereferences the freed QObjectPrivate:
+    //      SIGSEGV in QV4::QQmlTypeWrapper::lookupSingletonProperty.
+    //
+    // It is redundant anyway: the default sink and source are members of
+    // Pipewire.nodes, so this tracker already binds them. The one thing the
+    // default devices need is that they are bound at all, and the node
+    // tracker gives them that.
     PwObjectTracker {
         objects: Pipewire.nodes.values
-    }
-
-    PwObjectTracker {
-        objects: [Pipewire.defaultAudioSink, Pipewire.defaultAudioSource]
     }
 
     readonly property var sink: Pipewire.defaultAudioSink

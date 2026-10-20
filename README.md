@@ -126,11 +126,18 @@ standby indefinitely.
 | Launcher's "Suspend" row | Suspend-then-hibernate. |
 | Power panel's "Suspend" row | Suspend-then-hibernate. |
 | Still asleep after 45 min | Hibernate: the whole of RAM is written to the disk swap. |
+| Launcher's "Hibernate" row | Hibernate immediately, no suspend first. |
+| Power panel's "Hibernate" row | Hibernate immediately, no suspend first. |
 | Hibernated machine, power button | Resume from the image, ~15 s. |
 
 Plain suspend — which powers nothing down and holds RAM indefinitely — is
 not reachable from any key or menu on this machine. It is the wrong state
 for a desktop that may be left unattended for hours.
+
+The two Hibernate rows skip the suspend step: they write RAM to disk and
+power off straight away. The image goes to the disk swap, never to zram —
+systemd picks the device that `resume=` names, and refuses to use any other
+swap while `resume=` is set.
 
 `systemd-logind` owns the key handling and `systemd-sleep` owns the states.
 Both are configured by drop-ins that this repository installs with

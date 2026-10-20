@@ -198,6 +198,13 @@ Popup {
     }
 
     ToggleRow {
+        label: "Hibernate"
+        detail: root.armed === "hibernate" ? "writes memory to disk and powers off — click again to confirm" : "write memory to disk and power off"
+        armed: root.armed === "hibernate"
+        onChosen: root.armOrRun("hibernate", "systemctl hibernate")
+    }
+
+    ToggleRow {
         label: "Restart"
         detail: root.armed === "restart" ? "restarts the system — click again to confirm" : "restart the system"
         armed: root.armed === "restart"

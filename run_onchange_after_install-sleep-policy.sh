@@ -141,6 +141,15 @@ write_if_changed /etc/systemd/logind.conf.d/10-sleep-policy.conf <<'LOGIND'
 # The power button suspends instead of powering off. The previous default
 # (poweroff) meant a stray press killed the session outright, with no lock
 # and no warning.
+#
+# It is plain suspend, and that is deliberate: a power button press means
+# "I am coming straight back", and a resume from RAM is ~1 s against ~15 s
+# from a hibernation image.
+#
+# The long absences are handled by suspend-then-hibernate instead, which
+# the idle timer and the launcher's "Sleep" row both use. Plain suspend
+# holds RAM powered indefinitely, so a machine left for the afternoon would
+# still have 30 GiB of RAM on standby when you came back.
 HandlePowerKey=suspend
 
 # A long press does nothing. The default is already "ignore"; stating it
@@ -151,17 +160,13 @@ HandlePowerKeyLongPress=ignore
 # default (suspend) is dead configuration.
 HandleLidSwitch=ignore
 
-# The hibernate key does suspend-then-hibernate rather than plain hibernate.
-# Plain hibernate writes the whole of RAM to disk on every press and takes
-# ~15s to resume; suspend-then-hibernate idles in memory first and only
-# hibernates if the machine is still asleep after HibernateDelaySec.
-#
-# This needs a real disk-backed swap device and resume= on the kernel
-# command line. Both are in place: a disk swap LV (see /etc/fstab) and
-# resume=UUID=... in /etc/kernel/cmdline, which the initramfs reads.
+# The hibernate key goes straight to the chain. There is no hibernate key
+# on this machine (nothing emits KEY_SLEEP), so this is only here for
+# completeness and for a future keyboard that has one.
 HandleHibernateKey=suspend-then-hibernate
 
-# The suspend key suspends (unchanged from the default).
+# The suspend key suspends (unchanged from the default). This one is plain
+# suspend, so it stays in RAM indefinitely.
 HandleSuspendKey=suspend
 LOGIND
 

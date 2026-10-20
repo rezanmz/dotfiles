@@ -198,6 +198,13 @@ Popup {
     }
 
     ToggleRow {
+        label: "Sleep"
+        detail: root.armed === "sleep" ? "suspends, then hibernates after 45 min — click again to confirm" : "suspend, then hibernate after 45 min"
+        armed: root.armed === "sleep"
+        onChosen: root.armOrRun("sleep", "systemctl suspend-then-hibernate")
+    }
+
+    ToggleRow {
         label: "Restart"
         detail: root.armed === "restart" ? "restarts the system — click again to confirm" : "restart the system"
         armed: root.armed === "restart"

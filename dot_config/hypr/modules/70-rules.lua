@@ -112,12 +112,9 @@ hl.window_rule({
 -- Bluetui/htop-style TUIs launched into a scratch workspace behave normally, but
 -- terminal file managers are plenty usable tiled.
 
--- Workspaces 1-4 belong to the single monitor; keep workspace 1 as the default
--- and let Hyprland manage the rest dynamically.
-hl.workspace_rule({
-    workspace = "1",
-    default   = true,
-})
+-- The workspace-to-panel split lives in 75-workspaces.lua, which computes it
+-- from the connected monitors. There is deliberately no workspace rule here:
+-- two places claiming the same workspace would fight over its binding.
 
 -- Thunderbird belongs on workspace 10, which is a normal workspace (SUPER+0).
 -- It is deliberately not floated or pinned: it behaves like any other window,

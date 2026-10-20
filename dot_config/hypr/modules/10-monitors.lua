@@ -105,21 +105,116 @@ hl.monitor({
 -- 3. GUI overrides. Absent file is not an error: a fresh machine has none.
 --    hl.monitor() MERGES into the existing rule for the same output and the
 --    last call wins per field, so this file owns scale/position/mode.
+--
+--    The override is loaded through a PROXY for `hl`, so that the vrr field
+--    can be taken out of it. nwg-displays writes "vrr = 0/1" unconditionally,
+--    mirroring the kernel's reported adaptive-sync state at the moment the GUI
+--    was used. That state changes with the cabling, so the GUI's cached value
+--    goes stale: while the SE2723DS was on an MST branch the GUI recorded
+--    vrr = 0, and it would keep writing that even after the panel moved to
+--    the board's HDMI and VRR became possible. The GUI also has no way to
+--    know that a panel it has never seen supports VRR at all.
+--
+--    Dropping the field here rather than re-arming it afterwards means the
+--    policy below is the only thing that decides VRR, and it does not depend
+--    on the order the rules happen to be applied in. The GUI keeps full
+--    ownership of geometry, which is what it is actually for.
 local override = configDir .. "/monitors.lua"
-local chunk = loadfile(override)
-if chunk then
-    chunk()
+
+-- The panels whose vrr this config owns, and the value it wants for them.
+-- Keyed by the same desc: selectors used above, so the policy follows the
+-- panels across connectors.
+local VRR_POLICY = {
+    ["desc:Dell Inc. DELL U3225QE 3Y4F584"] = 1,
+    ["desc:Dell Inc. DELL SE2723DS 5P097V3"] = 1,
+}
+
+-- Does this output name one of our panels? The override may name a panel by
+-- its full description with the connector in brackets, so the match is on the
+-- panel identity, not on the whole string.
+local function vrrFor(output)
+    -- The panel identity, without the "desc:" prefix and without the
+    -- connector the GUI may append. Both sides are reduced the same way, so
+    -- the override's "desc:Dell Inc. DELL U3225QE 3Y4F584 (DP-1)" matches
+    -- the policy entry for that panel.
+    local function identity(s)
+        if s:sub(1, 5) == "desc:" then
+            s = s:sub(6)
+        end
+        -- The GUI appends the connector in brackets; drop it.
+        local bracket = s:find("%s*%b()%s*$")
+        if bracket then
+            s = s:sub(1, bracket - 1)
+        end
+        return s
+    end
+
+    local wanted = identity(output)
+
+    for desc, value in pairs(VRR_POLICY) do
+        local panel = identity(desc)
+        -- Exact match on the panel identity. The identity ends with the
+        -- serial, so a plain prefix test would also match a different panel
+        -- whose serial merely starts the same way.
+        if wanted == panel then
+            return value
+        end
+    end
+
+    return nil
 end
 
--- 4. Re-arm VRR after the GUI override.
---    nwg-displays writes "vrr = 0/1" unconditionally, mirroring the kernel's
---    reported adaptive-sync state at the moment the GUI was used. That state
---    changes with the cabling, so the GUI's cached value goes stale: while
---    the SE2723DS was on an MST branch the GUI recorded vrr = 0, and it
---    would keep writing that even after the panel moved to the board's HDMI
---    and VRR became possible.
---    These rules touch ONLY vrr, so the GUI keeps full ownership of geometry.
---    Same desc: selectors, so they follow the panels across connectors.
+if loadfile(override) then
+    -- The override runs with its own environment, in which `hl` is a proxy
+    -- for the real one: hl.monitor() is the real function with the vrr field
+    -- filtered out for the panels we own, and everything else is forwarded
+    -- untouched.
+    local proxy = {}
+
+    for key, value in pairs(hl) do
+        proxy[key] = value
+    end
+
+    proxy.monitor = function(spec)
+        if type(spec) ~= "table" then
+            return hl.monitor(spec)
+        end
+
+        local output = spec.output
+        local want = type(output) == "string" and vrrFor(output) or nil
+
+        if want == nil then
+            -- Not a panel we own: pass it through untouched.
+            return hl.monitor(spec)
+        end
+
+        -- A panel we own: drop the GUI's vrr value so our policy stands.
+        local filtered = {}
+        for key, value in pairs(spec) do
+            if key ~= "vrr" then
+                filtered[key] = value
+            end
+        end
+
+        return hl.monitor(filtered)
+    end
+
+    local env = setmetatable({ hl = proxy }, { __index = _G })
+    local chunk = loadfile(override, "t", env)
+    if chunk then
+        chunk()
+    end
+end
+
+-- 4. The VRR policy itself.
+--
+-- Both panels carry a VRR-capable mode on a direct connector: the U3225QE
+-- over DisplayPort, the SE2723DS over HDMI with its FreeSync VSDB block,
+-- which is the one the current kernel can parse. The rules below are the only
+-- thing that turns adaptive sync on for them.
+--
+-- The global fallback stays off (40-look.lua: misc.vrr = 0), so a panel that
+-- is not listed here gets no adaptive sync rather than an unverified one.
 hl.monitor({
     output = "desc:Dell Inc. DELL U3225QE 3Y4F584",
     vrr    = 1,

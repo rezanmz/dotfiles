@@ -23,6 +23,7 @@ local modules = {
     "50-input",
     "60-binds",
     "70-rules",
+    "75-workspaces", -- workspace partition across the panels
 }
 
 for _, name in ipairs(modules) do

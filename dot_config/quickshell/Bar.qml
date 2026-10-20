@@ -94,7 +94,11 @@ PanelWindow {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 0
 
-        Workspaces {}
+        Workspaces {
+            // The workspaces are split between the panels, so each bar shows
+            // only the ones on its own screen.
+            barScreen: bar.modelData
+        }
         Title {}
         Language {}
     }

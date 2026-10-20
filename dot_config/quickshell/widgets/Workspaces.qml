@@ -25,13 +25,36 @@ import Quickshell.Widgets
 Item {
     id: root
 
+    // The screen this bar belongs to, set by the Bar that hosts the widget.
+    // It is the Quickshell screen (ShellScreen), whose `name` is the output
+    // name Hyprland uses.
+    property var barScreen: null
+
+    // Which screen this bar is on. The workspaces are split between the panels
+    // (see the hypr config), so each bar lists only the workspaces of its own
+    // panel: the 4K shows 1-5, the 2K shows 6-10. Without this both bars listed
+    // the whole set, which is what made the split read as random.
+    //
+    // The screen is matched by the connector name, which is what Hyprland
+    // calls the output and what the workspace's `monitor` reports.
+    readonly property string screenName: barScreen ? barScreen.name : ""
+
     readonly property var visibleWorkspaces: {
         const out = [];
         const values = Hyprland.workspaces.values;
+        const mine = root.screenName;
         for (let i = 0; i < values.length; i++) {
             const ws = values[i];
-            if (ws.toplevels.values.length > 0 || ws.focused)
-                out.push(ws);
+            // A workspace with no windows that is not the focused one is
+            // clutter, which is how the waybar module was configured before
+            // (`all-outputs: true`, dynamic list).
+            if (ws.toplevels.values.length === 0 && !ws.focused)
+                continue;
+            // Only this bar's own panel. A workspace that has no monitor yet
+            // (it is being created) is skipped rather than shown twice.
+            if (mine && ws.monitor && ws.monitor.name !== mine)
+                continue;
+            out.push(ws);
         }
         out.sort((a, b) => a.id - b.id);
         return out;

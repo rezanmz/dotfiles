@@ -133,13 +133,6 @@ Scope {
         },
         {
             "name": "Suspend",
-            "command": "systemctl suspend || suspend",
-            "description": "Power menu — suspend to RAM, keeps the session in memory",
-            "glyph": "",
-            "confirm": true
-        },
-        {
-            "name": "Sleep",
             "command": "systemctl suspend-then-hibernate",
             "description": "Power menu — suspend, then hibernate if still asleep after 45 min",
             "glyph": "",

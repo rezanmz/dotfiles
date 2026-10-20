@@ -142,15 +142,18 @@ write_if_changed /etc/systemd/logind.conf.d/10-sleep-policy.conf <<'LOGIND'
 # (poweroff) meant a stray press killed the session outright, with no lock
 # and no warning.
 #
-# It is plain suspend, and that is deliberate: a power button press means
-# "I am coming straight back", and a resume from RAM is ~1 s against ~15 s
-# from a hibernation image.
+# It is suspend-THEN-hibernate, not plain suspend. Every suspend path on
+# this machine uses the chain, so the machine can never be left holding
+# 30 GiB of RAM on standby: plain suspend powers nothing down and would
+# stay that way indefinitely. The chain idles in memory first and only
+# writes RAM to disk if the machine is still asleep after HibernateDelaySec
+# (45 minutes). Come back in five minutes and it is a ~1 s resume from RAM;
+# come back the next day and it is a ~15 s resume from the image.
 #
-# The long absences are handled by suspend-then-hibernate instead, which
-# the idle timer and the launcher's "Sleep" row both use. Plain suspend
-# holds RAM powered indefinitely, so a machine left for the afternoon would
-# still have 30 GiB of RAM on standby when you came back.
-HandlePowerKey=suspend
+# This needs a real disk-backed swap device and resume= on the kernel
+# command line. Both are in place: a disk swap LV (see /etc/fstab) and
+# resume=UUID=... in /etc/kernel/cmdline, which the initramfs reads.
+HandlePowerKey=suspend-then-hibernate
 
 # A long press does nothing. The default is already "ignore"; stating it
 # means no future default change can turn a held button into a power off.
@@ -160,14 +163,15 @@ HandlePowerKeyLongPress=ignore
 # default (suspend) is dead configuration.
 HandleLidSwitch=ignore
 
-# The hibernate key goes straight to the chain. There is no hibernate key
-# on this machine (nothing emits KEY_SLEEP), so this is only here for
+# The hibernate key uses the chain as well. There is no hibernate key on
+# this machine (nothing emits KEY_SLEEP), so this is only here for
 # completeness and for a future keyboard that has one.
 HandleHibernateKey=suspend-then-hibernate
 
-# The suspend key suspends (unchanged from the default). This one is plain
-# suspend, so it stays in RAM indefinitely.
-HandleSuspendKey=suspend
+# The suspend key uses the chain too, for the same reason as the power
+# button: no suspend path on this machine is allowed to sit in RAM
+# indefinitely.
+HandleSuspendKey=suspend-then-hibernate
 LOGIND
 
 write_if_changed /etc/systemd/sleep.conf.d/10-sleep-policy.conf <<'SLEEP'

@@ -109,38 +109,38 @@ ls /tmp/zg          # expect dev-zram0.swap + systemd-zram-setup@zram0.service.d
 ### Sleep and hibernate policy
 
 The power button **suspends**; it does not power off. A long press does
-nothing at all. Two different suspends are in play, and the distinction
-matters:
+nothing at all. Every suspend path on this machine uses the same chain, so
+no route into suspend can leave the machine holding 30 GiB of RAM on
+standby indefinitely.
 
-- **Plain suspend** holds RAM powered. The machine stays in a very low
-  power state but keeps the whole of RAM alive, and resumes in ~1 s.
 - **Suspend-then-hibernate** idles in RAM first, and only writes RAM to
   disk if the machine is still asleep after `HibernateDelaySec` (45
-  minutes). Come back quickly and it is a ~1 s resume; come back the next
-  day and it is a ~15 s resume from the image.
+  minutes). Come back quickly and it is a ~1 s resume from RAM; come back
+  the next day and it is a ~15 s resume from the image.
 
 | Action | What happens |
 | --- | --- |
-| Power button | Plain suspend (S3, deep). RAM stays powered; resume is ~1 s. |
+| Power button | Suspend-then-hibernate. |
 | Power button, held | Nothing. |
 | Idle for 20 min | Suspend-then-hibernate, via `hypridle`. |
-| Launcher's "Sleep" row | Suspend-then-hibernate. |
+| Launcher's "Suspend" row | Suspend-then-hibernate. |
+| Power panel's "Suspend" row | Suspend-then-hibernate. |
 | Still asleep after 45 min | Hibernate: the whole of RAM is written to the disk swap. |
 | Hibernated machine, power button | Resume from the image, ~15 s. |
 
-The split is deliberate. The power button means "I am coming straight
-back", so it stays fast. The idle timer means "I am walking away", and an
-all-nighter of standby power — with 30 GiB of RAM still powered — is the
-wrong thing for that. The launcher's "Sleep" row is the explicit
-"leave it overnight" option.
+Plain suspend — which powers nothing down and holds RAM indefinitely — is
+not reachable from any key or menu on this machine. It is the wrong state
+for a desktop that may be left unattended for hours.
 
 `systemd-logind` owns the key handling and `systemd-sleep` owns the states.
 Both are configured by drop-ins that this repository installs with
 `run_onchange_after_install-sleep-policy.sh`:
 
-- `/etc/systemd/logind.conf.d/10-sleep-policy.conf` — `HandlePowerKey=suspend`,
+- `/etc/systemd/logind.conf.d/10-sleep-policy.conf` —
+  `HandlePowerKey=suspend-then-hibernate`,
   `HandlePowerKeyLongPress=ignore`, `HandleLidSwitch=ignore` (this is a
-  tower), `HandleHibernateKey=suspend-then-hibernate`.
+  tower), `HandleHibernateKey=suspend-then-hibernate`,
+  `HandleSuspendKey=suspend-then-hibernate`.
 - `/etc/systemd/sleep.conf.d/10-sleep-policy.conf` — `AllowHibernation=yes`,
   `HibernateDelaySec=45min`, `SuspendState=mem`, `MemorySleepMode=deep`.
 
@@ -170,7 +170,7 @@ Verify without rebooting:
 
 ```sh
 busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
-    org.freedesktop.login1.Manager HandlePowerKey   # want "suspend"
+    org.freedesktop.login1.Manager HandlePowerKey   # want "suspend-then-hibernate"
 busctl call org.freedesktop.login1 /org/freedesktop/login1 \
     org.freedesktop.login1.Manager CanSuspendThenHibernate   # want "yes"
 systemd-analyze cat-config systemd/sleep.conf | grep HibernateDelaySec

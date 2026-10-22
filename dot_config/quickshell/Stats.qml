@@ -76,24 +76,47 @@ Singleton {
     // ---- discovery -----------------------------------------------------
     // Sentinel-based, mirroring what gpu-usage did and for the same reason: the
     // card that exports gpu_busy_percent is by definition the amdgpu card, so a
-    // non-amdgpu device can never be selected. boot_vga wins when there is more
-    // than one, since that is the one driving the console.
+    // non-amdgpu device can never be selected.
+    //
+    // Which card to report is decided by evidence, in this order, because
+    // neither the card number nor boot_vga survives a reboot: DRM numbers are
+    // probe-ordered (the 9070 XT was card1 on one boot and card0 on the next),
+    // and boot_vga pointed at the APU on one boot and at the discrete card on
+    // the other. Ranked:
+    //   1. drives a connected connector -- what the user actually sees
+    //   2. boot_vga = 1
+    //   3. larger VRAM
+    // Hence the ranking loop rather than a single first-match.
     Process {
         id: discover
 
         running: true
         command: ["sh", "-c", `
             gpu=""
-            gpu_later=""
-            for d in /sys/class/drm/card*/device; do
+            best_conn=0
+            best_boot=0
+            best_vram=0
+            for d in /sys/class/drm/card[0-9]*/device; do
                 [ -r "$d/gpu_busy_percent" ] || continue
-                if [ -r "$d/boot_vga" ] && [ "$(cat "$d/boot_vga")" = "1" ]; then
+                card="\${d%/device}"
+                conn=0
+                for st in "$card"-*/status; do
+                    [ -r "$st" ] || continue
+                    if [ "$(cat "$st")" = "connected" ]; then
+                        conn=1
+                    fi
+                done
+                boot=$(cat "$d/boot_vga" 2>/dev/null) || boot=0
+                vram=$(cat "$d/mem_info_vram_total" 2>/dev/null) || vram=0
+                if [ "$conn" -gt "$best_conn" ] ||
+                   { [ "$conn" -eq "$best_conn" ] && [ "$boot" -gt "$best_boot" ]; } ||
+                   { [ "$conn" -eq "$best_conn" ] && [ "$boot" -eq "$best_boot" ] && [ "$vram" -gt "$best_vram" ]; }; then
                     gpu="$d"
-                else
-                    gpu_later="$d"
+                    best_conn=$conn
+                    best_boot=$boot
+                    best_vram=$vram
                 fi
             done
-            [ -z "$gpu" ] && gpu="$gpu_later"
             # The temperature must come from the same card as the load: with a
             # discrete GPU next to an APU there are two amdgpu hwmons, and the
             # glob's last match is whichever one the kernel probed last.

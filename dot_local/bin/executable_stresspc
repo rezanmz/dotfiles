@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# stresspc — one-stop stress test for this workstation.
+#
+# Runs a stressor, watches the thermals while it runs, and prints a verdict.
+# The tools live in ~/.local/share/stress-tools (extracted Arch packages, no
+# root needed); this script only wires them up.
+#
+# Usage:
+#   stresspc cpu    [seconds]   # 16 workers, matrixprod
+#   stresspc memory [seconds]   # vm stressor sized to free RAM
+#   stresspc gpu    [seconds]   # Vulkan buffer test (Radeon 610M)
+#   stresspc disk   [seconds]   # fio sequential write, direct I/O
+#   stresspc all    [seconds]   # all four in sequence
+#   stresspc gpu-score           # glmark2 OpenGL benchmark
+#   stresspc gui                 # OCCT GUI (interactive)
+#
+# Why the inhibit: hypridle locks the session after 300 s and suspends after
+# 1200 s of idle. A stress run is idle as far as hypridle is concerned, so it
+# would get locked and then suspended mid-test. Holding a D-Bus ScreenSaver
+# inhibit makes hypridle skip those timers for the duration of the run —
+# confirmed in the journal: "Ignoring from onIdled(), inhibit locks: 1".
+#
+# The inhibit is released on exit, including on Ctrl-C.
+
+set -u
+
+D="$HOME/.local/share/stress-tools"
+TYPE=${1:-cpu}
+DURATION=${2:-300}
+RUNROOT="$HOME/.local/state/stresspc"
+mkdir -p "$RUNROOT"
+
+export LD_LIBRARY_PATH="$D/dep-apparmor-4.1.8-2/usr/lib:$D/dep-judy-1.0.5-10/usr/lib:$D/dep-lksctp-tools-1.0.21-1/usr/lib:$D/dep-gluster/usr/lib"
+export PYTHONPATH="$D/dep-urwid/usr/lib/python3.14/site-packages:$D/dep-wcwidth/usr/lib/python3.14/site-packages:$D/stui/usr/lib/python3.14/site-packages"
+
+LOGDIR="$RUNROOT/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$LOGDIR"
+
+# --- keep hypridle from locking/suspending mid-run --------------------------
+python - "$DURATION" <<'PY' &
+import dbus, sys, time
+hold = int(sys.argv[1]) + 120
+bus = dbus.SessionBus()
+iface = dbus.Interface(
+    bus.get_object("org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver"),
+    "org.freedesktop.ScreenSaver")
+cookie = iface.Inhibit("stresspc", "stress test in progress")
+print("hypridle inhibit cookie:", cookie, flush=True)
+time.sleep(hold)
+PY
+INHIBITOR=$!
+cleanup() {
+  kill "$INHIBITOR" 2>/dev/null
+  wait "$INHIBITOR" 2>/dev/null
+}
+trap cleanup EXIT INT TERM
+
+# --- sensor sampler ---------------------------------------------------------
+(
+  while true; do
+    printf '%s ' "$(date +%H:%M:%S)"
+    printf 'Tctl=%s ' "$(cat /sys/class/hwmon/hwmon3/temp1_input 2>/dev/null)"
+    printf 'Tccd=%s ' "$(cat /sys/class/hwmon/hwmon3/temp3_input 2>/dev/null)"
+    printf 'GPU=%s ' "$(cat /sys/class/hwmon/hwmon1/temp1_input 2>/dev/null)"
+    printf 'GPUpow=%s ' "$(cat /sys/class/hwmon/hwmon1/power1_input 2>/dev/null)"
+    printf 'NVMe=%s\n' "$(cat /sys/class/hwmon/hwmon0/temp1_input 2>/dev/null)"
+    sleep 2
+  done
+) > "$LOGDIR/sensors.log" 2>&1 &
+SAMPLER=$!
+
+run_cpu() {
+  echo ">>> CPU: ${DURATION}s, 16 workers, matrixprod"
+  "$D/usr/bin/stress-ng" --cpu 16 --cpu-method matrixprod \
+      --timeout "${DURATION}s" --metrics-brief 2>&1 | tee "$LOGDIR/cpu.log"
+}
+
+run_memory() {
+  # Size the vm stressor to what is actually available, leaving 4 GiB of
+  # headroom for the desktop session, browser and this harness.
+  local avail_gb vm_gb
+  avail_gb=$(awk '/^MemAvailable:/ {printf "%d", $2/1048576}' /proc/meminfo)
+  [ "${avail_gb:-0}" -lt 1 ] && avail_gb=1
+  vm_gb=$(( avail_gb - 4 ))
+  [ "$vm_gb" -lt 1 ] && vm_gb=1
+  echo ">>> MEMORY: ${DURATION}s, ${vm_gb} GiB vm (of ${avail_gb} GiB available), 1 worker"
+  "$D/usr/bin/stress-ng" --vm 1 --vm-bytes "${vm_gb}G" --vm-method all \
+      --timeout "${DURATION}s" --metrics-brief 2>&1 | tee "$LOGDIR/memory.log"
+}
+
+run_gpu() {
+  echo ">>> GPU/VULKAN: ${DURATION}s, buffer mode (Radeon 610M, RADV)"
+  "$D/mtv/usr/bin/memtest_vulkan" --mode buffer --duration "$DURATION" 2>&1 | tee "$LOGDIR/gpu.log"
+}
+
+run_disk() {
+  echo ">>> DISK: ${DURATION}s, sequential write 1M direct, iodepth 16"
+  echo "    (this writes through to the drive — roughly 10 GiB/s here)"
+  "$D/fio/usr/bin/fio" --name=seqwrite --filename="$LOGDIR/fio.tmp" --size=4G \
+      --rw=write --bs=1M --direct=1 --iodepth=16 --runtime="$DURATION" \
+      --time_based --group_reporting 2>&1 | tee "$LOGDIR/disk.log"
+  rm -f "$LOGDIR/fio.tmp"
+}
+
+run_gpu_score() {
+  echo ">>> GPU SCORE: glmark2 (Wayland)"
+  "$D/glmark/usr/bin/glmark2-wayland" --data-path "$D/glmark/usr/share/glmark2" 2>&1 \
+      | tee "$LOGDIR/glmark.log"
+}
+
+run_gui() {
+  echo ">>> OCCT GUI (interactive)"
+  "$D/occt/opt/occt/occt"
+}
+
+case "$TYPE" in
+  cpu)       run_cpu ;;
+  memory)    run_memory ;;
+  gpu)       run_gpu ;;
+  disk)      run_disk ;;
+  gpu-score) run_gpu_score ;;
+  gui)       run_gui ;;
+  all)
+    run_cpu; run_memory; run_gpu; run_disk
+    ;;
+  *)
+    echo "usage: stresspc {cpu|memory|gpu|disk|gpu-score|gui|all} [seconds]" >&2
+    exit 2
+    ;;
+esac
+
+sleep 2
+kill "$SAMPLER" 2>/dev/null
+wait "$SAMPLER" 2>/dev/null
+
+# --- verdict ----------------------------------------------------------------
+echo
+echo "=== peak readings ($LOGDIR/sensors.log) ==="
+awk '{
+  for (i = 1; i <= NF; i++) {
+    split($i, a, "=")
+    if (a[1] == "Tctl"   && a[2] > tc)  tc  = a[2]
+    if (a[1] == "Tccd"   && a[2] > cc)  cc  = a[2]
+    if (a[1] == "GPU"    && a[2] > gp)  gp  = a[2]
+    if (a[1] == "GPUpow" && a[2] > gpp) gpp = a[2]
+    if (a[1] == "NVMe"   && a[2] > nv)  nv  = a[2]
+  }
+} END {
+  printf "Tctl       peak: %.1f C\n", tc / 1000
+  printf "Tccd       peak: %.1f C\n", cc / 1000
+  printf "GPU        peak: %.1f C\n", gp / 1000
+  printf "GPU power  peak: %.1f W\n", gpp / 1000000
+  printf "NVMe       peak: %.1f C\n", nv / 1000
+}' "$LOGDIR/sensors.log"
+
+echo
+echo "=== run log: $LOGDIR ==="

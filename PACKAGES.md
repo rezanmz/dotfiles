@@ -32,6 +32,17 @@
 # vulkan-tools             (verifies VK_KHR_video_decode_h264/h265 for GFN)
 # iw                       (Wi-Fi link diagnostics: band, rate, power save)
 
+# --- Stress testing --------------------------------------------------------
+# These are NOT installed system-wide on this machine. `stresspc` runs them
+# from ~/.local/share/stress-tools, which holds extracted Arch packages plus
+# the private shared libraries each one needs, because the machine has no
+# passwordless sudo. Install them system-wide instead if you would rather
+# have plain `stress-ng`, `fio`, `memtest_vulkan`, `glmark2` and `occt` on PATH:
+# stress-ng, s-tui, fio, glmark2, memtest_vulkan, vkmark, occt
+# python-psutil, python-urwid, python-wcwidth   (for s-tui)
+# Note: OCCT 17 is GUI-only in Arch — the `occt` launcher ignores --mode and
+# --test, and the console binaries under Resources/ exit 101 with no output.
+
 # --- Coding agent ----------------------------------------------------------
 # oh-my-pi-bin            (AUR: PREBUILT release binary)
 #       Use the -bin package, never the source `oh-my-pi`: the source package

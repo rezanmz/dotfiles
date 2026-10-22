@@ -25,7 +25,7 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/quickshell/` | Desktop shell — one `quickshell` process: bar, notification popups and centre, OSD, launcher (apps, session actions, inline maths, `cliphist`), SUPER+Tab workspace switcher with live thumbnails, drag-out picture-in-picture views of other workspaces, the macOS-style capture toolbar, and the idle panel (timed holds, plus an automatic hold while media plays); replaces waybar, dunst, anyrun, snappy-switcher and the `gpu-usage`, `net-speed`, `notif-history`, `clipboard-pick` helpers |
 | `dot_config/systemd/user/` | `quickshell.service`, `wl-clip-persist.service`, `udiskie.service` |
 | `dot_config/udiskie/` | Removable-drive automount (USB sticks, SD cards) |
-| `dot_local/bin/executable_*` | `screenshot`, `record-toggle`, `set-wallpaper`, `wifi-tune`, `gdrive-export`, `ly-theme` |
+| `dot_local/bin/executable_*` | `screenshot`, `record-toggle`, `set-wallpaper`, `wifi-tune`, `gdrive-export`, `ly-theme`, `stresspc` |
 | `dot_config/gtk-3.0`, `dot_config/gtk-4.0` | GTK theme, icons, cursor |
 | `dot_config/chrome-flags.conf` | Forces Chrome onto the native Wayland backend |
 
@@ -561,6 +561,50 @@ A device that is only ever used over USB (as the Keychron K8 Pro is here)
 cannot auto-reconnect over Bluetooth until it is paired on that transport.
 
 
+
+### Stress testing
+
+`stresspc` runs a stressor, watches the thermals while it runs, and prints a
+verdict:
+
+```sh
+stresspc cpu    600   # 16 workers, matrixprod
+stresspc memory 600   # vm stressor sized to the free RAM
+stresspc gpu    600   # Vulkan buffer test
+stresspc disk   600   # fio sequential write, direct I/O
+stresspc all    600   # all four in sequence
+stresspc gpu-score    # glmark2 OpenGL benchmark
+stresspc gui           # OCCT GUI (interactive)
+```
+
+Each run writes its logs and a 2-second sensor trace to
+`~/.local/state/stresspc/<timestamp>/`, and ends with the peak CPU (Tctl/Tccd),
+GPU and NVMe temperatures plus peak GPU power.
+
+**The idle timers are held for the duration of a run.** hypridle locks the
+session after 300 s and suspends after 1200 s; a stress run looks idle to it,
+so it would get locked and then suspended mid-test. `stresspc` takes a D-Bus
+`org.freedesktop.ScreenSaver` inhibit, which hypridle honours — the journal
+shows `Ignoring from onIdled(), inhibit locks: 1` for both the lock and the
+suspend rule while the inhibit is held. The inhibit is released on exit,
+including on Ctrl-C.
+
+**The tools are not installed system-wide.** `stresspc` runs extracted Arch
+packages from `~/.local/share/stress-tools` (275 MB): stress-ng, fio,
+memtest_vulkan, glmark2, vkmark and OCCT, each with the private shared
+libraries it needs, because the machine has no passwordless sudo. The tree is
+machine-local and is deliberately **not** vendored here — it is a copy of
+distro binaries, not source.
+
+Two caveats found while building this:
+
+- OCCT 17 in Arch is GUI-only. The `occt` launcher ignores `--mode`/`--test`
+  and starts the graphical client, and the console binaries under
+  `Resources/` (`cpuocct`, `memtest`, `gpumemtest`) exit 101 with no output.
+  Use `stresspc gui` for OCCT, or `stresspc cpu` for the CPU work.
+- `stresspc disk` writes through to the drive at roughly 10 GiB/s here, so a
+  600-second run writes about 6 TB. Short runs are enough to characterise the
+  drive; do not leave a long one running by accident.
 
 ## First machine
 

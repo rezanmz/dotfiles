@@ -83,18 +83,29 @@ Singleton {
 
         running: true
         command: ["sh", "-c", `
+            gpu=""
+            gpu_later=""
             for d in /sys/class/drm/card*/device; do
                 [ -r "$d/gpu_busy_percent" ] || continue
                 if [ -r "$d/boot_vga" ] && [ "$(cat "$d/boot_vga")" = "1" ]; then
-                    echo "gpu $d"
+                    gpu="$d"
                 else
-                    echo "gpu-later $d"
+                    gpu_later="$d"
                 fi
             done
+            [ -z "$gpu" ] && gpu="$gpu_later"
+            # The temperature must come from the same card as the load: with a
+            # discrete GPU next to an APU there are two amdgpu hwmons, and the
+            # glob's last match is whichever one the kernel probed last.
+            if [ -n "$gpu" ]; then
+                echo "gpu $gpu"
+                for h in "$gpu"/hwmon/hwmon*; do
+                    echo "gputemp $h"
+                done
+            fi
             for h in /sys/class/hwmon/hwmon*; do
                 case "$(cat "$h/name" 2>/dev/null)" in
                     k10temp|zenpower) echo "cputemp $h" ;;
-                    amdgpu) echo "gputemp $h" ;;
                 esac
             done
         `]
@@ -111,11 +122,11 @@ Singleton {
             const [kind, path] = line.trim().split(" ");
             if (!kind || !path)
                 continue;
-            if (kind === "gpu" || (kind === "gpu-later" && root.gpuPath === ""))
+            if (kind === "gpu")
                 root.gpuPath = path;
             else if (kind === "cputemp")
                 root.cpuTempPath = path;
-            else if (kind === "gputemp")
+            else if (kind === "gputemp" && root.gpuTempPath === "")
                 root.gpuTempPath = path;
         }
         // Prime the sample so the first tick has something to show.

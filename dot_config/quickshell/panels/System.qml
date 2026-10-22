@@ -92,9 +92,11 @@ Popup {
         label: "gpu"
         value: Math.round(Stats.gpu) + "%"
         valueColour: Theme.orange
-        // VRAM is only 512 MiB on this APU, so GTT (system RAM borrowed by the
-        // GPU) is the number that actually grows; both are shown, as the old
-        // tooltip did. VRAM in MiB because a GiB-rounded 512 MiB reads as "1G".
+        // Both pools are shown because which one matters depends on the card
+        // Stats picked: 16 GiB of VRAM on the discrete RX 9070 XT, where GTT
+        // stays near zero, versus the Raphael APU's small carved-out VRAM with
+        // everything large spilling into GTT. VRAM in MiB because a
+        // GiB-rounded small total reads as "1G".
         detail: Stats.vramTotal > 0 ? "vram " + Math.round(Stats.vramUsed / 1048576) + "M/" + Math.round(Stats.vramTotal / 1048576) + "M  gtt " + Util.gib(Stats.gttUsed) + "/" + Util.gib(Stats.gttTotal, 0) + "G" : ""
         history: Stats.gpuHistory
         historyColour: Theme.orange

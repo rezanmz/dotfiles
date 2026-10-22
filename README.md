@@ -280,12 +280,23 @@ These settings live in the NetworkManager profile under
 root-owned and embeds the network PSK. Re-apply with `wifi-tune` on a new
 machine.
 
-Measured, `iw dev wlp8s0 link` and `ping 192.168.1.1`:
+`wifi-tune` also clears a pinned `connection.interface-name` and warns when two
+profiles share one SSID. Both matter: if the profile pins an interface that no
+longer exists (`wlp8s0` after systemd renames it to `wlp11s0`),
+NetworkManager cannot activate it and auto-creates a duplicate profile with a
+`" 1"` suffix. The duplicate has no band pin and wins the autoconnect race, so
+the machine drops back to 2.4 GHz while the tuning appears to be applied.
+
+Measured, `iw dev wlp11s0 link` and `ping 192.168.1.1`:
 
 | Setting | Link rate | Gateway ping (min) |
 |---|---|---|
 | 2.4 GHz, power save on | 259 Mbit/s @ 2422 MHz | 19.0 ms |
 | 5 GHz, power save off | 648 Mbit/s @ 5745 MHz | 3.6 ms |
+
+Throughput on 5 GHz (80 MHz, ch149, HE-MCS6 2SS): ~355–367 Mbit/s down,
+~94 Mbit/s up, measured against `cachefly`/`cloudflare`. On 2.4 GHz (ch3,
+40 MHz) the TX link rate was 34 Mbit/s, so uploads and ACKs were the floor.
 
 **Bufferbloat is a separate, larger problem and is only half-fixed here.** A
 Steam download saturates the link at ~430 Mbit/s and drives gateway latency

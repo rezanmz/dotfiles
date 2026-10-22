@@ -46,8 +46,37 @@ if ! nmcli -t -f NAME connection show | grep -Fxq "$name"; then
     exit 1
 fi
 
+# 3. drops a pinned interface name
+#
+# Why 3: if the profile pins connection.interface-name to an interface that no
+# longer exists (systemd renames wlp8s0 to wlp11s0 after a hardware or kernel
+# change), NetworkManager refuses to activate it and silently auto-creates a
+# second profile for the same SSID with a " 1" suffix. The duplicate wins the
+# autoconnect race with no band pin, so the machine lands on 2.4 GHz again and
+# the tuning looks like it never applied.
+#
+# The SSID is the stable identity; the interface name is not.
+
 nmcli connection modify "$name" 802-11-wireless.band a
 nmcli connection modify "$name" 802-11-wireless.powersave 2
+if [ -n "$(nmcli -t -f connection.interface-name connection show "$name" | cut -d: -f2-)" ]; then
+    nmcli connection modify "$name" connection.interface-name ""
+    echo "cleared pinned interface name on '$name'"
+fi
+
+ssid=$(nmcli -t -f 802-11-wireless.ssid connection show "$name" | cut -d: -f2-)
+dupes=$(nmcli -t -f NAME,TYPE connection show \
+    | awk -F: -v s="$ssid" '$2=="802-11-wireless"{print $1}' \
+    | while IFS= read -r other; do
+        [ "$other" = "$name" ] && continue
+        [ "$(nmcli -t -f 802-11-wireless.ssid connection show "$other" | cut -d: -f2-)" = "$ssid" ] \
+            && echo "$other"
+      done)
+if [ -n "$dupes" ]; then
+    echo "warning: other profiles share SSID '$ssid', one of them may autoconnect instead:" >&2
+    printf '  %s\n' $dupes >&2
+    echo "  keep one: nmcli connection delete '<the stale one>'" >&2
+fi
 
 echo "tuned '$name':"
 printf '  band      %s\n' "$(nmcli -t -f 802-11-wireless.band connection show "$name" | cut -d: -f2-)"

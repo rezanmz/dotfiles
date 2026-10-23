@@ -321,6 +321,57 @@ dispatcher script (`/etc/NetworkManager/dispatcher.d/90-fq_codel`). A
 dispatcher is used because a bare `tc` command is lost on every interface reset
 and reboot.
 
+The duplicate-profile failure mode above is not hypothetical: on 2026-10-22 the
+machine was found associated to 2.4 GHz channel 4 while `TP-Link_9271` (band
+pinned to `a`) sat unused, and a second profile `TP-Link_9271 1` with no band
+pin and default power saving existed alongside it. Deleting the duplicate
+restored the 5 GHz pin on the next activation. Check for it with
+`nmcli -t -f NAME con show | grep -c TP-Link` — it should print `1`.
+
+#### PCIe ASPM on the Wi-Fi card (hypothesis, under test)
+
+A second jitter source is under test: the MT7922's PCIe link runs with ASPM L1
+enabled (`link/l1_aspm` = 1, `pcie_aspm` policy `default`, `disable_aspm` = N),
+and L1 exit latency stalls the card. Observed on 2026-10-22, in episodes lasting
+minutes and alternating with clean minutes, pinging the gateway
+`192.168.1.1`:
+
+| Signal | Clean phase | Degraded phase |
+|---|---|---|
+| RTT median | 2.0–4.0 ms | 25–100 ms |
+| p99 / max | 20 / 73 ms | 207 / 539 ms |
+| packet loss | 0 % | 0 % |
+| TX retries | 1–8 /s | ~8 /s (no storm) |
+| RSSI, TX/RX rate | −60 dBm, 144/612–720 Mbit/s | unchanged |
+
+The degraded phase inflates the gateway *and* the WAN together, keeps 0 % loss,
+and leaves loopback (`ping 127.0.0.1`) clean, so the host is not stalling — the
+delay is in the Wi-Fi path. Two facts point at the card rather than the AP: the
+episodes follow the machine across bands (the same jitter appears on 2.4 GHz),
+and TX sits far below RX throughout — HE-MCS2–4, mostly 1SS, width flapping
+40↔80 MHz, while RX is HE-MCS6–7 2SS. Airtime contention on the AP predicts
+neither.
+
+That is not conclusive: AP-side airtime contention produces the same signature,
+and this host cannot observe the AP's medium occupancy. The discriminators are a
+second Wi-Fi client on the same SSID pinging the gateway during a degraded
+phase, or Ethernet.
+
+`run_onchange_after_install-mt7921e-aspm.sh` installs
+`/etc/modprobe.d/mt7921e-aspm.conf` with `options mt7921e disable_aspm=1`. It is
+inert until the module reloads — reboot, or
+`sudo modprobe -r mt7921e && sudo modprobe mt7921e` (drops Wi-Fi for a few
+seconds). Verify with:
+
+```sh
+cat /sys/module/mt7921e/parameters/disable_aspm      # expect Y
+cat /sys/bus/pci/devices/0000:0b:00.0/link/l1_aspm   # expect 0
+```
+
+Then re-measure with `ping -c 1800 -i 0.1 -D 192.168.1.1` and compare
+per-second medians and maxima. If the spikes survive, remove the override and
+treat the AP as the suspect.
+
 ### GeForce NOW
 
 Installed as NVIDIA's official Flatpak, from NVIDIA's own signed remote — not

@@ -340,6 +340,20 @@ hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("qs ipc call shell volumeUp"), {
 hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("qs ipc call shell volumeDown"),    { locked = true, repeating = true })
 hl.bind("XF86AudioMute",        hl.dsp.exec_cmd("qs ipc call shell toggleMute"),    { locked = true, repeating = true })
 hl.bind("XF86AudioMicMute",     hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle"),   { locked = true, repeating = true })
+-- Brightness keys. The keyboard reports them as KEY_BRIGHTNESSUP/DOWN, which the
+-- keymap turns into XF86MonBrightnessUp/Down (keycodes <I233>/<I232>), so the
+-- binds below are the standard names and match whatever chord the board sends.
+--
+-- Nothing on this machine bound them, which is why they did nothing. There is
+-- also no panel brightness to drive: this is a desktop with no backlight device
+-- and no DDC, so the only brightness the displays have is hyprsunset's gamma
+-- ramp — the same control the bar's readout scrolls (NightLight.qml). Both keys
+-- ask the shell for it so the step matches the scroll's 5% exactly, the bar
+-- readout follows, and the two can never drift apart.
+-- Screen brightness up (gamma).
+hl.bind("XF86MonBrightnessUp",   hl.dsp.exec_cmd("qs ipc call shell brightnessUp"),   { locked = true, repeating = true })
+-- Screen brightness down (gamma).
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("qs ipc call shell brightnessDown"), { locked = true, repeating = true })
 -- Transport goes through the shell (MPRIS) rather than playerctl: playerctl was
 -- a dependency of waybar and went with it, which silently broke these keys. The
 -- shell is the media client now, so the keys ask it (`qs ipc call player ...`).

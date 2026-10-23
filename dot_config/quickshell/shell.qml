@@ -199,6 +199,18 @@ ShellRoot {
             Sound.toggleMute();
         }
 
+        // Brightness keys. This desktop has no backlight and no DDC, so the only
+        // brightness there is, is hyprsunset's gamma ramp (NightLight.qml). Both
+        // keys go through the same adjustBrightness() the bar's readout scrolls,
+        // so a keypress steps 5% — the same step, the same clamp, one place.
+        function brightnessUp(): void {
+            NightLight.adjustBrightness(1);
+        }
+
+        function brightnessDown(): void {
+            NightLight.adjustBrightness(-1);
+        }
+
         function closePanel(): void {
             Panels.close();
         }

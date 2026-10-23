@@ -22,6 +22,27 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("thunderbird")
 end)
 
+-- Steam starts at login with no window (-silent: no main window, no splash).
+-- It exists to do the work that needs the client running and signed in:
+-- shader-cache deltas for installed games plus the fossilize replay that
+-- validates them against the current Mesa build, Steam's own updates, and
+-- queued game updates.
+--
+-- Why start it rather than launch it on demand: that replay is CPU-bound
+-- (4 workers; ~20 min for CS2's 7.4 GB cache after a cache commit, ~1h when
+-- both CS2 and Deadlock are redone after a Mesa upgrade), and a cache is only
+-- picked up while the client runs. Started at login the cost lands while the
+-- machine is otherwise idle; started when a game is wanted, the same cost
+-- competes with playing.
+--
+-- No workspace is assigned on purpose -- nothing should appear: with -silent
+-- there is no window, and opening the main window later is a deliberate action.
+-- Steam enforces a single instance, so a manual `steam` focuses the running
+-- client instead of starting a second one.
+hl.on("hyprland.start", function()
+    hl.exec_cmd("steam -silent")
+end)
+
 -- The launcher is part of the shell now (dot_config/quickshell/Launcher.qml), so
 -- there is nothing to start here: quickshell.service is the only process, and it
 -- answers `qs ipc call launcher ...` from the keybinds.

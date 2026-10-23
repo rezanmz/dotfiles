@@ -328,7 +328,7 @@ pin and default power saving existed alongside it. Deleting the duplicate
 restored the 5 GHz pin on the next activation. Check for it with
 `nmcli -t -f NAME con show | grep -c TP-Link` — it should print `1`.
 
-#### PCIe ASPM on the Wi-Fi card (hypothesis, under test)
+#### PCIe ASPM on the Wi-Fi card (fixed the sustained stalls; spikes remain)
 
 A second jitter source is under test: the MT7922's PCIe link runs with ASPM L1
 enabled (`link/l1_aspm` = 1, `pcie_aspm` policy `default`, `disable_aspm` = N),
@@ -371,6 +371,22 @@ cat /sys/bus/pci/devices/0000:0b:00.0/link/l1_aspm   # expect 0
 Then re-measure with `ping -c 1800 -i 0.1 -D 192.168.1.1` and compare
 per-second medians and maxima. If the spikes survive, remove the override and
 treat the AP as the suspect.
+
+Measured after the module reload on 2026-10-22 (`disable_aspm=Y`, `l1_aspm=0`,
+5 GHz ch155, RSSI −61 dBm), same gateway:
+
+| Window | median | p90 | p99 | max | windows with a >80 ms packet |
+|---|---|---|---|---|---|
+| before, degraded phase, 3 min @ 10 Hz | 4.94 ms | — | 207 ms | 539 ms | 42 of 182 seconds |
+| after, 3 min @ 10 Hz | 1.82 ms | 3.7 ms | 12.7 ms | 67 ms | 0 of 182 |
+| after, 12 min @ 1 Hz | 1.92 ms | 3.9 ms | 82.6 ms | 166 ms | 5 of 24 (30 s windows) |
+
+The sustained multi-minute degradation — the pattern that reads as "unplayable
+jitter" — did not recur in 15 minutes of sampling. Isolated 80–170 ms spikes
+remain, roughly one per 2.4 minutes, so the card-side explanation covers the
+sustained phases but not every outlier; AP airtime stays a candidate for those.
+The TX rate anomaly is unrelated to ASPM and persists: TX stays at HE-MCS2–4,
+mostly 1SS (103–216 Mbit/s) while RX runs HE-MCS6–7 2SS (612–720 Mbit/s).
 
 ### GeForce NOW
 

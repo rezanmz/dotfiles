@@ -40,19 +40,15 @@ PanelWindow {
     // The empty stretch of the bar counts as "outside": clicking it closes the
     // panel. First child, so it sits behind every widget and a widget's own click
     // handler still wins.
+    //
+    // No wheel here on purpose. It used to dim the screen from anywhere on the
+    // bar, so a stray scroll over empty space — the bar is mostly empty — changed
+    // the brightness of the whole display. The gesture belongs to the brightness
+    // readout alone (see widgets/Brightness.qml); everywhere else the wheel does
+    // nothing.
     MouseArea {
         anchors.fill: parent
         onClicked: Panels.close()
-
-        // Scrolling the bar itself — the gaps, the clock, a readout with no
-        // gesture of its own — adjusts the brightness. Widgets that handle their
-        // own wheel (volume, brightness, warmth) sit above this and accept the
-        // event first, so they keep their own gesture.
-        onWheel: wheel => {
-            const n = Wheel.steps(wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x, wheel.pixelDelta.y !== 0 ? wheel.pixelDelta.y : wheel.pixelDelta.x, "bar");
-            if (n !== 0)
-                NightLight.adjustBrightness(n);
-        }
     }
 
     // The bar's bottom edge: the shell's signature hairline, a Dracula-spectrum

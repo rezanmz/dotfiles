@@ -83,6 +83,18 @@ hl.monitor({
 --    fullscreen), and cm is a panel property, not a port one: the desc:
 --    selector carries it to whichever socket the U3225QE is plugged into.
 --
+--    HDR still works under cm = "srgb": render:cm_auto_hdr (default 1)
+--    switches the output to HDR for a FULLSCREEN window that asks for it.
+--    With an sRGB preset, though, libplacebo's target-colorspace-hint=auto
+--    concludes the target is SDR and tone-maps HDR10 down to 8-bit
+--    (surface VK_COLOR_SPACE_SRGB_NONLINEAR_KHR). mpv therefore announces
+--    the SOURCE colorspace instead (target-colorspace-hint-mode=source in
+--    ~/.config/mpv/mpv.conf) and the surface becomes
+--    VK_COLOR_SPACE_HDR10_ST2084_EXT at 10 bit; verified by reading mpv's
+--    -v log during fullscreen playback, with mode=target as the control.
+--    (hyprwm/Hyprland discussion #13567.) The alternative workaround,
+--    quirks:prefer_hdr = 1, is global and unnecessary here.
+--
 --    VRR: on the physical port the connector exposes vrr_capable = 1 and
 --    adaptive sync is active. (Over HDMI it was 0 -- HDMI Forum VRR is only
 --    parsed upstream in Linux 7.4 -- and on an MST branch the property is

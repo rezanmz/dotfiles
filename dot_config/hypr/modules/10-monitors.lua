@@ -67,8 +67,21 @@ hl.monitor({
 --    constraint -- the MST setting was.
 --
 --    Scale 1.5 gives a 2560x1440 logical desktop (~93 effective PPI).
---    10-bit + EDID wide gamut work over DP (the panel's DP EDID advertises
---    DC_36bit and BT2020RGB); no underruns were seen while 10-bit was active.
+--
+--    COLOR MANAGEMENT: cm = "srgb", NOT "edid"/"wide". 10-bit is unaffected
+--    (still XRGB2101010; the panel's DP EDID advertises DC_36bit and
+--    BT2020RGB, and no underruns were seen while 10-bit was active), but the
+--    wide-gamut descriptions darken every SDR pixel. With cm = edid Hyprland
+--    maps SDR against sdrMaxLuminance = 80 nits, and an sRGB page measured
+--    through grim renders white 186 / 50% grey 117 instead of 255 / 127;
+--    the factor is also state-dependent (same white patch: 186 in a window,
+--    231 fullscreen), so screen brightness jumped when a video went
+--    fullscreen. Only color-managed clients are hit -- Chrome negotiates
+--    wp_color_manager_v1, kitty does not and still rendered 255 -- which is
+--    why browser content looked dim while terminals looked right.
+--    cm = srgb was exactly neutral in both states (255 / 127, windowed and
+--    fullscreen), and cm is a panel property, not a port one: the desc:
+--    selector carries it to whichever socket the U3225QE is plugged into.
 --
 --    VRR: on the physical port the connector exposes vrr_capable = 1 and
 --    adaptive sync is active. (Over HDMI it was 0 -- HDMI Forum VRR is only
@@ -80,7 +93,7 @@ hl.monitor({
     position = "0x0",
     scale    = 1.5,
     bitdepth = 10,
-    cm       = "edid",
+    cm       = "srgb",
     vrr      = 1,
 })
 
@@ -188,10 +201,17 @@ if loadfile(override) then
             return hl.monitor(spec)
         end
 
-        -- A panel we own: drop the GUI's vrr value so our policy stands.
+        -- A panel we own: drop the GUI's vrr and cm so our policy stands.
+        -- vrr: the panel rules above own it -- the GUI mirrors whatever the
+        -- kernel reported when it was open, which goes stale with the cabling.
+        -- cm: same reasoning. The GUI writes back the preset the compositor
+        -- happened to run with, so a single nwg-displays session pins the
+        -- panel to a wide-gamut/HDR description and darkens every SDR pixel
+        -- (see the U3225QE rule: white 186 instead of 255). Color management
+        -- is a panel decision, so it lives in the rules above.
         local filtered = {}
         for key, value in pairs(spec) do
-            if key ~= "vrr" then
+            if key ~= "vrr" and key ~= "cm" then
                 filtered[key] = value
             end
         end

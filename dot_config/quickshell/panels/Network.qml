@@ -16,9 +16,8 @@ import Quickshell.Networking
 //
 // The address, gateway and DNS fields are typed into, and a popup window only
 // sees key presses with an xdg popup grab (Popup.qml explains why), so this panel
-// takes one. That is the same trade the notification centre makes: shell.qml
-// stands its Hyprland focus grab down while this panel is open, and the xdg grab
-// dismisses the popup on an outside click by itself.
+// takes one. That is the same trade the notification centre makes, and the xdg
+// grab dismisses the popup on an outside click by itself.
 //
 // Settings are written with `nmcli connection modify` and are never activated
 // from here on their own: switching a live connection's profile means dropping
@@ -792,6 +791,19 @@ Popup {
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
             }
+        }
+
+        // Throughput, which used to be two fixed-width fields on the bar. Shown
+        // whenever an interface is up rather than only when connected: a link
+        // that carries no address still moves packets, and that is exactly when
+        // the numbers are interesting.
+        Text {
+            width: parent.width
+            visible: Stats.iface !== ""
+            text: "\u2193 " + Util.rate(Stats.netRx) + "   \u2191 " + Util.rate(Stats.netTx)
+            color: Theme.comment
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSizeSmall
         }
 
         // What to do next, for every state that is not connected. Connected has

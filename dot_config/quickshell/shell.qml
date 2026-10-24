@@ -16,9 +16,10 @@ import qs.panels as PanelTypes
 // popups, the volume OSD and the launcher. Panels.qml owns which panel is open
 // and which widget it hangs under; everything here is wiring.
 //
-// The focus grab dismisses panels when the user clicks anywhere that is not the
-// bar or an open panel — upstream recommends it over PopupWindow.grabFocus,
-// which cannot change while the window is open.
+// Panels are dismissed by watching what Hyprland focuses (see the Connections at
+// the end of the file). There is deliberately no HyprlandFocusGrab: the protocol
+// takes the keyboard for the whole seat, so a panel open on one monitor swallowed
+// every keybind on the others.
 ShellRoot {
     // Applications launched from the launcher inherit this; without it they
     // start in the config directory, which is where the shell was started from.
@@ -223,27 +224,36 @@ ShellRoot {
         }
     }
 
-    // Clicking outside dismisses the panel: the bar, the open panel and the
-    // keyboard seat are allowed, anything else (any window, focused already or
-    // not) counts as outside. The toplevel watch below catches the rest, such as
-    // a workspace switch with the keyboard.
-    HyprlandFocusGrab {
-        // The notification centre and the power panel take an xdg popup grab of
-        // their own — the centre because its search field has to be typed into,
-        // the power panel so Escape can cancel a half-armed row — and
-        // hyprland_focus_grab_v1 clears "if another focus grab or similar action
-        // is started" — a layer grab alongside it would close the panel the
-        // instant it opened. Both dismiss themselves: their xdg grab closes on
-        // outside click and the panels sync that back through Panels.close().
-        // The network panel is here for the same reason: its address, gateway and
-        // DNS fields are typed into.
-        // Not while the crosshair is up, and not while one is being set up: it takes
-        // exclusive keyboard focus, which clears this grab regardless of what is
-        // whitelisted, and the clear closes the very panel the user is trying to
-        // photograph (a calendar, a tray menu).
-        active: Panels.anyOpen && Panels.current !== "notifications" && Panels.current !== "power" && Panels.current !== "network" && !Selection.starting
-        windows: Panels.registry
-        onCleared: Panels.close()
-    }
+    // Dismissing a panel when the user goes elsewhere.
+    //
+    // This used to be a HyprlandFocusGrab — upstream's recommendation, and it
+    // dismisses on any outside click. The problem is what the protocol grabs:
+    // hyprland_focus_grab_v1 takes the keyboard (and pointer) for the whole seat,
+    // so while any panel was open on any monitor, every keybind on every other
+    // monitor was swallowed: SUPER+1 did nothing until the panel was closed by
+    // hand. Only the grabbing client ever sees those keys, and the shell does not
+    // want them.
+    //
+    // So the dismissal comes from events instead. Two things mean "the user is
+    // working somewhere else, close it": a new active window (a click on any
+    // window) and a workspace switch (keybind or click, on any monitor). Clicking
+    // the widget that opened the panel still toggles it, and clicking the empty
+    // stretch of a bar still closes it (Bar.qml).
+    //
+    // Not on a null active window: that is also what the panel opening looks like
+    // on some paths, and a panel that closes on the click that opened it is worse
+    // than one that needs a second click.
+    Connections {
+        target: Hyprland
 
+        function onActiveToplevelChanged(): void {
+            if (Panels.anyOpen && Hyprland.activeToplevel !== null)
+                Panels.close();
+        }
+
+        function onFocusedWorkspaceChanged(): void {
+            if (Panels.anyOpen)
+                Panels.close();
+        }
+    }
 }

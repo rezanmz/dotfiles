@@ -21,10 +21,9 @@ import Quickshell.Io
 // Escape is the cancel key for a half-armed row, so this panel takes the
 // keyboard the way the notification centre does: a popup has no keyboard focus
 // of its own (see Popup.qml), and grabFocus (the xdg popup grab) is what puts
-// it there. The grab contends with the HyprlandFocusGrab in shell.qml, which
-// stands down while this panel is open — and the compositor's dismissal of the
-// grab (popup_done just hides the window) is synced back through
-// Panels.close(), both copied from the notification centre.
+// it there. The compositor's dismissal of that grab (popup_done just hides the
+// window) is synced back through Panels.close(), copied from the notification
+// centre.
 Popup {
     id: root
 

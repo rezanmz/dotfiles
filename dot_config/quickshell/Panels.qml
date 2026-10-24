@@ -13,9 +13,9 @@ Singleton {
     // Name of the open panel, or "" when none is open.
     property string current: ""
 
-    // Windows the Hyprland focus grab allows while a panel is open: the bar and
-    // the open panel. Anything else counts as "outside" and dismisses. Popups
-    // register themselves on completion and unregister on destruction.
+    // The open panel's window, registered on completion and unregistered on
+    // destruction. Nothing grabs the seat any more, so this is bookkeeping rather
+    // than a whitelist (see the dismissal watchers in shell.qml).
     property var registry: []
 
 

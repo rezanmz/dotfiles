@@ -7,10 +7,12 @@ import Quickshell
 // they are not clipped by the 44px bar and can overlap windows. `name` is the
 // key in Panels — the popup is visible exactly while that key is current.
 //
-// Dismissal is the HyprlandFocusGrab in shell.qml (per upstream's recommendation
-// over PopupWindow.grabFocus, which cannot change while open — and which measured
-// worse here: a grabbing popup took the keyboard but no longer dismissed on an
-// outside click at all, window or desktop).
+// Dismissal is the event watch in shell.qml: a new active window or a workspace
+// switch closes the panel. Not HyprlandFocusGrab (upstream's recommendation) — it
+// takes the keyboard for the whole seat, which swallowed every keybind on every
+// monitor while a panel was open — and not PopupWindow.grabFocus either, which
+// cannot change while open and measured worse here: a grabbing popup took the
+// keyboard but no longer dismissed on an outside click at all.
 //
 // Escape is a separate matter: a popup has no keyboard focus, so the popup panels
 // cannot close on Escape — the bar-level owner (a full-screen click-through layer
@@ -73,9 +75,9 @@ PopupWindow {
     }
 
 
-    // Whitelisted for the focus grab while open, otherwise a click on the panel's
-    // own controls counts as "outside" and closes it. Panels are destroyed when
-    // they close (see shell.qml), so the registry has to be kept clean.
+    // Panels announce themselves to Panels so the shell knows what is open; they
+    // are destroyed when they close (see shell.qml), so the list has to be kept
+    // clean.
     Component.onCompleted: Panels.register(root)
     Component.onDestruction: Panels.unregister(root)
 

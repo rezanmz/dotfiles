@@ -17,12 +17,10 @@ Popup {
     contentWidth: 420
 
     // Typing has to reach the search field, and only an xdg popup grab (what
-    // grabFocus maps to) puts keyboard focus in a popup. That grab contends
-    // with the HyprlandFocusGrab in shell.qml (hyprland_focus_grab_v1 clears
-    // "if another focus grab or similar action is started"), so shell.qml
-    // stands its grab down while this panel is open — see the note to the
-    // integrator: `active: Panels.anyOpen && Panels.current !== "notifications"`.
-    // Dismissal is free either way: xdg popup grabs close on outside click.
+    // grabFocus maps to) puts keyboard focus in a popup. It used to contend with
+    // a seat-wide HyprlandFocusGrab in shell.qml; that grab is gone, so this one
+    // is the only one left and dismissal stays free: an xdg popup grab closes on
+    // outside click.
     grabFocus: true
 
     // The compositor dismisses the grab behind Panels' back (popup_done just

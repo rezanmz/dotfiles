@@ -116,30 +116,25 @@ PanelWindow {
         Brightness {}
         Warmth {}
 
+        // The separators mark where one group ends and the next begins: what
+        // you adjust by scrolling (volume, brightness, warmth), the network, the
+        // device, and the two numbers that say whether the machine is loaded or
+        // hot. Without the marks the bar is one long run of numbers and the eye
+        // has to work out which belong together.
+        Network {}
+
+        Bluetooth {}
+
         // Same-panel readouts are grouped under one BarItem: one hover pill,
         // one click target, one highlight. The readouts inside are plain items
         // (no hover, no click, no panel of their own); the Row is sized from its
         // children so BarItem's content width picks the whole group up.
         //
-        // The separators mark where one group ends and the next begins. The
-        // right-hand cluster falls into three: the things you adjust by
-        // scrolling (volume, brightness, warmth), the network readouts, and
-        // the device and system ones. Without the marks the bar is one long
-        // run of numbers and the eye has to work out which belong together.
-        BarItem {
-            panel: "network"
-            separator: true
-
-            Row {
-                spacing: 0
-                width: childrenRect.width
-                height: childrenRect.height
-
-                Network {}
-                Speed {}
-            }
-        }
-        Bluetooth {}
+        // Two numbers, not five: cpu and package temperature are the pair that
+        // answer "is this machine fine", and they change every tick, so they earn
+        // the space. Gpu load, memory, swap, DIMM temperatures, disk capacity and
+        // disk throughput all live in the system panel — one click, and the panel
+        // says which chip each number came from, which the bar never could.
         BarItem {
             panel: "system"
             separator: true
@@ -150,10 +145,7 @@ PanelWindow {
                 height: childrenRect.height
 
                 Cpu {}
-                Gpu {}
-                Memory {}
                 Temperature {}
-                Disk {}
             }
         }
         Clock {}

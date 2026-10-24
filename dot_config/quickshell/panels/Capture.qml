@@ -55,10 +55,10 @@ PanelWindow {
     exclusiveZone: -1
     WlrLayershell.namespace: "quickshell-capture"
     WlrLayershell.layer: WlrLayer.Overlay
-    // Like the popup panels, the toolbar takes keyboard focus so the
-    // HyprlandFocusGrab in shell.qml can park it here and close the panel when
-    // something outside is clicked (see Popup.qml for why the grab beats
-    // PopupWindow.grabFocus).
+    // The toolbar takes keyboard focus so Escape reaches it (Enter/backspace too).
+    // Nothing dismisses it by itself: Selection owns when the toolbar goes away,
+    // because a half-finished selection must not be cancelled by a stray focus
+    // change (see Popup.qml).
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
     focusable: true
 

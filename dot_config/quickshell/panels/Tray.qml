@@ -2,8 +2,10 @@ import QtQuick
 import qs
 import Quickshell
 import Quickshell.DBusMenu
+import Quickshell.Services.SystemTray
+import Quickshell.Widgets
 
-// Tray item menu, drawn in the shell's own style.
+// Tray, drawn in the shell's own style: the item list, then one item's menu.
 //
 // SystemTrayItem.display() hands the DBusMenu to Qt, which draws a platform menu
 // — square corners, system font, no theme — and needs QApplication mode to work
@@ -11,13 +13,20 @@ import Quickshell.DBusMenu
 // shell consistent, and gives the menu the same hover, radius and hairline as
 // every other surface.
 //
-// One level at a time: a row with children drills in and a "back" row appears,
-// instead of spawning a second window that has to chase the pointer.
+// The bar shows one tray icon, not one per item: with udiskie, a browser and a
+// password manager the icon row was the widest thing on the bar. What was the
+// left click on an icon is now two clicks (list, then item) on a surface that
+// also names the items, which the icons never did.
+//
+// One level at a time inside a menu: a row with children drills in and a "back"
+// row appears, instead of spawning a second window that has to chase the pointer.
 Popup {
     id: root
 
     name: "tray"
     contentWidth: 268
+
+    readonly property var items: SystemTray.items.values
 
     // The menu level being shown. Rebound as TrayMenu drills in and out.
     readonly property var opener: QsMenuOpener {
@@ -28,19 +37,19 @@ Popup {
 
     Text {
         width: parent.width
-        text: TrayMenu.item ? (TrayMenu.item.title || TrayMenu.item.id || "") : ""
+        text: TrayMenu.item ? (TrayMenu.item.title || TrayMenu.item.id || "") : "tray"
         color: Theme.comment
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSizeSmall
         elide: Text.ElideRight
-        visible: text !== ""
     }
 
-    // Back row, only when inside a submenu.
+    // Back row: always present while inside a menu, out of a submenu and (from
+    // the top of the item's menu) back to the item list.
     Item {
         width: parent.width
         height: 24
-        visible: TrayMenu.stack.length > 1
+        visible: !TrayMenu.atList
 
         Row {
             anchors.left: parent.left
@@ -55,7 +64,7 @@ Popup {
             }
 
             Text {
-                text: "back"
+                text: TrayMenu.stack.length > 1 ? "back" : "all items"
                 color: Theme.comment
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSizeSmall
@@ -71,8 +80,89 @@ Popup {
         }
     }
 
+    // ---- the item list ---------------------------------------------------
     Repeater {
-        model: root.entries
+        model: TrayMenu.atList ? root.items : []
+
+        delegate: Item {
+            id: itemRow
+
+            required property var modelData
+
+            readonly property bool hasMenu: modelData.hasMenu
+
+            width: parent.width
+            height: 28
+
+            Rectangle {
+                anchors.fill: parent
+                radius: Theme.radius
+                color: itemHover.hovered ? Theme.alpha(Theme.selection, 0.85) : "transparent"
+                Behavior on color {
+                    ColorAnimation {
+                        duration: Theme.animationFast
+                    }
+                }
+            }
+
+            IconImage {
+                id: icon
+
+                anchors.left: parent.left
+                anchors.leftMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                implicitWidth: 16
+                implicitHeight: 16
+                // Already an Image-usable source string; see widgets/Tray.qml.
+                source: itemRow.modelData.icon
+            }
+
+            Text {
+                anchors.left: icon.right
+                anchors.leftMargin: 8
+                anchors.right: arrow.left
+                anchors.verticalCenter: parent.verticalCenter
+                text: itemRow.modelData.title || itemRow.modelData.id || ""
+                elide: Text.ElideRight
+                color: Theme.fg
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+            }
+
+            Text {
+                id: arrow
+
+                anchors.right: parent.right
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                text: itemRow.hasMenu ? "\uf105" : "\uf08e"
+                color: Theme.comment
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSizeSmall
+            }
+
+            HoverHandler {
+                id: itemHover
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    if (itemRow.hasMenu) {
+                        TrayMenu.openFor(itemRow.modelData);
+                    } else {
+                        itemRow.modelData.activate();
+                        TrayMenu.close();
+                    }
+                }
+            }
+        }
+    }
+
+    // ---- the item's menu -------------------------------------------------
+    Repeater {
+        model: TrayMenu.atList ? [] : root.entries
 
         delegate: Item {
             id: row
@@ -128,7 +218,7 @@ Popup {
 
                 anchors.left: check.right
                 anchors.leftMargin: 4
-                anchors.right: arrow.left
+                anchors.right: arrowMenu.left
                 anchors.rightMargin: 6
                 anchors.verticalCenter: parent.verticalCenter
                 visible: !row.entrySeparator
@@ -140,7 +230,7 @@ Popup {
             }
 
             Text {
-                id: arrow
+                id: arrowMenu
 
                 anchors.right: parent.right
                 anchors.rightMargin: 6
@@ -161,9 +251,9 @@ Popup {
                 enabled: row.enabled && !row.entrySeparator
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (row.hasChildren)
+                    if (row.hasChildren) {
                         TrayMenu.drill(row.modelData);
-                    else {
+                    } else {
                         row.modelData.triggered();
                         TrayMenu.close();
                     }
@@ -174,7 +264,16 @@ Popup {
 
     Text {
         width: parent.width
-        visible: root.entries.length === 0
+        visible: TrayMenu.atList && root.items.length === 0
+        text: "no tray items"
+        color: Theme.comment
+        font.family: Theme.fontFamily
+        font.pixelSize: Theme.fontSizeSmall
+    }
+
+    Text {
+        width: parent.width
+        visible: !TrayMenu.atList && root.entries.length === 0
         text: "no menu"
         color: Theme.comment
         font.family: Theme.fontFamily

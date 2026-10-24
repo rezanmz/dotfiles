@@ -14,8 +14,10 @@ import qs
 // takes every click that is not on a row — a real menu's grab swallows clicks
 // the same way — and the keyboard at map time (a layer surface cannot be handed
 // the keyboard after it is already up), so Escape closes it like any other
-// menu. A focus change with no click at all — a workspace switch from a keybind
-// while the menu is up — clears the Hyprland focus grab and closes it too.
+// menu. It keeps a HyprlandFocusGrab for the pointer only, so a click on any
+// monitor — not just this one — dismisses it; the keyboard is already exclusive
+// here for Escape, which is why keybinds wait while this menu is up. That is a
+// deliberate trade, and it lasts only as long as the post-shot thumbnail.
 PanelWindow {
     id: root
 

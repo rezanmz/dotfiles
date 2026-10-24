@@ -36,9 +36,8 @@ Singleton {
     property bool active: false
 
     // A selection is being *set up* — begin() was called, the crosshair is not up
-    // yet. The focus grab in shell.qml stands down from the moment this is true:
-    // waiting for the window to map was one frame too late, and the grab's clear
-    // closed the panel the user was trying to photograph.
+    // yet. Kept because the capture flow reads it: waiting for the window to map
+    // was one frame too late to tell "the shot is starting" from "the user left".
     property bool starting: false
 
     // "region" (crosshair) or "window" (hover a window, click it). Space swaps.

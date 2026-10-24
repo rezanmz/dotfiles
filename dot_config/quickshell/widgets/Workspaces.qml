@@ -19,9 +19,9 @@ import Quickshell.Widgets
 // (the workspace's most recently focused window). The preview is its own
 // PanelWindow on the overlay layer: it is created only while it is shown
 // (LazyLoader), streams only while it exists, is never registered with Panels
-// (it is a preview, not a panel — it must not join the focus grab), and takes
-// no keyboard focus. Clicking it switches to the workspace the same way the
-// switcher commits.
+// (it is a preview, not a panel: it must not close on a workspace change or join
+// the panel registry), and takes no keyboard focus. Clicking it switches to the
+// workspace the same way the switcher commits.
 Item {
     id: root
 
@@ -38,6 +38,24 @@ Item {
     // The screen is matched by the connector name, which is what Hyprland
     // calls the output and what the workspace's `monitor` reports.
     readonly property string screenName: barScreen ? barScreen.name : ""
+
+    // This bar's monitor in Hyprland's global layout. The hover preview is a
+    // layer window whose margins are measured from its own screen's top-left
+    // corner, while the pill position handed over by mapToGlobal is global, so
+    // the origin has to be subtracted and the clamp measured against this
+    // monitor's width. Hyprland's monitor object is used rather than the
+    // ShellScreen because it is the same geometry mapToGlobal reports in.
+    readonly property var monitor: {
+        const monitors = Hyprland.monitors.values;
+        for (let i = 0; i < monitors.length; i++) {
+            if (monitors[i].name === root.screenName)
+                return monitors[i];
+        }
+        return null;
+    }
+    readonly property real monitorX: root.monitor ? root.monitor.x : 0
+    readonly property real monitorY: root.monitor ? root.monitor.y : 0
+    readonly property real monitorWidth: root.monitor ? root.monitor.width : (root.barScreen ? root.barScreen.width : 1920)
 
     readonly property var visibleWorkspaces: {
         const out = [];
@@ -74,8 +92,8 @@ Item {
 
     // Screen coordinates of the hovered pill: centre x, and the pill's bottom
     // edge y so the preview hangs just below it.
-    property int previewX: 0
-    property int previewY: 0
+    property real previewX: 0
+    property real previewY: 0
 
     // Workspace id -> address of the window the shell saw focused on it most
     // recently, the same tracking the switcher does (see Switcher.qml).
@@ -374,18 +392,25 @@ Item {
         PanelWindow {
             id: preview
 
-            screen: Util.focusedScreen()
+            // The bar's own monitor, not the focused one: margins are measured
+            // from the window's screen, while previewX/Y come from mapToGlobal in
+            // the *global* layout. Taking the focused screen put the card on
+            // whichever monitor had focus and measured one monitor's pill
+            // position against another monitor's width — on the 1080p screen next
+            // to the 4K one, the preview landed at the far right edge.
+            screen: root.barScreen
             anchors.top: true
             anchors.left: true
-            // Just below the hovered pill, centred on it, clamped on screen.
-            margins.top: root.previewY
-            margins.left: Math.max(0, Math.min(root.previewX - root.previewWidth / 2, screen.width - root.previewWidth))
+            // Just below the hovered pill, centred on it, clamped on screen. The
+            // monitor origin is subtracted because margins are screen-relative.
+            margins.top: Math.max(Theme.barHeight, root.previewY - root.monitorY)
+            margins.left: Math.max(0, Math.min(root.previewX - root.monitorX - root.previewWidth / 2, root.monitorWidth - root.previewWidth))
             implicitWidth: root.previewWidth
             implicitHeight: root.previewCaptureHeight + 30 + Theme.panelPadding * 2
             color: "transparent"
             exclusiveZone: -1
             // A preview: no keyboard focus, and deliberately NOT registered
-            // with Panels, so it stays out of the focus grab.
+            // with Panels, so it never closes on a workspace change.
             focusable: false
             WlrLayershell.namespace: "quickshell-ws-preview"
             WlrLayershell.layer: WlrLayer.Overlay

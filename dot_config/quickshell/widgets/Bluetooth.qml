@@ -72,7 +72,9 @@ BarItem {
         anchors.left: bolt.visible ? bolt.right : parent.left
         anchors.leftMargin: bolt.visible ? 3 : 0
         anchors.verticalCenter: parent.verticalCenter
-        text: root.enabled ? "\uf293 " + root.connected : "\uf293 off"
+        // No "off" word: a dimmed mark is the same information in a third of
+        // the width, and the panel behind the click says the rest.
+        text: root.enabled ? "\uf293 " + root.connected : "\uf293"
         color: root.enabled ? Theme.pink : Theme.comment
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSize

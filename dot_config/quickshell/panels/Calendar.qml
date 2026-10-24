@@ -11,8 +11,8 @@ import qs
 // SystemClock at hour precision: a day rollover always crosses an hour
 // boundary, so the highlight cannot go stale and nothing polls the date.
 //
-// The window is anchored by the Popup base from Panels' click registry (the
-// clock registers itself there), so this file sets no anchor properties.
+// The window is anchored by the Popup base from the widget that opened it (the
+// clock hands itself over in BarItem), so this file sets no anchor properties.
 Popup {
     id: root
 

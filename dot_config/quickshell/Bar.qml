@@ -32,10 +32,9 @@ PanelWindow {
     WlrLayershell.namespace: "quickshell-bar"
     WlrLayershell.layer: WlrLayer.Top
 
-    Component.onCompleted: {
-        Panels.register(bar);
-        Panels.barWindow = bar;
-    }
+    // barWindow is what popups reach the bar window through (QtQuick's
+    // Window.window is a ProxiedWindow that the popup APIs reject).
+    Component.onCompleted: Panels.barWindow = bar
 
     // The empty stretch of the bar counts as "outside": clicking it closes the
     // panel. First child, so it sits behind every widget and a widget's own click

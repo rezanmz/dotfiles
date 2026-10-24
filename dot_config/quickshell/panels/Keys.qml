@@ -99,12 +99,9 @@ PanelWindow {
     // The window only exists while the panel is open (the LazyLoader in
     // shell.qml creates and destroys it), so opening is just creation.
     Component.onCompleted: {
-        Panels.register(root);
         root.shown = true;
         search.forceActiveFocus();
     }
-
-    Component.onDestruction: Panels.unregister(root)
 
     component SectionLabel: Text {
         color: Theme.comment

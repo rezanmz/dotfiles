@@ -19,9 +19,9 @@ import Quickshell.Widgets
 // (the workspace's most recently focused window). The preview is its own
 // PanelWindow on the overlay layer: it is created only while it is shown
 // (LazyLoader), streams only while it exists, is never registered with Panels
-// (it is a preview, not a panel: it must not close on a workspace change or join
-// the panel registry), and takes no keyboard focus. Clicking it switches to the
-// workspace the same way the switcher commits.
+// (it is a preview, not a panel: it must not close on a workspace change or be
+// opened through Panels), and takes no keyboard focus. Clicking it switches to
+// the workspace the same way the switcher commits.
 Item {
     id: root
 

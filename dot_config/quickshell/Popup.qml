@@ -75,12 +75,6 @@ PopupWindow {
     }
 
 
-    // Panels announce themselves to Panels so the shell knows what is open; they
-    // are destroyed when they close (see shell.qml), so the list has to be kept
-    // clean.
-    Component.onCompleted: Panels.register(root)
-    Component.onDestruction: Panels.unregister(root)
-
     color: "transparent"
     implicitWidth: contentWidth
     implicitHeight: contentHeight

@@ -44,7 +44,7 @@ Item {
     readonly property bool panelOpen: root.panel !== "" && Panels.current === root.panel
     readonly property bool panelAnchor: Panels.anchorItem === root
 
-    // Panels find their anchor through this registry, so a panel can also be
+    // Panels find their anchor through Panels.anchors, so a panel can also be
     // opened from a keybind or the IPC instead of a click.
     Component.onCompleted: Panels.registerAnchor(root.panel, root)
 

@@ -13,11 +13,6 @@ Singleton {
     // Name of the open panel, or "" when none is open.
     property string current: ""
 
-    // The open panel's window, registered on completion and unregistered on
-    // destruction. Nothing grabs the seat any more, so this is bookkeeping rather
-    // than a whitelist (see the dismissal watchers in shell.qml).
-    property var registry: []
-
 
     readonly property bool anyOpen: current !== ""
 
@@ -77,14 +72,6 @@ Singleton {
 
     function open(name: string): void {
         current = name;
-    }
-
-    function register(w: var): void {
-        registry = registry.concat([w]);
-    }
-
-    function unregister(w: var): void {
-        registry = registry.filter(x => x !== w);
     }
 
     function close(): void {

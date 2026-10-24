@@ -74,9 +74,6 @@ PanelWindow {
         radius: Theme.panelRadius
     }
 
-    Component.onCompleted: Panels.register(root)
-    Component.onDestruction: Panels.unregister(root)
-
     // One tool segment. The active one is filled — purple for the capture
     // tools, red for the record tools — the same "this is the one" fill the
     // launcher and OSD use. Every chip carries a glyph so the two trios cannot

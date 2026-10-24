@@ -18,6 +18,15 @@ Canvas {
     implicitWidth: 180
     implicitHeight: 30
 
+    // The band itself, faint. Without it a low series draws a line along the
+    // bottom of an empty box, which reads as "no data" rather than "measured,
+    // near zero": the track shows the extent the line is being read against.
+    Rectangle {
+        anchors.fill: parent
+        radius: 2
+        color: Theme.alpha(Theme.selection, 0.3)
+    }
+
     onValuesChanged: requestPaint()
     onWidthChanged: requestPaint()
     onHeightChanged: requestPaint()

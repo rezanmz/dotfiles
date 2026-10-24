@@ -85,6 +85,22 @@ Singleton {
         return String(Math.round(v)).padStart(width);
     }
 
+    // Boot age for the system panel's header: "up 3d 4h", dropping to hours and
+    // minutes so the field never says "up 0d 0h".
+    function uptimeText(seconds: real): string {
+        if (!isFinite(seconds) || seconds <= 0)
+            return "";
+        const total = Math.floor(seconds);
+        const days = Math.floor(total / 86400);
+        const hours = Math.floor(total % 86400 / 3600);
+        const minutes = Math.floor(total % 3600 / 60);
+        if (days > 0)
+            return "up " + days + "d " + hours + "h";
+        if (hours > 0)
+            return "up " + hours + "h " + minutes + "m";
+        return "up " + minutes + "m";
+    }
+
     // m:ss, used by the media player for track position.
     function duration(seconds: real): string {
         if (!isFinite(seconds) || seconds < 0)

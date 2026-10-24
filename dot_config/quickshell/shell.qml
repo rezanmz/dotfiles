@@ -235,11 +235,13 @@ ShellRoot {
         // is started" — a layer grab alongside it would close the panel the
         // instant it opened. Both dismiss themselves: their xdg grab closes on
         // outside click and the panels sync that back through Panels.close().
+        // The network panel is here for the same reason: its address, gateway and
+        // DNS fields are typed into.
         // Not while the crosshair is up, and not while one is being set up: it takes
         // exclusive keyboard focus, which clears this grab regardless of what is
         // whitelisted, and the clear closes the very panel the user is trying to
         // photograph (a calendar, a tray menu).
-        active: Panels.anyOpen && Panels.current !== "notifications" && Panels.current !== "power" && !Selection.starting
+        active: Panels.anyOpen && Panels.current !== "notifications" && Panels.current !== "power" && Panels.current !== "network" && !Selection.starting
         windows: Panels.registry
         onCleared: Panels.close()
     }

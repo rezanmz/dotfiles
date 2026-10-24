@@ -14,7 +14,6 @@ pragma Singleton
 // microseconds — cheaper than the fork+exec it replaces.
 import Quickshell
 import Quickshell.Io
-import Quickshell.Networking
 import QtQuick
 
 Singleton {
@@ -256,15 +255,10 @@ Singleton {
     }
 
     // The active interface comes from NetworkManager rather than parsing
-    // `ip route`, so it follows a wifi/ethernet switch without a subprocess.
-    readonly property var activeDevice: {
-        const devices = Networking.devices.values;
-        for (let i = 0; i < devices.length; i++) {
-            if (devices[i].connected)
-                return devices[i];
-        }
-        return null;
-    }
+    // `ip route`, so it follows a wifi/ethernet switch without a subprocess. The
+    // lookup itself lives in NetworkState, which the bar readout and the network
+    // panel use too, so "the active interface" means one thing in the shell.
+    readonly property var activeDevice: NetworkState.activeDevice
 
     onActiveDeviceChanged: root.iface = root.activeDevice ? root.activeDevice.name : ""
 

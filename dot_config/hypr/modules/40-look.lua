@@ -89,7 +89,14 @@ hl.config({
         disable_splash_rendering = true,
         background_color        = dra(DRA.bg),
         vrr                     = 0,
-        focus_on_activate       = true,
+        -- Never focus on an app's own activation request: Hyprland 0.56.2
+        -- ignores the xdg-activation serial, so it cannot tell a background
+        -- request (Qt's window alert behind "draw attention to the window", a
+        -- notification arriving) from one the user caused. Honouring them
+        -- switches workspace and takes the keyboard mid-typing. The shell
+        -- raises the sender itself when its notification or tray entry is
+        -- clicked (Util.focusApp).
+        focus_on_activate       = false,
     },
 })
 

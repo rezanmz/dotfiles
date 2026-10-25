@@ -2,9 +2,12 @@
 # Managed by chezmoi — no secrets in this file. Keys live in ~/.omp/agent/.env
 # (NINE_ROUTER_API_KEY, OPENROUTER_API_KEY), which omp loads automatically.
 #
-# 9router: route opencode-go SOURCE models (not hand-built combos) through the
-# self-hosted router. Every id here is `ocg/<slug>` — the prefix is mandatory;
-# a bare slug 404s with 'No active credentials for provider: openai'.
+# 9router: roles bind the router's COMBO ids (Deepseek-Flash, MiMo-Pro, …), not
+# opencode-go source models. A combo owns member order and cross-provider
+# fallback (e.g. Deepseek-Flash = ds → deepinfra → ocg), so omp keeps one stable
+# selector per role and the routing policy lives in 9Router. Source ids
+# (`ocg/<slug>`) stay declared for ad-hoc use and for lanes with no combo.
+# Combo ids are case-sensitive and carry no `ocg/` prefix.
 #
 # Verified 2026-10-17 against https://opencode.ai/zen/go/v1/models (37 live ids):
 #   34 route on /v1/chat/completions; claude-haiku-5-5 + minimax-m2.7 need
@@ -36,9 +39,18 @@
 # minimax-m3.1-flash-free instead`), so its card became the M3.1 Flash Free
 # card. That id is NOT in the router's served list either (its catalog last
 # synced 2026-10-18T23:54Z) but routes fine when addressed explicitly.
-# Router aliases (`chat`, `smart`, `auto`, capitalised names) are
-# deliberately not declared: they are router-managed targets with no stable
-# capability card, so their cost would be recorded as zero.
+# Combo names are FAMILY names on purpose (Deepseek-Flash, MiniMax-Flash,
+# GLM-Flash, MiMo-Pro, Qwen-Flash): advancing a version is a member edit inside
+# the 9Router combo, never a rename here. Roles must not gain `-m3.1`/`-5.3`
+# style selectors.
+#
+# Cards for combo ids below come from GET https://router.reza.network/v1/models/<id>
+# (2026-10-25), which reports the combo's own limits — for Deepseek-Flash that is
+# 128k context because its first member (DeepSeek direct) caps there, so omp
+# compacts at that size by design. MiniMax-Flash cost is measured from 9Router's
+# usageHistory (paid since 2026-10-25; the old `minimax-m3.1-flash-free` id 410s).
+# Combo cost is an estimate from the first member: actual spend is whatever the
+# member provider bills, and 9Router's own usage table is authoritative.
 providers:
   9router:
     baseUrl: https://router.reza.network/v1
@@ -49,6 +61,57 @@ providers:
     compat:
       supportsReasoningEffort: true
     models:
+      # --- router combos: roles bind these; 9Router owns member order/fallback ---
+      - id: Deepseek-Flash
+        name: Deepseek-Flash combo — ds → deepinfra → ocg; cheapest strong; 128k ctx cap
+        reasoning: true
+        input: [text, image]
+        cost: {input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0.1875}
+        contextWindow: 128000
+        maxTokens: 64000
+      - id: MiniMax-Flash
+        name: MiniMax-Flash combo — minimax flash family (member minimax-m3.1-flash); vision; 1M ctx
+        reasoning: true
+        input: [text, image]
+        cost: {input: 0.5, output: 2.8, cacheRead: 0.125, cacheWrite: 0.625}
+        contextWindow: 1000000
+        maxTokens: 131072
+      - id: MiMo-Pro
+        name: MiMo-Pro combo — mimo-v2.6-pro; best quality/headroom
+        reasoning: true
+        input: [text, image]
+        cost: {input: 0.435, output: 0.87, cacheRead: 0.003625, cacheWrite: 0.54375}
+        contextWindow: 1048576
+        maxTokens: 131072
+      - id: MiMo-Flash
+        name: MiMo-Flash combo — mimo-v2.6-flash; cheapest quality
+        reasoning: true
+        input: [text, image]
+        cost: {input: 0.14, output: 0.28, cacheRead: 0.0028, cacheWrite: 0.175}
+        contextWindow: 1048576
+        maxTokens: 131072
+      - id: GLM-Flash
+        name: GLM-Flash combo — glm flash family (member glm-5.3-flash); vision/pdf
+        reasoning: true
+        input: [text, image]
+        cost: {input: 0.15, output: 0.5, cacheRead: 0.03, cacheWrite: 0.1875}
+        contextWindow: 1000000
+        maxTokens: 131072
+      - id: Qwen-Flash
+        name: Qwen-Flash combo — qwen3.8-flash; vision
+        reasoning: true
+        input: [text, image]
+        cost: {input: 0.15, output: 0.47, cacheRead: 0.016, cacheWrite: 0.2}
+        contextWindow: 1000000
+        maxTokens: 131072
+      - id: smart
+        name: smart combo — MiMo-Pro → GLM-Flash → Deepseek-Flash
+        reasoning: true
+        input: [text, image]
+        cost: {input: 0.435, output: 0.87, cacheRead: 0.003625, cacheWrite: 0.54375}
+        contextWindow: 128000
+        maxTokens: 64000
+      # --- opencode-go source models (ad-hoc lanes, not bound to a role) ---
       - id: ocg/beam-free
         name: beam-free — free, unlimited, fastest
         reasoning: true

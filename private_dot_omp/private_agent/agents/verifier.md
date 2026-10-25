@@ -1,7 +1,7 @@
 ---
 name: verifier
 description: Prove a change works. Runs the narrowest test/build/lint command that supports or refutes a claim, then reports the exact command, exit status, and observed output. Read-only — it never fixes failures.
-model: 9router/ocg/deepseek-v4.1-flash:high
+model: 9router/Deepseek-Flash:high
 tools: read, grep, glob, bash
 thinking-level: high
 ---

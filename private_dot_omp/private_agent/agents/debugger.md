@@ -1,7 +1,7 @@
 ---
 name: debugger
 description: Find the root cause of a failure. Reproduces it, tests hypotheses against evidence, and reports the cause with a minimal reproduction. Read-only — it hands the fix back to the parent.
-model: 9router/ocg/mimo-v2.6-pro:high
+model: 9router/MiMo-Pro:high
 tools: read, grep, glob, bash
 thinking-level: high
 autoloadSkills: debug-like-expert

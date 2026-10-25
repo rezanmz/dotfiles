@@ -66,15 +66,16 @@ modelRoles:
   # investigative tools, two notes max, blocker-only wakeups. Measured review
   # size on the previous model: 1 request, 2-12k input tokens per run.
   advisor: 9router/ocg/mimo-v2.6-pro:xhigh
-  # Judge: TypeSafe Jev 1.14 through OpenRouter's Decisions API
+  # Judge: `~typesafe/jev-latest` through OpenRouter's Decisions API
   # (POST https://openrouter.ai/api/alpha/decisions, input-only billing at
   # $0.042/M): ~$0.0001 per `find` cascade, ~$0.00002 per auto-thinking
-  # classification. Pinned explicitly so the role does not ride the built-in
-  # default chain, which starts at typesafe/jev-1.14.0 (no TYPESAFE_API_KEY
-  # here) and walks tiny/smol/default. It MUST stay a native judge: when the
-  # role resolves to a chat model, `find.enabled: auto` disables the find tool,
-  # and a native failure never degrades to a prompted judge.
-  judge: openrouter/typesafe/jev-1.14
+  # classification. The alias rides whatever Jev build OpenRouter marks stable,
+  # instead of a pinned build; Cloudflare Clef answers text judgments when Jev
+  # is unavailable. Both are native judges because `find.enabled: auto` turns
+  # the find tool off when this role resolves to a chat/tiny model, and a native
+  # failure never degrades to a prompted judge. Box questions (`judge(..., box)`)
+  # need Jev 1.14+, so they follow the alias and will not reach Clef.
+  judge: openrouter/~typesafe/jev-latest
 {{- end }}
 advisor:
   # Cost control, not removal. The previous setup reviewed EVERY tool round
@@ -207,9 +208,9 @@ retry:
       - openrouter/deepseek/deepseek-v4.1-flash:max
     judge:
       # Natives only. After the first native candidate the judge chain stops at
-      # other native judges, so a chat entry here would never be reached; the
-      # alias tracks whatever Jev build OpenRouter serves when 1.14 retires.
-      - openrouter/~typesafe/jev-latest
+      # other native judges, so a chat entry here would never be reached.
+      # Clef answers text judgments only (no images, 64-question cap).
+      - openrouter/cloudflare/clef
 {{- end }}
 symbolPreset: nerd
 theme:

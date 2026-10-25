@@ -66,6 +66,15 @@ modelRoles:
   # investigative tools, two notes max, blocker-only wakeups. Measured review
   # size on the previous model: 1 request, 2-12k input tokens per run.
   advisor: 9router/ocg/mimo-v2.6-pro:xhigh
+  # Judge: TypeSafe Jev 1.14 through OpenRouter's Decisions API
+  # (POST https://openrouter.ai/api/alpha/decisions, input-only billing at
+  # $0.042/M): ~$0.0001 per `find` cascade, ~$0.00002 per auto-thinking
+  # classification. Pinned explicitly so the role does not ride the built-in
+  # default chain, which starts at typesafe/jev-1.14.0 (no TYPESAFE_API_KEY
+  # here) and walks tiny/smol/default. It MUST stay a native judge: when the
+  # role resolves to a chat model, `find.enabled: auto` disables the find tool,
+  # and a native failure never degrades to a prompted judge.
+  judge: openrouter/typesafe/jev-1.14
 {{- end }}
 advisor:
   # Cost control, not removal. The previous setup reviewed EVERY tool round
@@ -196,6 +205,11 @@ retry:
       - 9router/ocg/muse-spark-1.3-contributor:xhigh
       - openrouter/xiaomi/mimo-v2.6-pro:xhigh
       - openrouter/deepseek/deepseek-v4.1-flash:max
+    judge:
+      # Natives only. After the first native candidate the judge chain stops at
+      # other native judges, so a chat entry here would never be reached; the
+      # alias tracks whatever Jev build OpenRouter serves when 1.14 retires.
+      - openrouter/~typesafe/jev-latest
 {{- end }}
 symbolPreset: nerd
 theme:

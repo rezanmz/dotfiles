@@ -48,21 +48,26 @@ modelRoles:
   # sits right behind Deepseek-Flash on default/task: the ordering is still open,
   # so swapping the two lines is the whole change. It is the 1M-context option —
   # Combo names are family names: version bumps happen inside 9Router, not here.
-  # Deepseek-Flash's combo card caps at 128k because its first member does.
-  default: 9router/Deepseek-Flash:high
-  slow: 9router/MiMo-Pro:xhigh
-  smol: 9router/MiMo-Flash:minimal
-  vision: 9router/GLM-Flash:high
-  plan: 9router/MiMo-Pro:xhigh
-  designer: 9router/GLM-Flash:high
-  commit: 9router/MiMo-Flash:minimal
+  # Every role uses the `:auto` thinking suffix: omp's native judge (the Jev
+  # model role) classifies each prompt's difficulty and resolves the effort,
+  # capped by providers.autoThinkingMaxEffort (xhigh). An explicit suffix
+  # would override that classification.
+  # Deepseek-Flash's card is 1M: the router's own 128k card is stale (its
+  # member served a 1,007,434-token prompt with the needle intact).
+  default: 9router/Deepseek-Flash:auto
+  slow: 9router/MiMo-Pro:auto
+  smol: 9router/MiMo-Flash:auto
+  vision: 9router/GLM-Flash:auto
+  plan: 9router/MiMo-Pro:auto
+  designer: 9router/GLM-Flash:auto
+  commit: 9router/MiMo-Flash:auto
   tiny: 9router/ocg/beam-free
-  task: 9router/Deepseek-Flash:high
+  task: 9router/Deepseek-Flash:auto
   # Advisor: mimo-v2.6-pro (user preference). The cost win comes from cadence
   # and context shape, not the model: one review per completed run, no
   # investigative tools, two notes max, blocker-only wakeups. Measured review
   # size on the previous model: 1 request, 2-12k input tokens per run.
-  advisor: 9router/MiMo-Pro:xhigh
+  advisor: 9router/MiMo-Pro:auto
   # Judge: `~typesafe/jev-latest` through OpenRouter's Decisions API
   # (POST https://openrouter.ai/api/alpha/decisions, input-only billing at
   # $0.042/M): ~$0.0001 per `find` cascade, ~$0.00002 per auto-thinking
@@ -148,40 +153,40 @@ retry:
     # so a chain only needs a *different* combo, then the OpenRouter twin as the
     # last resort for a whole-router/opencode-go outage.
     default:
-      - 9router/MiniMax-Flash:high
-      - 9router/smart:high
+      - 9router/MiniMax-Flash:auto
+      - 9router/smart:auto
       - openrouter/deepseek/deepseek-v4.1-flash:high
     slow:
-      - 9router/smart:xhigh
+      - 9router/smart:auto
       - openrouter/xiaomi/mimo-v2.6-pro:xhigh
     plan:
-      - 9router/smart:xhigh
+      - 9router/smart:auto
       - openrouter/xiaomi/mimo-v2.6-pro:xhigh
     smol:
-      - 9router/Qwen-Flash:minimal
-      - 9router/Deepseek-Flash:low
+      - 9router/Qwen-Flash:auto
+      - 9router/Deepseek-Flash:auto
       - openrouter/xiaomi/mimo-v2.6-flash:minimal
     task:
-      - 9router/MiniMax-Flash:high
-      - 9router/smart:high
+      - 9router/MiniMax-Flash:auto
+      - 9router/smart:auto
       - openrouter/deepseek/deepseek-v4.1-flash:high
     vision:
-      - 9router/Deepseek-Flash:high
-      - 9router/MiMo-Pro:high
+      - 9router/Deepseek-Flash:auto
+      - 9router/MiMo-Pro:auto
       - openrouter/z-ai/glm-5.3-flash:high
     designer:
-      - 9router/Deepseek-Flash:high
-      - 9router/MiMo-Pro:high
+      - 9router/Deepseek-Flash:auto
+      - 9router/MiMo-Pro:auto
       - openrouter/z-ai/glm-5.3-flash:high
     commit:
-      - 9router/Qwen-Flash:minimal
-      - 9router/MiMo-Pro:minimal
+      - 9router/Qwen-Flash:auto
+      - 9router/MiMo-Pro:auto
       - openrouter/qwen/qwen3.8-flash:minimal
     tiny:
-      - 9router/MiMo-Flash:minimal
+      - 9router/MiMo-Flash:auto
       - openrouter/xiaomi/mimo-v2.6-flash:minimal
     advisor:
-      - 9router/smart:xhigh
+      - 9router/smart:auto
       - openrouter/xiaomi/mimo-v2.6-pro:xhigh
     judge:
       # Natives only. After the first native candidate the judge chain stops at

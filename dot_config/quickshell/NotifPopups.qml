@@ -257,7 +257,13 @@ PanelWindow {
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: modelData.invoke()
+                            onClicked: {
+                                // The "default" action is what the card's own
+                                // click runs, so it goes to the app the same way.
+                                if (modelData.identifier === "default" && card.notif)
+                                    Util.focusApp([card.notif.desktopEntry, card.notif.appIcon, card.notif.appName]);
+                                modelData.invoke();
+                            }
                         }
                     }
                 }
@@ -298,9 +304,16 @@ PanelWindow {
             onClicked: mouse => {
                 if (!card.notif)
                     return;
-                if (mouse.button === Qt.RightButton)
+                if (mouse.button === Qt.RightButton) {
                     Notifs.clearPopups();
-                else if (mouse.button === Qt.MiddleButton && card.actions.length > 0)
+                    return;
+                }
+                // Going to the app is the point of the click, and the app cannot
+                // raise itself any more (Util.focusApp). Before invoke(), so an
+                // action that opens a new window still gets the last word.
+                if (mouse.button === Qt.LeftButton)
+                    Util.focusApp([card.notif.desktopEntry, card.notif.appIcon, card.notif.appName]);
+                if (mouse.button === Qt.MiddleButton && card.actions.length > 0)
                     card.actions[0].invoke();
                 else if (mouse.button === Qt.LeftButton && card.defaultAction !== null)
                     // Left click runs the default action when there is one;

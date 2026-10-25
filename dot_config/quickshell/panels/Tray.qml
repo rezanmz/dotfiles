@@ -153,6 +153,10 @@ Popup {
                         TrayMenu.openFor(itemRow.modelData);
                     } else {
                         itemRow.modelData.activate();
+                        // The app cannot raise itself (Util.focusApp). A window
+                        // that is still hidden has no toplevel yet, and mapping
+                        // it focuses it on its own.
+                        Util.focusApp([itemRow.modelData.id, itemRow.modelData.icon, itemRow.modelData.title]);
                         TrayMenu.close();
                     }
                 }

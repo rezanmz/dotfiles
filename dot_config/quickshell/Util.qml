@@ -130,4 +130,59 @@ Singleton {
     function focusedScreen(): var {
         return screenFor(Hyprland.focusedMonitor ? Hyprland.focusedMonitor.name : "");
     }
+
+    // Raise the window of the app behind one of the shell's clickable surfaces
+    // (a notification card, a tray entry). Nothing else can: the compositor
+    // refuses the app's own activation request (misc:focus_on_activate = false,
+    // see hypr/modules/40-look.lua), so an explicit click has to do it here.
+    // `ids` are the names the sender is known by, most precise first: the
+    // freedesktop `desktop-entry` hint (the app id verbatim for Wayland
+    // clients), then the desktop-file icon, then the display name.
+    function focusApp(ids: var): void {
+        const wanted = [];
+        for (const id of ids) {
+            if (!id)
+                continue;
+            const name = String(id).toLowerCase().replace(/\.desktop$/, "");
+            if (name.length >= 4 && wanted.indexOf(name) === -1)
+                wanted.push(name);
+        }
+        if (wanted.length === 0)
+            return;
+        // Hyprland's own view of a window: the class (the Wayland app id for
+        // Wayland clients, the X11 class otherwise) and the address to focus.
+        // `lastIpcObject` alone is not enough — it stays partial for a window
+        // that has only carried a title event so far.
+        const windows = [];
+        for (const win of Hyprland.toplevels.values) {
+            const ipc = win.lastIpcObject || {};
+            const wayland = win.wayland || {};
+            windows.push({
+                appId: String(ipc.class || ipc.initialClass || wayland.appId || "").toLowerCase(),
+                address: String(ipc.address || win.address || "")
+            });
+        }
+        const raise = (win) => {
+            const hex = win.address;
+            Hyprland.dispatch("hl.dsp.focus({window = \"address:" + (hex.startsWith("0x") ? hex : "0x" + hex) + "\"})");
+        };
+        // Exact app id before any substring match: "Telegram Desktop" must never
+        // win over a desktop-entry hint that names another window precisely.
+        for (const name of wanted) {
+            for (const win of windows) {
+                if (win.appId === name) {
+                    raise(win);
+                    return;
+                }
+            }
+        }
+        for (const name of wanted) {
+            for (const win of windows) {
+                if (win.appId !== "" && win.appId.indexOf(name) !== -1) {
+                    raise(win);
+                    return;
+                }
+            }
+        }
+    }
 }

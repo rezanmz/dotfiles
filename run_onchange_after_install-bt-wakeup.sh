@@ -42,11 +42,13 @@ fi
 # arms the device's remote-wakeup; the kernel's own suspend path does the
 # rest (it also enables the root hub and the xHCI controller).
 #
-# Matching on power_control==="auto" avoids writing into the device while
-# the driver is still mid-probe; a straight ACTION=="add" match can race
-# the attribute's creation.
+# No power_control match: an earlier version required ATTR{power/control}
+# =="auto" here, and after a power cycle the rule silently did not fire, so
+# 1-6/power/wakeup stayed "disabled" and neither the keyboard nor the mouse
+# could wake the machine. Writing the flag is harmless while the driver is
+# still probing, so match on the vendor:product pair alone.
 RULE=/etc/udev/rules.d/90-bluetooth-usb-wakeup.rules
-if [ ! -f "$RULE" ] || ! grep -q 'power/wakeup}="enabled"' "$RULE"; then
+if [ ! -f "$RULE" ] || ! grep -q 'ATTR{idProduct}=="e0e2", ATTR{power/wakeup}="enabled"' "$RULE"; then
     cat >"$RULE" <<'EOF'
 # Let a Bluetooth keyboard or mouse wake the machine from suspend.
 #
@@ -56,7 +58,7 @@ if [ ! -f "$RULE" ] || ! grep -q 'power/wakeup}="enabled"' "$RULE"; then
 # advertises USB Remote Wakeup; arming power/wakeup is what makes usbcore
 # honour it during system suspend. Wake from hibernation (S4) is not
 # possible: the USB rail is off in S4.
-ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="0489", ATTR{idProduct}=="e0e2", ATTR{power/control}=="auto", ATTR{power/wakeup}="enabled"
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="0489", ATTR{idProduct}=="e0e2", ATTR{power/wakeup}="enabled"
 EOF
     chmod 644 "$RULE"
     echo "wrote $RULE"

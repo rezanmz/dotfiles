@@ -23,8 +23,7 @@ The Linux profile targets Arch Linux with Hyprland on Wayland. Configuration is 
 | `dot_config/hypr/hypridle.conf` | DPMS off, lock, and suspend timers |
 | `dot_config/hypr/hyprlock.conf` | Lock screen |
 | `dot_config/quickshell/` | Desktop shell — one `quickshell` process: bar, notification popups and centre, OSD, launcher (apps, session actions, inline maths, `cliphist`), SUPER+Tab workspace switcher with live thumbnails, drag-out picture-in-picture views of other workspaces, the macOS-style capture toolbar, and the idle panel (timed holds, plus an automatic hold while media plays); replaces waybar, dunst, anyrun, snappy-switcher and the `gpu-usage`, `net-speed`, `notif-history`, `clipboard-pick` helpers |
-| `dot_config/systemd/user/` | `quickshell.service`, `wl-clip-persist.service`, `udiskie.service` |
-| `dot_config/udiskie/` | Removable-drive automount (USB sticks, SD cards) |
+| `dot_config/systemd/user/` | `quickshell.service`, `wl-clip-persist.service` |
 | `dot_local/bin/executable_*` | `screenshot`, `record-toggle`, `set-wallpaper`, `wifi-tune`, `gdrive-export`, `ly-theme`, `stresspc` |
 | `dot_config/gtk-3.0`, `dot_config/gtk-4.0` | GTK theme, icons, cursor |
 | `dot_config/chrome-flags.conf` | Forces Chrome onto the native Wayland backend |
@@ -71,7 +70,7 @@ cliphist and the polkit agent run as `graphical-session.target` user units.
 Enable them once:
 
 ```sh
-systemctl --user enable --now quickshell hyprpaper hypridle cliphist hyprpolkitagent wl-clip-persist udiskie
+systemctl --user enable --now quickshell hyprpaper hypridle cliphist hyprpolkitagent wl-clip-persist
 ```
 
 ## System tuning (not chezmoi-managed)
@@ -580,8 +579,8 @@ it, which is a different experience from every other workspace keybinding.
 
 ### Display manager (ly) must launch the uwsm session
 
-Seven desktop units (quickshell, hyprpaper, hypridle, cliphist,
-wl-clip-persist, udiskie, hyprpolkitagent) hook `graphical-session.target`
+Six desktop units (quickshell, hyprpaper, hypridle, cliphist,
+wl-clip-persist, hyprpolkitagent) hook `graphical-session.target`
 (`Requisite=` or `PartOf=`), which uwsm sets up. Launched from a plain
 `Hyprland` session they **cannot** start at all, so the desktop comes up without
 a bar, wallpaper, lock timers, clipboard history or polkit agent.

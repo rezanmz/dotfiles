@@ -5,7 +5,7 @@
 # hyprland, hyprpaper, hypridle, hyprlock, hyprpolkitagent,
 # xdg-desktop-portal-hyprland, quickshell, wl-clipboard,
 # wl-clip-persist, cliphist, grim, slurp, satty, yazi,
-# udisks2, udiskie, libayatana-appindicator (udiskie tray icon)
+# udisks2, exfatprogs (udisks2 formats exFAT with it)
 # Replaced by quickshell (bar, notifications, launcher) and removed: waybar,
 # dunst, anyrun (AUR). Their units are still masked, so a stray reinstall cannot
 # bring them back on login.

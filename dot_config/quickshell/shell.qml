@@ -193,33 +193,6 @@ ShellRoot {
             Panels.openByName(name);
         }
 
-        // TEMPORARY verification hook: exercises DrivesState from outside the
-        // shell (there is no other way to click a row from a script).
-        function drivesDump(): string {
-            return JSON.stringify({
-                volumes: DrivesState.volumes,
-                automount: DrivesState.automount,
-                notifications: DrivesState.notifications,
-                status: DrivesState.status
-            });
-        }
-
-        function drivesMount(index: int): void {
-            DrivesState.mount(DrivesState.volumes[index]);
-        }
-
-        function drivesUnmount(index: int): void {
-            DrivesState.unmount(DrivesState.volumes[index]);
-        }
-
-        function drivesToggleAutomount(): void {
-            DrivesState.setAutomount(!DrivesState.automount);
-        }
-
-        function drivesRefresh(): void {
-            DrivesState.refresh();
-        }
-
         // Volume keys. These used to run `wpctl set-volume 5%±` straight from a
         // Hyprland bind, but wpctl's percentage is not exactly 5% of the value the
         // bar shows (measured: the raw sink value went 74.90 -> 69.80, a 5.1%

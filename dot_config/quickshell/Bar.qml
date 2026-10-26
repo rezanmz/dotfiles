@@ -124,6 +124,11 @@ PanelWindow {
 
         Bluetooth {}
 
+        // Only while a removable drive is attached: the icon is the shell's own
+        // now, not udiskie's tray item, so it can say "nothing here" by not
+        // being here (see widgets/Drives.qml).
+        Drives {}
+
         // Same-panel readouts are grouped under one BarItem: one hover pill,
         // one click target, one highlight. The readouts inside are plain items
         // (no hover, no click, no panel of their own); the Row is sized from its

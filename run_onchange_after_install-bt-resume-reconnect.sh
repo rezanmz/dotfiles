@@ -1,17 +1,24 @@
 #!/bin/sh
-# Install a systemd sleep hook that restarts bluetoothd after resume.
+# Install a systemd sleep hook that recovers Bluetooth after resume by rebinding
+# the btusb driver.
 #
-# Why: this machine's xHCI controller (0000:0c:00.0) resets the Bluetooth
-# controller on resume -- `xHC error in resume, USBSTS 0x401, Reinit` followed
-# by "usb 1-6: reset" and a full BT firmware reload. bluetoothd survives that
-# but keeps stale link state, so paired HID devices stay "Connected: yes" with
-# no working input, or refuse to connect with le-connection-abort-by-local.
-# Power-cycling the device by hand fixes it, which proves the link needs to be
-# rebuilt from a clean HCI. Restarting bluetoothd after resume does that
-# automatically; trusted devices reconnect on their own.
+# Why: this machine's xHCI controller (0000:0c:00.0) fails its save/restore on
+# every S3 resume -- "xHC error in resume, USBSTS 0x401, Reinit" -- and the kernel
+# resets the Bluetooth controller, which reloads its firmware. The controller's
+# connection table survives that reset as garbage: the paired devices report
+# Connected, new HID nodes even appear, and they send nothing until they are
+# power-cycled by hand.
 #
-# Scope: resume from S3 only. Nothing here helps hibernation (S4), where the
-# USB rail is off entirely.
+# Restarting bluetooth.service does NOT fix that: it re-attaches BlueZ to the same
+# stale controller, and stopping the daemon closes the HCI device, which costs a
+# second firmware reload (measured: two re-inits per resume, and the new daemon
+# came up 194 ms before the second one finished). Rebinding the driver does fix it:
+# btusb is unloaded and reloaded, the USB device is re-probed and the controller
+# state is rebuilt from scratch, then BlueZ reconnects the bonded devices -- same
+# MACs, no re-pairing.
+#
+# Scope: resume from S3 only. Nothing here helps hibernation (S4), where the USB
+# rail is off entirely.
 #
 # Needs root. Runs non-interactively so `chezmoi apply` can never hang on a
 # password prompt; if sudo is not passwordless it prints the command.
@@ -36,21 +43,65 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 HOOK=/usr/lib/systemd/system-sleep/50-bluetooth-reconnect
-if [ ! -f "$HOOK" ] || ! grep -q 'restart bluetooth.service' "$HOOK"; then
+if [ ! -f "$HOOK" ] || ! grep -q 'rebinding btusb after resume' "$HOOK"; then
     cat >"$HOOK" <<'EOF'
 #!/bin/sh
-# Restart bluetoothd after resume.
+# Bluetooth recovery after resume (MediaTek MT7922, USB 0489:e0e2).
 #
 # Installed by chezmoi: run_onchange_after_install-bt-resume-reconnect.sh
 #
-# The xHCI controller resets the Bluetooth controller on resume and the
-# firmware is reloaded, which leaves bluetoothd holding link state that no
-# longer exists. Input then stays dead until the device is power-cycled.
-# A short delay lets usb re-enumeration finish before bluetoothd restarts.
+# The xHCI save/restore fails on every resume and the BT controller is reset with
+# its connection table intact but stale: devices show Connected and new HID nodes
+# appear, yet no input arrives until the device is power-cycled. Rebinding btusb
+# rebuilds the controller state; restarting bluetoothd does not.
 case "$1" in
 post)
+    # Wait for the adapter to reappear, then let the USB side settle: the kernel
+    # is still re-initialising the controller for the first ~2 s after resume.
+    i=0
+    while [ $i -lt 20 ] && [ ! -d /sys/class/bluetooth ]; do
+        sleep 0.5
+        i=$((i + 1))
+    done
+    sleep 3
+
+    logger -t bt-resume "rebinding btusb after resume"
+    modprobe -r btusb btmtk 2>/dev/null || true
+    sleep 1
+    modprobe btusb 2>/dev/null || true
+
+    i=0
+    while [ $i -lt 20 ] && [ ! -e /sys/class/bluetooth/hci0 ]; do
+        sleep 0.5
+        i=$((i + 1))
+    done
+
+    # Fallback: force a USB re-enumeration of the BT function if the rebind did
+    # not bring the adapter back.
+    if [ ! -e /sys/class/bluetooth/hci0 ]; then
+        logger -t bt-resume "no hci0 after rebind, re-authorising usb 1-6"
+        echo 0 >/sys/bus/usb/devices/1-6/authorized 2>/dev/null || true
+        sleep 2
+        echo 1 >/sys/bus/usb/devices/1-6/authorized 2>/dev/null || true
+        i=0
+        while [ $i -lt 20 ] && [ ! -e /sys/class/bluetooth/hci0 ]; do
+            sleep 0.5
+            i=$((i + 1))
+        done
+    fi
+
+    if [ ! -e /sys/class/bluetooth/hci0 ]; then
+        logger -t bt-resume "ERROR: adapter did not come back after rebind"
+        exit 1
+    fi
+
+    # BlueZ reconnects bonded devices by itself, but a nudge is cheap and it is
+    # what the manual power-cycle of the device was standing in for.
     sleep 2
-    systemctl --no-block restart bluetooth.service
+    for mac in $(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'); do
+        bluetoothctl connect "$mac" >/dev/null 2>&1 || true
+    done
+    logger -t bt-resume "hci0 back, paired devices nudged"
     ;;
 esac
 EOF

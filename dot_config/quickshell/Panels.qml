@@ -7,6 +7,7 @@ pragma Singleton
 // widget closes the first, clicking outside closes everything. That is this
 // object. Panels are addressed by a short string (`calendar`, `audio`, ...)
 // which the widget sets as its `panel` property and the popup matches by name.
+import QtQuick
 import Quickshell
 
 Singleton {
@@ -56,7 +57,6 @@ Singleton {
         }
         if (item !== undefined)
             anchorItem = item;
-        openedAt = Date.now();
         current = name;
     }
 
@@ -68,12 +68,10 @@ Singleton {
             anchorItem = anchor.item;
         else if (fallbackAnchor !== null)
             anchorItem = fallbackAnchor;
-        openedAt = Date.now();
         current = name;
     }
 
     function open(name: string): void {
-        openedAt = Date.now();
         current = name;
     }
 
@@ -81,11 +79,6 @@ Singleton {
         if (current !== "")
         current = "";
     }
-
-    // When the current panel opened, in ms. Clicking the empty desktop clears
-    // the active window, and that dismissal must not race the click that opened
-    // the panel.
-    property real openedAt: 0
 
     // Panels whose own document holds the keyboard — a search field, a text
     // prompt, an xdg popup grab. The shell must not take the keyboard for Escape
@@ -95,5 +88,46 @@ Singleton {
 
     // Whether the shell's Escape surface should hold the keyboard right now.
     readonly property bool shellOwnsKeyboard: anyOpen && selfFocused.indexOf(current) === -1
+
+    // Escape closes the panel without touching keyboard focus.
+    //
+    // A grabbing surface would receive every key, and every other keystroke has to
+    // keep going to the focused window. Hyprland also routes clicks to the surface
+    // that holds exclusive keyboard focus, so such a surface swallowed clicks too:
+    // a full-screen one froze the whole bar, and a 1x1 one behaved identically,
+    // because the size was never the problem. So the key is bound in the compositor
+    // instead, and only while a panel that does not hold the keyboard itself is
+    // open: `hl.bind` on open, `hl.unbind` on close. Escape is consumed while a
+    // panel is up — that is the point — and untouched the rest of the time.
+    //
+    // Hyprland 0.56 dropped the hyprlang `keyword` path for binds ("keyword can't
+    // work with non-legacy parsers"), so this goes through `hyprctl eval`, which
+    // takes Lua. Absolute paths for both binaries: the shell's PATH is not
+    // Hyprland's.
+    property bool escapeBound: false
+
+    function syncEscapeBind(): void {
+        const want = shellOwnsKeyboard;
+        if (want === escapeBound)
+            return;
+        escapeBound = want;
+        if (want)
+            Quickshell.execDetached(["/usr/sbin/hyprctl", "eval", 'hl.bind("Escape", hl.dsp.exec_cmd("/usr/sbin/qs ipc call shell closePanel"))']);
+        else
+            Quickshell.execDetached(["/usr/sbin/hyprctl", "eval", 'hl.unbind("Escape")']);
+    }
+
+    onShellOwnsKeyboardChanged: syncEscapeBind()
+
+    // A shell that died with the bind in place would leave Escape dead in every
+    // application, so clear it at startup. (A zero-delay Timer, not
+    // Component.onCompleted: Quickshell's Singleton has no Component attached
+    // object, and using one fails the whole config with "Non-existent attached
+    // object".)
+    Timer {
+        running: true
+        interval: 0
+        onTriggered: Quickshell.execDetached(["/usr/sbin/hyprctl", "eval", 'hl.unbind("Escape")'])
+    }
 
 }

@@ -30,10 +30,6 @@ ShellRoot {
         delegate: Bar {}
     }
 
-    // Escape while a panel is open: a click-through overlay that holds the
-    // keyboard, because a panel window cannot. Maps and unmaps with the panel.
-    Escape {}
-
     // SUPER+Tab: live workspace thumbnails, most-recently-used order.
     Switcher {}
 
@@ -235,44 +231,22 @@ ShellRoot {
         }
     }
 
-    // Dismissing a panel when the user goes elsewhere.
+    // Dismissing a panel.
     //
-    // This used to be a HyprlandFocusGrab — upstream's recommendation, and it
-    // dismisses on any outside click. The problem is what the protocol grabs:
-    // hyprland_focus_grab_v1 takes the keyboard (and pointer) for the whole seat,
-    // so while any panel was open on any monitor, every keybind on every other
-    // monitor was swallowed: SUPER+1 did nothing until the panel was closed by
-    // hand. Only the grabbing client ever sees those keys, and the shell does not
-    // want them.
+    // The click-away is Catcher.qml: a pointer-only surface on the top layer,
+    // mapped while a panel is open, under the panels (which are on the overlay
+    // layer). Clicking it closes the panel; clicking the panel does not.
     //
-    // So the dismissal comes from events instead. Two things mean "the user is
-    // working somewhere else, close it": a new active window (a click on any
-    // window) and a workspace switch (keybind or click, on any monitor). Clicking
-    // the widget that opened the panel still toggles it, and clicking the empty
-    // stretch of a bar still closes it (Bar.qml).
+    // It used to be events — a new active window or a workspace switch closed the
+    // panel — and that was wrong in both directions: moving the pointer over
+    // another window (follow_mouse) closed the panel the pointer was on its way
+    // to, and clicking the empty desktop did not close it at all, because the
+    // desktop click is not a focus change. HyprlandFocusGrab is not an option
+    // either: hyprland_focus_grab_v1 takes the keyboard for the whole seat, so
+    // while a panel was open every keybind on every monitor was swallowed.
     //
-    // A null active window is ambiguous: it is what a click on the empty desktop
-    // looks like, and it is also what some panel-opening paths look like. So it
-    // dismisses only once the panel has been up for longer than a click, which
-    // rules out closing the panel that the same click opened. Everything else
-    // (a real window becoming active) dismisses immediately.
-    Connections {
-        target: Hyprland
-
-        function onActiveToplevelChanged(): void {
-            if (!Panels.anyOpen)
-                return;
-            if (Hyprland.activeToplevel === null) {
-                if (Date.now() - Panels.openedAt > 250)
-                    Panels.close();
-                return;
-            }
-            Panels.close();
-        }
-
-        function onFocusedWorkspaceChanged(): void {
-            if (Panels.anyOpen)
-                Panels.close();
-        }
-    }
+    // Clicking the widget that opened the panel still toggles it, and clicking the
+    // empty stretch of a bar still closes it (Bar.qml). Escape is the compositor
+    // bind in Panels.qml.
+    Catcher {}
 }

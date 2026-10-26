@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import qs
 import Quickshell
+import Quickshell.Wayland
 import Quickshell.Services.Notifications
 
 // Notification centre: history, search, per-app mutes, do-not-disturb, cinema
@@ -21,7 +22,11 @@ Popup {
     // a seat-wide HyprlandFocusGrab in shell.qml; that grab is gone, so this one
     // is the only one left and dismissal stays free: an xdg popup grab closes on
     // outside click.
-    grabFocus: true
+    // The panel takes the keyboard itself (search field, password
+    // prompt, confirmation): a panel that needs typing cannot be
+    // keyboardFocus: None like the rest. It closes on a click outside
+    // through the catcher like every other panel.
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
     // The compositor dismisses the grab behind Panels' back (popup_done just
     // hides the window), so close the panel for real when that happens. The

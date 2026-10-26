@@ -1,6 +1,7 @@
 import QtQuick
 import qs
 import Quickshell
+import Quickshell.Wayland
 import Quickshell.Io
 import Quickshell.Networking
 
@@ -29,7 +30,11 @@ Popup {
     name: "network"
     contentWidth: 400
 
-    grabFocus: true
+    // The panel takes the keyboard itself (search field, password
+    // prompt, confirmation): a panel that needs typing cannot be
+    // keyboardFocus: None like the rest. It closes on a click outside
+    // through the catcher like every other panel.
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
     // The compositor can dismiss the grab behind Panels' back (popup_done just
     // hides the window), so close the panel for real when that happens. The

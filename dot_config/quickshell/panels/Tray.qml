@@ -258,7 +258,15 @@ Popup {
                     if (row.hasChildren) {
                         TrayMenu.drill(row.modelData);
                     } else {
-                        row.modelData.triggered();
+                        // sendTriggered(), not triggered(): `triggered` is a
+                        // signal, so calling it only emits locally and the
+                        // server never hears the click. That is why every item
+                        // in a DBusMenu here (udiskie's toggles among them) did
+                        // nothing.
+                        if (typeof row.modelData.sendTriggered === "function")
+                            row.modelData.sendTriggered();
+                        else
+                            row.modelData.triggered();
                         TrayMenu.close();
                     }
                 }

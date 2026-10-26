@@ -9,16 +9,18 @@ import qs
 // open the key goes to whichever application is focused and nothing closes. This
 // surface is the shell's keyboard seat for the lifetime of a panel.
 //
-// It maps and unmaps with the panel on purpose. Keyboard focus is applied when a
+// It is one pixel in the bottom-right corner, and that is the whole point. An
+// earlier version covered the screen with `mask: Region {}` on the theory that an
+// empty input region makes a surface click-through; it does not here, and every
+// click on the screen — including clicks inside the panel — went to this surface
+// instead, so the shell looked frozen until Escape was pressed. A 1x1 surface
+// cannot block a click anywhere else no matter what the input region resolves to,
+// and keyboard focus does not depend on the surface being large.
+//
+// It maps and unmaps with the panel on purpose: keyboard focus is applied when a
 // layer surface maps, so flipping WlrLayershell.keyboardFocus on an already-mapped
 // window does nothing (measured: the bar held Exclusive while a panel was open and
 // the key never arrived).
-//
-// `mask: Region {}` is an empty input region, so it is click-through: every click
-// still reaches the panel, the bar or the window underneath. That is what makes it
-// safe to put on the overlay layer, above the panels it must not block. It is not
-// a scrim — an input-taking surface here would have to sit above the panels to see
-// the desktop at all, and would then eat every click they need.
 //
 // Panels that hold the keyboard themselves (Panels.selfFocused) are excluded:
 // taking it from them would swallow what the user is typing, and those panels
@@ -30,11 +32,10 @@ PanelWindow {
     screen: Util.focusedScreen()
     color: "transparent"
     exclusiveZone: -1
-    anchors.top: true
     anchors.bottom: true
-    anchors.left: true
     anchors.right: true
-    mask: Region {}
+    implicitWidth: 1
+    implicitHeight: 1
     WlrLayershell.namespace: "quickshell-escape"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive

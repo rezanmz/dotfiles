@@ -14,6 +14,7 @@ pragma Singleton
 //   forever — you asked for no deadline.
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Mpris
 import Quickshell.Wayland
 
@@ -108,5 +109,89 @@ Singleton {
             if (Date.now() >= root.deadline)
                 root.release();
         }
+    }
+
+    // ---- suspend after inactivity -------------------------------------------
+    // Minutes of inactivity before the machine suspends; 0 turns the timer off.
+    //
+    // This is the shell's timer rather than a hypridle listener because hypridle
+    // reads its timeouts from a static config file, and this one is adjustable
+    // from the panel. hypridle keeps the blank (4 min) and lock (5 min) timers,
+    // so by the time this fires the screen is off and the session is locked.
+    //
+    // It watches the same ext-idle-notify the compositor gives hypridle, so the
+    // IdleInhibitor above silences it exactly like it silences hypridle: a hold, a
+    // playing video or cinema mode keeps the machine awake here too.
+    property int suspendMinutes: 20
+    property bool loaded: false
+
+    IdleMonitor {
+        id: suspendMonitor
+
+        enabled: root.loaded && root.suspendMinutes > 0
+        timeout: Math.max(1, root.suspendMinutes) * 60
+        respectInhibitors: true
+
+        onIsIdleChanged: {
+            if (suspendMonitor.isIdle)
+                Quickshell.execDetached(["systemctl", "suspend-then-hibernate"]);
+        }
+    }
+
+    // Read once at startup. The file is created empty if missing, and a corrupt
+    // or unparseable file degrades to the defaults instead of an error.
+    Process {
+        id: stateLoad
+
+        command: ["sh", "-c", "mkdir -p \"$(dirname \"$1\")\" && touch \"$1\" && cat \"$1\"", "sh", Quickshell.statePath("idle.json")]
+        running: true
+
+        stdout: StdioCollector {
+            id: stateLoadOut
+
+            waitForEnd: true
+            onStreamFinished: {
+                try {
+                    const parsed = JSON.parse(stateLoadOut.text);
+                    if (parsed !== null && typeof parsed === "object") {
+                        if (typeof parsed.suspendMinutes === "number")
+                            root.suspendMinutes = parsed.suspendMinutes;
+                        if (typeof parsed.autoInhibit === "boolean")
+                            root.autoInhibit = parsed.autoInhibit;
+                    }
+                } catch (e) {
+                    // Missing or corrupt: keep the defaults.
+                }
+                root.loaded = true;
+            }
+        }
+    }
+
+    Process {
+        id: stateSave
+
+        property string json: "{}"
+        command: ["sh", "-c", "mkdir -p \"$(dirname \"$1\")\" && printf %s \"$2\" > \"$1\"", "sh", Quickshell.statePath("idle.json"), stateSave.json]
+    }
+
+    // Written whenever the panel changes something, so the choice survives a
+    // reboot. json is assigned first, then the process is restarted so the
+    // command binding picks the new payload up.
+    function saveState(): void {
+        stateSave.json = JSON.stringify({
+            "suspendMinutes": root.suspendMinutes,
+            "autoInhibit": root.autoInhibit
+        });
+        stateSave.running = true;
+    }
+
+    function setSuspend(minutes: int): void {
+        root.suspendMinutes = minutes;
+        root.saveState();
+    }
+
+    function setAutoInhibit(on: bool): void {
+        root.autoInhibit = on;
+        root.saveState();
     }
 }

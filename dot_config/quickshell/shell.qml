@@ -30,6 +30,10 @@ ShellRoot {
         delegate: Bar {}
     }
 
+    // Escape while a panel is open: a click-through overlay that holds the
+    // keyboard, because a panel window cannot. Maps and unmaps with the panel.
+    Escape {}
+
     // SUPER+Tab: live workspace thumbnails, most-recently-used order.
     Switcher {}
 
@@ -63,7 +67,7 @@ ShellRoot {
     // destroyed when it closes. The compiled component is cached, so this is
     // window setup, not a re-parse.
     Variants {
-        model: ["system", "audio", "bluetooth", "notifications", "media", "network", "calendar", "tray", "idle", "capture", "power", "keys"]
+        model: ["system", "audio", "bluetooth", "drives", "notifications", "media", "network", "calendar", "tray", "idle", "capture", "power", "keys"]
 
         delegate: LazyLoader {
             required property string modelData
@@ -88,6 +92,11 @@ ShellRoot {
     Component {
         id: bluetoothPanel
         Bluetooth {}
+    }
+
+    Component {
+        id: drivesPanel
+        Drives {}
     }
 
     Component {
@@ -145,6 +154,8 @@ ShellRoot {
             return audioPanel;
         case "bluetooth":
             return bluetoothPanel;
+        case "drives":
+            return drivesPanel;
         case "notifications":
             return notificationsPanel;
         case "media":
@@ -180,6 +191,33 @@ ShellRoot {
 
         function openPanel(name: string): void {
             Panels.openByName(name);
+        }
+
+        // TEMPORARY verification hook: exercises DrivesState from outside the
+        // shell (there is no other way to click a row from a script).
+        function drivesDump(): string {
+            return JSON.stringify({
+                volumes: DrivesState.volumes,
+                automount: DrivesState.automount,
+                notifications: DrivesState.notifications,
+                status: DrivesState.status
+            });
+        }
+
+        function drivesMount(index: int): void {
+            DrivesState.mount(DrivesState.volumes[index]);
+        }
+
+        function drivesUnmount(index: int): void {
+            DrivesState.unmount(DrivesState.volumes[index]);
+        }
+
+        function drivesToggleAutomount(): void {
+            DrivesState.setAutomount(!DrivesState.automount);
+        }
+
+        function drivesRefresh(): void {
+            DrivesState.refresh();
         }
 
         // Volume keys. These used to run `wpctl set-volume 5%±` straight from a
@@ -240,15 +278,23 @@ ShellRoot {
     // the widget that opened the panel still toggles it, and clicking the empty
     // stretch of a bar still closes it (Bar.qml).
     //
-    // Not on a null active window: that is also what the panel opening looks like
-    // on some paths, and a panel that closes on the click that opened it is worse
-    // than one that needs a second click.
+    // A null active window is ambiguous: it is what a click on the empty desktop
+    // looks like, and it is also what some panel-opening paths look like. So it
+    // dismisses only once the panel has been up for longer than a click, which
+    // rules out closing the panel that the same click opened. Everything else
+    // (a real window becoming active) dismisses immediately.
     Connections {
         target: Hyprland
 
         function onActiveToplevelChanged(): void {
-            if (Panels.anyOpen && Hyprland.activeToplevel !== null)
-                Panels.close();
+            if (!Panels.anyOpen)
+                return;
+            if (Hyprland.activeToplevel === null) {
+                if (Date.now() - Panels.openedAt > 250)
+                    Panels.close();
+                return;
+            }
+            Panels.close();
         }
 
         function onFocusedWorkspaceChanged(): void {

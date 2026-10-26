@@ -97,7 +97,9 @@ Popup {
                 return "held — something is playing";
             if (IdleGuard.manual)
                 return "held — " + IdleGuard.label;
-            return "idle timers are live";
+            if (IdleGuard.suspendMinutes === 0)
+                return "idle timers are live — suspend off";
+            return "idle timers are live — suspend after " + IdleGuard.suspendMinutes + "m";
         }
         color: IdleGuard.held ? Theme.green : Theme.comment
         font.family: Theme.fontFamily
@@ -106,7 +108,7 @@ Popup {
 
     Text {
         width: parent.width
-        text: "holds off blank, lock and suspend"
+        text: "screen off 4 min · lock 5 min"
         color: Theme.alpha(Theme.comment, 0.85)
         font.family: Theme.fontFamily
         font.pixelSize: Theme.fontSizeSmall
@@ -116,7 +118,53 @@ Popup {
         label: "Hold while media plays"
         detail: IdleGuard.playing ? "playing now" : "auto"
         active: IdleGuard.autoInhibit
-        onChosen: IdleGuard.autoInhibit = !IdleGuard.autoInhibit
+        onChosen: IdleGuard.setAutoInhibit(!IdleGuard.autoInhibit)
+    }
+
+    Section {
+        text: "suspend after"
+    }
+
+    Choice {
+        label: "10 minutes"
+        detail: ""
+        active: IdleGuard.suspendMinutes === 10
+        onChosen: IdleGuard.setSuspend(10)
+    }
+
+    Choice {
+        label: "20 minutes"
+        detail: ""
+        active: IdleGuard.suspendMinutes === 20
+        onChosen: IdleGuard.setSuspend(20)
+    }
+
+    Choice {
+        label: "30 minutes"
+        detail: ""
+        active: IdleGuard.suspendMinutes === 30
+        onChosen: IdleGuard.setSuspend(30)
+    }
+
+    Choice {
+        label: "1 hour"
+        detail: ""
+        active: IdleGuard.suspendMinutes === 60
+        onChosen: IdleGuard.setSuspend(60)
+    }
+
+    Choice {
+        label: "2 hours"
+        detail: ""
+        active: IdleGuard.suspendMinutes === 120
+        onChosen: IdleGuard.setSuspend(120)
+    }
+
+    Choice {
+        label: "Never"
+        detail: "stay awake"
+        active: IdleGuard.suspendMinutes === 0
+        onChosen: IdleGuard.setSuspend(0)
     }
 
     Section {

@@ -56,6 +56,7 @@ Singleton {
         }
         if (item !== undefined)
             anchorItem = item;
+        openedAt = Date.now();
         current = name;
     }
 
@@ -67,10 +68,12 @@ Singleton {
             anchorItem = anchor.item;
         else if (fallbackAnchor !== null)
             anchorItem = fallbackAnchor;
+        openedAt = Date.now();
         current = name;
     }
 
     function open(name: string): void {
+        openedAt = Date.now();
         current = name;
     }
 
@@ -79,5 +82,18 @@ Singleton {
         current = "";
     }
 
+    // When the current panel opened, in ms. Clicking the empty desktop clears
+    // the active window, and that dismissal must not race the click that opened
+    // the panel.
+    property real openedAt: 0
+
+    // Panels whose own document holds the keyboard — a search field, a text
+    // prompt, an xdg popup grab. The shell must not take the keyboard for Escape
+    // while one of these is open: a second exclusive request would steal the
+    // keys mid-typing, and these panels close on Escape themselves.
+    readonly property var selfFocused: ["notifications", "network", "keys", "capture", "power"]
+
+    // Whether the shell's Escape surface should hold the keyboard right now.
+    readonly property bool shellOwnsKeyboard: anyOpen && selfFocused.indexOf(current) === -1
 
 }

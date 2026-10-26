@@ -31,11 +31,13 @@ Popup {
     name: "power"
     contentWidth: 340
 
-    // The panel takes the keyboard itself (search field, password
-    // prompt, confirmation): a panel that needs typing cannot be
-    // keyboardFocus: None like the rest. It closes on a click outside
-    // through the catcher like every other panel.
-    WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+    // This panel has something to type into (search field, password
+    // prompt), so it asks for the keyboard -- but on demand, not
+    // exclusive. Exclusive makes the surface the click target as well,
+    // which locks out every click on the screen; on_demand hands focus
+    // over when the surface is clicked, so the field works and the
+    // catcher still sees clicks elsewhere.
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
 
     // The compositor dismisses the grab behind Panels' back (popup_done just
     // hides the window), so close the panel for real when that happens. The

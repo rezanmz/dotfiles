@@ -248,5 +248,8 @@ ShellRoot {
     // Clicking the widget that opened the panel still toggles it, and clicking the
     // empty stretch of a bar still closes it (Bar.qml). Escape is the compositor
     // bind in Panels.qml.
-    Catcher {}
+    Variants {
+        model: Quickshell.screens
+        delegate: Catcher {}
+    }
 }

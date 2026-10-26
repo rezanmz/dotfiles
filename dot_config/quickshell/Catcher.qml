@@ -14,14 +14,22 @@ import qs
 // The bar keeps its own strip (the top margin), so clicking another widget still
 // switches panels instead of only closing the open one.
 //
+// One per monitor (shell.qml creates them from Quickshell.screens): a single
+// catcher bound to the focused screen would follow the pointer to the other
+// monitor with follow_mouse, leaving the monitor the panel is actually on
+// uncovered, which is exactly where a click-away is most likely to land.
+//
 // Pointer only: no keyboard focus, so keystrokes keep going to the focused window
 // and Escape is handled by the compositor bind in Panels.qml. Mapped only while a
 // panel is open — a permanently mapped surface would swallow every desktop click.
 PanelWindow {
     id: root
 
+    // The monitor this catcher covers, from the Variants model in shell.qml.
+    required property var modelData
+
     visible: Panels.anyOpen
-    screen: Util.focusedScreen()
+    screen: root.modelData
     color: "transparent"
     exclusiveZone: -1
     anchors.top: true

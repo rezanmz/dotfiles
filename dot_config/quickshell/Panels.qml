@@ -84,7 +84,7 @@ Singleton {
     // prompt, an xdg popup grab. The shell must not take the keyboard for Escape
     // while one of these is open: a second exclusive request would steal the
     // keys mid-typing, and these panels close on Escape themselves.
-    readonly property var selfFocused: ["notifications", "network", "keys", "capture", "power"]
+    readonly property var selfFocused: ["keys", "capture"]
 
     // Whether the shell's Escape surface should hold the keyboard right now.
     readonly property bool shellOwnsKeyboard: anyOpen && selfFocused.indexOf(current) === -1

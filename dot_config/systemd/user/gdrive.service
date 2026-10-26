@@ -1,0 +1,40 @@
+[Unit]
+Description=Mount Google Drive with rclone (FUSE)
+Documentation=man:rclone(1)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+# VFS full caching keeps local copies of recently-used files so tools doing
+# random I/O (editors, video players) behave normally instead of being slow or
+# partially writing. The size/age caps stop the cache growing without limit.
+#
+# The --drive-export-formats block is what makes Google-native files usable:
+# Docs/Sheets/Slides have no bytes of their own, so Drive only serves them via
+# export. rclone then presents them as ordinary .docx/.xlsx/.pptx files. Without
+# this they appear as 0-byte entries.
+#
+# No --tpslimit: rclone.conf now carries our own OAuth client_id/secret, so the
+# quota is this project's own instead of rclone's shared (and exhausted) one.
+# The old --tpslimit 12 was papering over shared-client 403 "Quota exceeded"
+# throttling, and it capped everything, including directory listings, at 12
+# requests per second.
+ExecStart=/usr/bin/rclone mount gdrive: %h/GoogleDrive \
+    --config=%h/.config/rclone/rclone.conf \
+    --vfs-cache-mode full \
+    --vfs-cache-max-size 8G \
+    --vfs-cache-max-age 12h \
+    --cache-dir=%h/.cache/rclone/vfs \
+    --dir-cache-time 12h \
+    --poll-interval 15s \
+    --umask 022 \
+    --drive-export-formats docx,xlsx,pptx,svg \
+    --drive-import-formats docx,xlsx,pptx,md,html,csv \
+    --log-level info
+ExecStop=/usr/bin/fusermount3 -u %h/GoogleDrive
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

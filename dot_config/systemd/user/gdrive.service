@@ -10,10 +10,16 @@ Type=notify
 # random I/O (editors, video players) behave normally instead of being slow or
 # partially writing. The size/age caps stop the cache growing without limit.
 #
-# The --drive-export-formats block is what makes Google-native files usable:
+# --drive-export-formats makes pre-existing Google-native files readable:
 # Docs/Sheets/Slides have no bytes of their own, so Drive only serves them via
-# export. rclone then presents them as ordinary .docx/.xlsx/.pptx files. Without
-# this they appear as 0-byte entries.
+# export. rclone presents them as ordinary .docx/.xlsx/.pptx files; without this
+# they appear as 0-byte entries.
+#
+# No --drive-import-formats on purpose: that would convert written files into
+# Google-native documents instead of storing them as-is. It also cannot work for
+# .csv/.md/.html unless those extensions are in the export list, so uploads of
+# them fail forever ("can't convert .csv to a document with a different export
+# filetype"). Everything written through the mount stays a plain file.
 #
 # No --tpslimit: rclone.conf now carries our own OAuth client_id/secret, so the
 # quota is this project's own instead of rclone's shared (and exhausted) one.
@@ -30,7 +36,6 @@ ExecStart=/usr/bin/rclone mount gdrive: %h/GoogleDrive \
     --poll-interval 15s \
     --umask 022 \
     --drive-export-formats docx,xlsx,pptx,svg \
-    --drive-import-formats docx,xlsx,pptx,md,html,csv \
     --log-level info
 ExecStop=/usr/bin/fusermount3 -u %h/GoogleDrive
 Restart=on-failure

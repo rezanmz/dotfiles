@@ -133,16 +133,9 @@ Scope {
         },
         {
             "name": "Suspend",
-            "command": "systemctl suspend-then-hibernate",
-            "description": "Power menu — suspend, then hibernate if still asleep after 45 min",
-            "glyph": "",
-            "confirm": true
-        },
-        {
-            "name": "Hibernate",
-            "command": "systemctl hibernate",
-            "description": "Power menu — write memory to disk and power off",
-            "glyph": "",
+            "command": "systemctl suspend",
+            "description": "Power menu — suspend to RAM",
+            "glyph": "",
             "confirm": true
         }
     ]

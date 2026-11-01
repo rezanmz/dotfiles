@@ -1,37 +1,38 @@
 #!/bin/sh
-# Install the sleep and hibernate policy for this desktop.
+# Install the sleep policy for this desktop.
 #
 # Why this exists: the policy lives in /etc, which chezmoi does not manage
 # (it only manages files under $HOME), so it was hand-written and would be
 # lost on a reinstall. This script owns it.
 #
+# The policy is plain suspend to RAM (S3). There is no hibernation and no
+# suspend-then-hibernate: the machine accepts the risk of losing the session
+# to a power cut or a bit flip in DRAM, in exchange for a one-second resume
+# and no disk swap.
+#
 # What it installs:
 #
 #   /etc/systemd/logind.conf.d/10-sleep-policy.conf
-#       The power button suspends instead of powering off, and the hibernate
-#       key suspends first and only writes RAM to disk if the machine is still
-#       asleep after HibernateDelaySec.
+#       The power button and the suspend key suspend to RAM; nothing is
+#       allowed to hibernate.
 #
 #   /etc/systemd/sleep.conf.d/10-sleep-policy.conf
-#       Suspend and hibernation are allowed, deep (S3) suspend is pinned, and
-#       the suspend-then-hibernate delay is 45 minutes.
+#       Hibernation and the suspend-then-hibernate chain are refused, and
+#       deep (S3) suspend is pinned.
 #
 #   /etc/kernel/cmdline and /etc/default/grub
-#       resume=UUID=<the disk swap>, so the kernel looks for a hibernation
-#       image at boot. /etc/kernel/cmdline is the one that matters: mkinitcpio
-#       embeds it into the UKI through the presets' ALL_cmdline, and the
-#       kernel takes its command line from the UKI. The GRUB copy only
-#       applies to the classic (non-UKI) entry path.
+#       Any leftover resume= is removed. Nothing restores an image, and a
+#       stale resume= only delays the boot.
 #
 #   /etc/mkinitcpio.conf and /etc/mkinitcpio.d/*.preset
-#       The `resume` hook, so the initramfs can restore that image, and
-#       ALL_cmdline, so the UKI carries the command line above.
+#       The `resume` hook is removed; ALL_cmdline is kept so the UKI still
+#       carries /etc/kernel/cmdline.
 #
 #   /etc/fstab
-#       The disk swap is enabled at boot.
-#
-# The swap UUID is derived at run time from the actual swap device, never
-# hardcoded here: this repository is public and the UUID is machine-specific.
+#       The disk swap line is removed and the swap LV is deleted. zram
+#       (/etc/systemd/zram-generator.conf) is the whole swap on this
+#       machine; a disk swap would only be a device to forget about.
+#       Opt out with SLEEP_POLICY_DELETE_SWAP=0 to keep the LV.
 #
 # Needs root. It runs non-interactively so `chezmoi apply` can never hang on
 # a password prompt; if sudo is not passwordless it prints the command to run.
@@ -56,14 +57,6 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 0
 fi
 
-# Machine-specific names, overridable from the environment. This is the
-# volume group archinstall created; on another machine the script reuses
-# whatever disk swap it already finds and only creates one when there is
-# none at all.
-VG=${SLEEP_POLICY_VG:-ArchinstallVg}
-SWAP_LV=${SLEEP_POLICY_SWAP_LV:-swap}
-SWAP_SIZE=${SLEEP_POLICY_SWAP_SIZE:-40G}
-
 # Set when something changed that requires the initramfs to be rebuilt.
 need_initramfs=0
 
@@ -84,76 +77,22 @@ write_if_changed() {
     echo "wrote $dest"
 }
 
-# --- 1. the disk swap -------------------------------------------------------
-#
-# Hibernation needs a swap device that is on disk: the whole of RAM is
-# written to it. zram does not qualify, so it is skipped even though it is
-# the machine's higher-priority swap.
-swap_dev=""
-swap_uuid=""
-for dev in $(blkid -t TYPE=swap -o device 2>/dev/null || true); do
-    case "$dev" in
-        /dev/zram* | /dev/mapper/zram*) continue ;;
-    esac
-    swap_dev=$dev
-    swap_uuid=$(blkid -s UUID -o value "$dev" 2>/dev/null || true)
-    [ -n "$swap_uuid" ] && break
-done
-
-if [ -z "$swap_uuid" ]; then
-    if ! vgs "$VG" >/dev/null 2>&1; then
-        echo "no disk swap found and volume group $VG does not exist;" >&2
-        echo "hibernation is not wired up" >&2
-        exit 0
-    fi
-    lvcreate -L "$SWAP_SIZE" -n "$SWAP_LV" "$VG" >/dev/null
-    mkswap "/dev/$VG/$SWAP_LV" >/dev/null
-    swap_dev="/dev/$VG/$SWAP_LV"
-    swap_uuid=$(blkid -s UUID -o value "$swap_dev")
-    echo "created $swap_dev ($swap_uuid)"
-fi
-
-# The swap must be active for the hibernation image to land in it.
-#
-# swapon reports an active device under its kernel name (/dev/dm-1) while
-# blkid reports it as /dev/mapper/<vg>-<lv>, so the names cannot be compared
-# directly. Asking swapon to enable it and tolerating "busy" is the
-# reliable test: "busy" means it is already on.
-swapon_err=$(swapon "$swap_dev" 2>&1) || {
-    case "$swapon_err" in
-        *busy*)
-            echo "$swap_dev is already active"
-            ;;
-        *)
-            echo "could not enable $swap_dev: $swapon_err" >&2
-            exit 1
-            ;;
-    esac
-}
-
-# --- 2. the policy drop-ins -------------------------------------------------
+# --- 1. the policy drop-ins -------------------------------------------------
 write_if_changed /etc/systemd/logind.conf.d/10-sleep-policy.conf <<'LOGIND'
 # Sleep and power key policy for this desktop.
 #
 # Installed by chezmoi: run_onchange_after_install-sleep-policy.sh
 
 [Login]
-# The power button suspends instead of powering off. The previous default
-# (poweroff) meant a stray press killed the session outright, with no lock
-# and no warning.
+# The power button suspends to RAM instead of powering off. The previous
+# default (poweroff) meant a stray press killed the session outright, with no
+# lock and no warning.
 #
-# It is suspend-THEN-hibernate, not plain suspend. Every suspend path on
-# this machine uses the chain, so the machine can never be left holding
-# 30 GiB of RAM on standby: plain suspend powers nothing down and would
-# stay that way indefinitely. The chain idles in memory first and only
-# writes RAM to disk if the machine is still asleep after HibernateDelaySec
-# (45 minutes). Come back in five minutes and it is a ~1 s resume from RAM;
-# come back the next day and it is a ~15 s resume from the image.
-#
-# This needs a real disk-backed swap device and resume= on the kernel
-# command line. Both are in place: a disk swap LV (see /etc/fstab) and
-# resume=UUID=... in /etc/kernel/cmdline, which the initramfs reads.
-HandlePowerKey=suspend-then-hibernate
+# It is plain suspend (S3), not suspend-then-hibernate. The chain was removed
+# on purpose: the machine holds RAM on standby until it is woken, and if the
+# power goes out the session is lost. That trade is accepted — a ~1 s resume
+# from RAM, and no disk swap and no hibernation image to carry around.
+HandlePowerKey=suspend
 
 # A long press does nothing. The default is already "ignore"; stating it
 # means no future default change can turn a held button into a power off.
@@ -163,15 +102,13 @@ HandlePowerKeyLongPress=ignore
 # default (suspend) is dead configuration.
 HandleLidSwitch=ignore
 
-# The hibernate key uses the chain as well. There is no hibernate key on
-# this machine (nothing emits KEY_SLEEP), so this is only here for
-# completeness and for a future keyboard that has one.
-HandleHibernateKey=suspend-then-hibernate
+# Nothing hibernates. There is no hibernation target (no disk swap) and no
+# hibernate key on this machine (nothing emits KEY_SLEEP); this line is what
+# stops a future keyboard, or a stray loginctl call, from asking for one.
+HandleHibernateKey=ignore
 
-# The suspend key uses the chain too, for the same reason as the power
-# button: no suspend path on this machine is allowed to sit in RAM
-# indefinitely.
-HandleSuspendKey=suspend-then-hibernate
+# The suspend key suspends, for the same reason as the power button.
+HandleSuspendKey=suspend
 LOGIND
 
 write_if_changed /etc/systemd/sleep.conf.d/10-sleep-policy.conf <<'SLEEP'
@@ -180,18 +117,11 @@ write_if_changed /etc/systemd/sleep.conf.d/10-sleep-policy.conf <<'SLEEP'
 # Installed by chezmoi: run_onchange_after_install-sleep-policy.sh
 
 [Sleep]
-# Suspend is allowed, and so is the suspend-then-hibernate chain. Both are
-# the default, but they are stated here so the policy is in one place.
+# Suspend to RAM only. Both hibernation forms are refused, so no path into
+# sleep can try to write RAM to a swap device that no longer exists.
 AllowSuspend=yes
-AllowHibernation=yes
-AllowSuspendThenHibernate=yes
-
-# How long the machine stays suspended before it hibernates instead.
-#
-# systemd defaults to 2 hours on a machine with no battery. 45 minutes is
-# long enough that a coffee break does not force a slow disk resume, and
-# short enough that an overnight absence does not leave RAM powered.
-HibernateDelaySec=45min
+AllowHibernation=no
+AllowSuspendThenHibernate=no
 
 # Which sleep state to use. "mem" is S3 (deep): everything but RAM is
 # powered down. The kernel already selects deep here on its own; naming it
@@ -204,61 +134,38 @@ SuspendState=mem
 MemorySleepMode=deep
 SLEEP
 
-# --- 3. the kernel command line ---------------------------------------------
+# --- 2. leftover hibernation wiring -----------------------------------------
 #
-# resume= tells the kernel which swap device holds the hibernation image.
-# Any stale resume= is removed first, so a changed swap cannot leave two of
-# them behind and let the kernel pick the wrong one.
-if ! grep -q "resume=UUID=$swap_uuid" /etc/kernel/cmdline 2>/dev/null; then
-    sed -i 's| *resume=UUID=[^ ]*||g' /etc/kernel/cmdline
-    sed -i "s|\$| resume=UUID=$swap_uuid|" /etc/kernel/cmdline
+# resume= names the swap device that holds a hibernation image. There is no
+# image any more, and a resume= pointing at a deleted LV makes the boot log
+# an error and gives up. /etc/kernel/cmdline is the one that matters: the
+# presets' ALL_cmdline makes mkinitcpio embed it into the UKI, and the kernel
+# takes its command line from the UKI.
+if grep -q 'resume=' /etc/kernel/cmdline 2>/dev/null; then
+    sed -i 's| *resume=[^ ]*||g' /etc/kernel/cmdline
     need_initramfs=1
-    echo "updated /etc/kernel/cmdline"
+    echo "removed resume= from /etc/kernel/cmdline"
 fi
 
 # The same value for the classic GRUB entry path. This machine boots a UKI,
-# so this line is not what the running kernel uses; it is kept so a
-# non-UKI fallback entry would still be able to resume.
-if ! grep -q "resume=UUID=$swap_uuid" /etc/default/grub 2>/dev/null; then
-    # Strip any stale resume= first, then write the current one. The
-    # trailing-space trim keeps the result from having a stray space inside
-    # the quotes.
-    sed -i 's| *resume=UUID=[^ "]*||g' /etc/default/grub
-    if grep -q '^GRUB_CMDLINE_LINUX=' /etc/default/grub; then
-        sed -i "s|^GRUB_CMDLINE_LINUX=\"\(.*\)\"|GRUB_CMDLINE_LINUX=\"\1 resume=UUID=$swap_uuid\"|" /etc/default/grub
-        sed -i 's|^GRUB_CMDLINE_LINUX="[[:space:]]*|GRUB_CMDLINE_LINUX="|' /etc/default/grub
-    else
-        printf 'GRUB_CMDLINE_LINUX="resume=UUID=%s"\n' "$swap_uuid" >> /etc/default/grub
-    fi
+# so this copy only covers a non-UKI fallback entry.
+if grep -q 'resume=' /etc/default/grub 2>/dev/null; then
+    sed -i 's| *resume=[^ "]*||g' /etc/default/grub
     grub-mkconfig -o /boot/grub/grub.cfg
-    echo "updated /etc/default/grub"
+    echo "removed resume= from /etc/default/grub"
 fi
 
-# --- 4. fstab ----------------------------------------------------------------
-#
-# The disk swap has to be enabled at boot, otherwise a hibernation image
-# written before a reboot is never found. Priority 10 keeps zram (100) as
-# the preferred swap for ordinary memory pressure; the hibernation image
-# still goes to the disk swap, because that is what resume= names.
-if ! grep -qE "^[^#]*[[:space:]]none[[:space:]]+swap" /etc/fstab; then
-    printf 'UUID=%s none swap defaults,pri=10 0 0\n' "$swap_uuid" >> /etc/fstab
-    echo "added the swap to /etc/fstab"
-fi
-
-# --- 5. the initramfs --------------------------------------------------------
-#
-# The `resume` hook is what restores the image: without it in the initramfs
-# the kernel finds the swap device but nothing loads the image out of it.
-if ! grep -qE '^HOOKS=.*\bresume\b' /etc/mkinitcpio.conf; then
-    # The hook has to go INSIDE the parentheses: HOOKS=(... resume), not
-    # HOOKS=(...) resume.
-    sed -i 's|^HOOKS=(\([^)]*\))|HOOKS=(\1 resume)|' /etc/mkinitcpio.conf
+# The `resume` hook loads the image out of the swap device in the initramfs.
+# Nothing does that any more. The substitution is restricted to the HOOKS
+# line: the word also appears in the comments of the stock file.
+if grep -qE '^HOOKS=.*(^|[[:space:]])resume([[:space:]]|\)|$)' /etc/mkinitcpio.conf; then
+    sed -i '/^HOOKS=/s|[[:space:]]*\<resume\>||' /etc/mkinitcpio.conf
     need_initramfs=1
-    echo "added the resume hook to /etc/mkinitcpio.conf"
+    echo "removed the resume hook from /etc/mkinitcpio.conf"
 fi
 
 # ALL_cmdline is what puts /etc/kernel/cmdline into the UKI. Without it the
-# UKI carries the kernel's built-in command line, which has no resume=.
+# UKI carries the kernel's built-in command line.
 for preset in /etc/mkinitcpio.d/*.preset; do
     [ -f "$preset" ] || continue
     if ! grep -q "^ALL_cmdline=" "$preset"; then
@@ -268,6 +175,39 @@ for preset in /etc/mkinitcpio.d/*.preset; do
     fi
 done
 
+# --- 3. fstab ---------------------------------------------------------------
+#
+# A swap line only existed to enable the hibernation image at boot. zram is
+# enabled by systemd-zram-setup, not by fstab, so removing this line leaves
+# the machine with exactly one swap device.
+if grep -qE '^[[:space:]]*[^#].*[[:space:]]none[[:space:]]+swap[[:space:]]' /etc/fstab; then
+    sed -i -E '/^[[:space:]]*#/!{/[[:space:]]none[[:space:]]+swap[[:space:]]/d}' /etc/fstab
+    echo "removed the disk swap line from /etc/fstab"
+fi
+
+# --- 4. the disk swap LV ----------------------------------------------------
+#
+# Nothing needs a disk-backed swap once hibernation is gone. Deleting the LV
+# hands its space back to the volume group; on this machine that is 40 GiB.
+# `swapoff` is best-effort: a device that is not active is already the goal.
+if [ "${SLEEP_POLICY_DELETE_SWAP:-1}" = 1 ]; then
+    for dev in $(blkid -t TYPE=swap -o device 2>/dev/null || true); do
+        case "$dev" in
+            /dev/zram* | /dev/mapper/zram*) continue ;;
+        esac
+        swapoff "$dev" 2>/dev/null || true
+        read -r vg name <<EOF
+$(lvs --noheadings -o vg_name,lv_name "$dev" 2>/dev/null | sed 's/^[[:space:]]*//')
+EOF
+        if [ -n "${vg:-}" ] && [ -n "${name:-}" ]; then
+            lvremove -y "$vg/$name" >/dev/null
+            echo "deleted the disk swap LV $vg/$name ($dev)"
+        else
+            echo "left $dev alone: it is not an LVM swap device" >&2
+        fi
+    done
+fi
+
 # The initramfs has to be rebuilt for the new hook and command line to be
 # in it. The UKI is rebuilt by the same pass.
 if [ "$need_initramfs" -eq 1 ]; then
@@ -275,11 +215,11 @@ if [ "$need_initramfs" -eq 1 ]; then
     echo "rebuilt the initramfs and UKIs"
 fi
 
-# --- 6. apply the policy without a reboot ------------------------------------
+# --- 5. apply the policy without a reboot ------------------------------------
 #
 # systemd-logind re-reads its configuration on reload, so the key handling
 # takes effect immediately. The sleep policy is read when a sleep operation
 # starts, so it needs no reload at all.
 systemctl reload systemd-logind
 
-echo "sleep policy installed (swap $swap_dev, uuid $swap_uuid)"
+echo "sleep policy installed: suspend only, no hibernation, no disk swap"

@@ -198,16 +198,9 @@ Popup {
 
     ToggleRow {
         label: "Suspend"
-        detail: root.armed === "suspend" ? "suspends, then hibernates after 45 min — click again to confirm" : "suspend, then hibernate after 45 min"
+        detail: root.armed === "suspend" ? "suspends to RAM — click again to confirm" : "suspend to RAM"
         armed: root.armed === "suspend"
-        onChosen: root.armOrRun("suspend", "systemctl suspend-then-hibernate")
-    }
-
-    ToggleRow {
-        label: "Hibernate"
-        detail: root.armed === "hibernate" ? "writes memory to disk and powers off — click again to confirm" : "write memory to disk and power off"
-        armed: root.armed === "hibernate"
-        onChosen: root.armOrRun("hibernate", "systemctl hibernate")
+        onChosen: root.armOrRun("suspend", "systemctl suspend")
     }
 
     ToggleRow {

@@ -134,7 +134,7 @@ Singleton {
 
         onIsIdleChanged: {
             if (suspendMonitor.isIdle)
-                Quickshell.execDetached(["systemctl", "suspend-then-hibernate"]);
+                Quickshell.execDetached(["systemctl", "suspend"]);
         }
     }
 

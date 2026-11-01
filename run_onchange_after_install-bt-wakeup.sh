@@ -11,8 +11,7 @@
 # confirmed working by a suspend test on 2026-10-24 (pressing a BT key woke
 # the machine out of S3).
 #
-# Scope: wake from S3 only. Hibernation (S4) powers down the USB rail, so
-# nothing here can make Bluetooth wake the machine out of hibernate.
+# Scope: wake from S3, which is this machine's only sleep state.
 #
 # Needs root. It runs non-interactively so `chezmoi apply` can never hang
 # on a password prompt; if sudo is not passwordless it prints the command.

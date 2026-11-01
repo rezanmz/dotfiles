@@ -105,83 +105,56 @@ sudo /usr/lib/systemd/system-generators/zram-generator /tmp/zg /tmp/zg /tmp/zg
 ls /tmp/zg          # expect dev-zram0.swap + systemd-zram-setup@zram0.service.d
 ```
 
-### Sleep and hibernate policy
+### Sleep policy: suspend only
 
-The power button **suspends**; it does not power off. A long press does
-nothing at all. Every suspend path on this machine uses the same chain, so
-no route into suspend can leave the machine holding 30 GiB of RAM on
-standby indefinitely.
+The power button **suspends to RAM**; it does not power off. A long press
+does nothing at all. Every suspend path on this machine is plain S3: there is
+no hibernation and no suspend-then-hibernate chain anywhere.
 
-- **Suspend-then-hibernate** idles in RAM first, and only writes RAM to
-  disk if the machine is still asleep after `HibernateDelaySec` (45
-  minutes). Come back quickly and it is a ~1 s resume from RAM; come back
-  the next day and it is a ~15 s resume from the image.
+The trade is deliberate — a ~1 s resume from DRAM, no disk swap, no
+hibernation image to find at boot — and it accepts that a power cut, or a
+flipped bit in DRAM, while the machine sleeps loses the session.
 
 | Action | What happens |
 | --- | --- |
-| Power button | Suspend-then-hibernate. |
+| Power button | Suspend to RAM. |
 | Power button, held | Nothing. |
-| Idle for 20 min | Suspend-then-hibernate, via `hypridle`. |
-| Launcher's "Suspend" row | Suspend-then-hibernate. |
-| Power panel's "Suspend" row | Suspend-then-hibernate. |
-| Still asleep after 45 min | Hibernate: the whole of RAM is written to the disk swap. |
-| Launcher's "Hibernate" row | Hibernate immediately, no suspend first. |
-| Power panel's "Hibernate" row | Hibernate immediately, no suspend first. |
-| Hibernated machine, power button | Resume from the image, ~15 s. |
-
-Plain suspend — which powers nothing down and holds RAM indefinitely — is
-not reachable from any key or menu on this machine. It is the wrong state
-for a desktop that may be left unattended for hours.
-
-The two Hibernate rows skip the suspend step: they write RAM to disk and
-power off straight away. The image goes to the disk swap, never to zram —
-systemd picks the device that `resume=` names, and refuses to use any other
-swap while `resume=` is set.
+| Idle for 20 min | Suspend to RAM, via the shell's idle timer (`IdleGuard.qml`). |
+| Launcher's "Suspend" row | Suspend to RAM. |
+| Power panel's "Suspend" row | Suspend to RAM. |
+| Hibernate | Gone: no menu row, no key, and `systemd-sleep` refuses it. |
 
 `systemd-logind` owns the key handling and `systemd-sleep` owns the states.
 Both are configured by drop-ins that this repository installs with
 `run_onchange_after_install-sleep-policy.sh`:
 
 - `/etc/systemd/logind.conf.d/10-sleep-policy.conf` —
-  `HandlePowerKey=suspend-then-hibernate`,
-  `HandlePowerKeyLongPress=ignore`, `HandleLidSwitch=ignore` (this is a
-  tower), `HandleHibernateKey=suspend-then-hibernate`,
-  `HandleSuspendKey=suspend-then-hibernate`.
-- `/etc/systemd/sleep.conf.d/10-sleep-policy.conf` — `AllowHibernation=yes`,
-  `HibernateDelaySec=45min`, `SuspendState=mem`, `MemorySleepMode=deep`.
+  `HandlePowerKey=suspend`, `HandlePowerKeyLongPress=ignore`,
+  `HandleLidSwitch=ignore` (this is a tower), `HandleHibernateKey=ignore`,
+  `HandleSuspendKey=suspend`.
+- `/etc/systemd/sleep.conf.d/10-sleep-policy.conf` — `AllowSuspend=yes`,
+  `AllowHibernation=no`, `AllowSuspendThenHibernate=no`, `SuspendState=mem`,
+  `MemorySleepMode=deep`.
 
-`systemctl suspend-then-hibernate` is the verb that starts the chain. It
-asks `systemd-logind` for `SuspendThenHibernate` over D-Bus, which polkit
-authorizes with the `org.freedesktop.login1.hibernate` action — the same
-one plain hibernate uses, and allowed for an active local user without a
-password prompt.
-
-Hibernation needs a **disk-backed** swap device, and three things have to
-agree for the boot to find the image again:
-
-1. A disk swap LV (40 GiB) enabled in `/etc/fstab` at priority 10. zram is
-   priority 100, so it stays the preferred swap for ordinary memory
-   pressure, but a hibernation image cannot go to zram.
-2. `resume=UUID=<the disk swap>` in `/etc/kernel/cmdline`. This is the file
-   that matters: the presets' `ALL_cmdline` makes mkinitcpio embed it into
-   the UKI, and the kernel takes its command line from the UKI. The copy in
-   `/etc/default/grub` only covers the classic non-UKI entry path.
-3. The `resume` hook in `/etc/mkinitcpio.conf`, so the initramfs can load
-   the image out of the swap device.
-
-If the image is missing the boot still succeeds: the kernel logs
-`PM: Image not found (code -22)` and carries on as a normal cold boot.
+The same script removes the hibernation wiring that used to be here:
+`resume=` from `/etc/kernel/cmdline` and `/etc/default/grub`, the `resume`
+hook from `/etc/mkinitcpio.conf`, and the disk swap line from `/etc/fstab`.
+It then deletes the 40 GiB swap LV and rebuilds the initramfs, which is what
+hands that 40 GiB back to the volume group. zram
+(`/etc/systemd/zram-generator.conf`) is the only swap device left.
 
 Verify without rebooting:
 
 ```sh
 busctl get-property org.freedesktop.login1 /org/freedesktop/login1 \
-    org.freedesktop.login1.Manager HandlePowerKey   # want "suspend-then-hibernate"
+    org.freedesktop.login1.Manager HandlePowerKey   # want "suspend"
 busctl call org.freedesktop.login1 /org/freedesktop/login1 \
-    org.freedesktop.login1.Manager CanSuspendThenHibernate   # want "yes"
-systemd-analyze cat-config systemd/sleep.conf | grep HibernateDelaySec
-grep resume= /proc/cmdline
-lsinitcpio /boot/initramfs-linux.img | grep hooks/resume
+    org.freedesktop.login1.Manager CanHibernate     # want "na"
+busctl call org.freedesktop.login1 /org/freedesktop/login1 \
+    org.freedesktop.login1.Manager CanSuspendThenHibernate   # want "na"
+grep resume= /proc/cmdline                                 # want nothing
+lsinitcpio /boot/initramfs-linux.img | grep hooks/resume   # want nothing
+cat /proc/swaps                                            # want only zram0
 ```
 
 `/etc/systemd/logind.conf.d/10-sleep-policy.conf` is re-read on

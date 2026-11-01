@@ -181,7 +181,7 @@ done
 # enabled by systemd-zram-setup, not by fstab, so removing this line leaves
 # the machine with exactly one swap device.
 if grep -qE '^[[:space:]]*[^#].*[[:space:]]none[[:space:]]+swap[[:space:]]' /etc/fstab; then
-    sed -i -E '/^[[:space:]]*#/!{/[[:space:]]none[[:space:]]+swap[[:space:]]/d}' /etc/fstab
+    sed -i -E '/^[[:space:]]*#/!{/[[:space:]]none[[:space:]]+swap([[:space:]]|$)/d;}' /etc/fstab
     echo "removed the disk swap line from /etc/fstab"
 fi
 
@@ -196,14 +196,24 @@ if [ "${SLEEP_POLICY_DELETE_SWAP:-1}" = 1 ]; then
             /dev/zram* | /dev/mapper/zram*) continue ;;
         esac
         swapoff "$dev" 2>/dev/null || true
-        read -r vg name <<EOF
-$(lvs --noheadings -o vg_name,lv_name "$dev" 2>/dev/null | sed 's/^[[:space:]]*//')
-EOF
-        if [ -n "${vg:-}" ] && [ -n "${name:-}" ]; then
-            lvremove -y "$vg/$name" >/dev/null
-            echo "deleted the disk swap LV $vg/$name ($dev)"
+        # Only device-mapper LVs are deleted, and sysfs is the test: a plain
+        # partition has no dm/ directory, and an LV's dm/uuid starts with
+        # "LVM-". Reading sysfs avoids asking lvs whether it accepts whatever
+        # name blkid reported (/dev/dm-1 and /dev/mapper/<vg>-<lv> differ).
+        kname=$(basename "$(readlink -f "$dev")")
+        uuid=$(cat "/sys/block/$kname/dm/uuid" 2>/dev/null || true)
+        case "$uuid" in
+            LVM-*) ;;
+            *)
+                echo "left $dev alone: it is not an LVM logical volume" >&2
+                continue
+                ;;
+        esac
+        dname=$(cat "/sys/block/$kname/dm/name" 2>/dev/null || true)
+        if [ -n "$dname" ] && lvremove -y "/dev/mapper/$dname" >/dev/null; then
+            echo "deleted the disk swap LV $dname ($dev)"
         else
-            echo "left $dev alone: it is not an LVM swap device" >&2
+            echo "could not delete $dev; remove it by hand: lvremove -y /dev/mapper/$dname" >&2
         fi
     done
 fi

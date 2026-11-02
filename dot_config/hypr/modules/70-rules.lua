@@ -68,6 +68,34 @@ hl.window_rule({
     suppress_event = "maximize",
 })
 
+-- Browsers: never auto-switch the output into HDR.
+--
+-- Since Hyprland 0.57 (commit "cm: offer HDR to a fullscreen surface as the
+-- auto HDR trigger"), render:cm_auto_hdr is no longer driven by a client that
+-- asks for HDR -- the compositor OFFERS the HDR image description to whatever
+-- window it believes is fullscreen, and any client that renders into the
+-- preferred description takes it. Chrome does (it speaks wp_color_manager), so
+-- every fullscreen Chrome window, video or not, flipped DP-1 from its sRGB
+-- preset to BT2020_RGB: one black frame while the atomic commit landed, then a
+-- much dimmer desktop, because SDR is then shown against sdrMaxLuminance = 80
+-- nits and the panel also leaves its SDR picture mode.
+--
+-- Verified at the KMS level with drmModeGetConnector on /dev/dri/card1:
+-- windowed Chrome -> connector Colorspace = Default; fullscreen Chrome ->
+-- Colorspace = BT2020_RGB ("9") with HDR_OUTPUT_METADATA set; the same window
+-- with no_auto_hdr -> stays Default while fullscreen. mpv keeps HDR: it
+-- announces the source colorspace itself (target-colorspace-hint-mode=source in
+-- mpv.conf) instead of accepting the offer, so it still switches the output to
+-- BT2020_RGB for HDR10 material -- checked with an HDR10 test clip fullscreen.
+--
+-- Cost: HDR video inside the browser is tone-mapped to SDR now. That is the
+-- intended trade: a browser window is not a reason to reconfigure the display.
+hl.window_rule({
+    name         = "no-auto-hdr-browsers",
+    match        = { class = "^(google-chrome|chromium|brave-browser|firefox|org\\.mozilla\\.firefox|microsoft-edge)$" },
+    no_auto_hdr  = true,
+})
+
 -- XWayland drag ghost windows: never focus them.
 hl.window_rule({
     name  = "fix-xwayland-drags",

@@ -43,7 +43,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 HOOK=/usr/lib/systemd/system-sleep/50-bluetooth-reconnect
-if [ ! -f "$HOOK" ] || ! grep -q 'rebinding btusb after resume' "$HOOK"; then
+if [ ! -f "$HOOK" ] || ! grep -q 'BT_RESUME_DETACHED' "$HOOK"; then
     cat >"$HOOK" <<'EOF'
 #!/bin/sh
 # Bluetooth recovery after resume (MediaTek MT7922, USB 0489:e0e2).
@@ -54,8 +54,21 @@ if [ ! -f "$HOOK" ] || ! grep -q 'rebinding btusb after resume' "$HOOK"; then
 # its connection table intact but stale: devices show Connected and new HID nodes
 # appear, yet no input arrives until the device is power-cycled. Rebinding btusb
 # rebuilds the controller state; restarting bluetoothd does not.
+#
+# The recovery runs detached. systemd-sleep waits for this script, and doing that
+# work inline cost 60-90 s of every wake-up (measured 2026-11-02: resume at
+# 08:11:59, script finished 08:13:09), almost all of it spent in bluetoothctl
+# connect timeouts. The resume path now returns at once and the adapter comes
+# back a few seconds later, in the background.
 case "$1" in
 post)
+    if [ -z "${BT_RESUME_DETACHED:-}" ]; then
+        # Re-exec in its own session with no inherited stdio: systemd-sleep
+        # would otherwise keep waiting on the pipe until the child closed it.
+        BT_RESUME_DETACHED=1 setsid "$0" post </dev/null >/dev/null 2>&1 &
+        exit 0
+    fi
+
     # Wait for the adapter to reappear, then let the USB side settle: the kernel
     # is still re-initialising the controller for the first ~2 s after resume.
     i=0
@@ -96,11 +109,14 @@ post)
     fi
 
     # BlueZ reconnects bonded devices by itself, but a nudge is cheap and it is
-    # what the manual power-cycle of the device was standing in for.
+    # what the manual power-cycle of the device was standing in for. All of them
+    # at once and each capped: a connect to a device that is not listening
+    # spends its whole timeout, and one slow device must not delay the others.
     sleep 2
     for mac in $(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'); do
-        bluetoothctl connect "$mac" >/dev/null 2>&1 || true
+        timeout 8 bluetoothctl connect "$mac" >/dev/null 2>&1 &
     done
+    wait
     logger -t bt-resume "hci0 back, paired devices nudged"
     ;;
 esac

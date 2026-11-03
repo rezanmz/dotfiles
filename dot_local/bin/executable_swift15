@@ -17,6 +17,14 @@ CTX=${CTX:-98304}
 PORT=${PORT:-8080}
 EFFORT=${EFFORT:-low}
 
+# Refuse to start on a port that already has a listener: llama-server would die with
+# "exiting due to HTTP server error" while clients silently talk to the stale process.
+if command -v ss >/dev/null 2>&1 && ss -ltnH "sport = :$PORT" 2>/dev/null | grep -q .; then
+  echo "swift15: port $PORT is already in use -- another server is running." >&2
+  echo "         reuse it, pick another port (PORT=8081 swift15), or stop it: pkill -f llama-server" >&2
+  exit 1
+fi
+
 mtp=""
 if [ "${MTP:-0}" = "1" ]; then
   mtp="--spec-type draft-mtp"

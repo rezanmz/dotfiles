@@ -229,7 +229,15 @@ hindsight:
   # ~/.omp/agent/.env, which omp loads into the process environment.
   bankId: shared
   scoping: per-project-tagged
-  recallTimeoutMs: 30000
+  # 90000, not the upstream default of 30000. Hindsight recall legitimately
+  # spends most of its wall time in its local CPU cross-encoder reranker.
+  # Measured end-to-end recalls were 60-92s before the server-side rerank was
+  # tuned (see home-server apps/hindsight/workloads.yaml: candidate truncation,
+  # bucket batching, fewer candidates, and a 4-core CPU limit) and settle around
+  # 10-12s after. A 30s client cap sat inside the normal latency distribution,
+  # so recall failed intermittently with "recall request timed out after 30s".
+  # This is headroom, not a substitute for the server tuning.
+  recallTimeoutMs: 90000
   retainMode: full-session
 {{- end }}
 bash:

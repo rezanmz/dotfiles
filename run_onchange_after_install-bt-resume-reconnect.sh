@@ -18,9 +18,15 @@
 # wake the machine never came back until it was power-cycled by hand, and the
 # password prompt stayed unanswerable.
 #
-# So: record which paired devices were actually up before suspend, wait for them
-# after resume, and only nudge the ones that are still down. A driver reload is
-# kept for the one case it can fix, hci0 not existing at all.
+# So: record which paired devices were actually up before suspend, then after
+# resume drop the link of every BR/EDR HID device (the keyboard). That link is
+# the real damage: the controller reset kills it without telling the device, the
+# host's own reconnect then reports Connected and creates the input node, and no
+# key ever arrives (2026-11-09 12:16:38, dead until the keyboard was power-cycled
+# at 12:16:59). A teardown the DEVICE observes -- HCI Disconnect -- is what
+# clears its stale hidp context, and the next key press rebuilds a clean link. LE
+# HOGP devices (the mouse) are left alone, they recover by themselves. A driver
+# reload is kept for the one case it can fix, hci0 not existing at all.
 #
 # Scope: resume from S3 only. Nothing here helps hibernation (S4), where the USB
 # rail is off entirely.
@@ -48,11 +54,11 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 HOOK=/usr/lib/systemd/system-sleep/50-bluetooth-reconnect
-if [ ! -f "$HOOK" ] || ! grep -q 'bt-resume v3' "$HOOK"; then
+if [ ! -f "$HOOK" ] || ! grep -q 'bt-resume v7' "$HOOK"; then
     cat >"$HOOK" <<'EOF'
 #!/bin/sh
 # Bluetooth recovery after resume (MediaTek MT7922, USB 0489:e0e2).
-# bt-resume v3: nudge-only, no driver rebind.
+# bt-resume v7: poll for the stale hidp link, drop it once, let the device rebuild.
 #
 # Installed by chezmoi: run_onchange_after_install-bt-resume-reconnect.sh
 #
@@ -63,9 +69,13 @@ if [ ! -f "$HOOK" ] || ! grep -q 'bt-resume v3' "$HOOK"; then
 # reconnect that is already in flight -- see the installer for the 2026-11-09
 # trace where that left the keyboard dead until it was power-cycled.
 #
-# Work done here: note which devices were up before suspend, wait for them after
-# resume, nudge only the ones that stayed down, and re-enumerate the USB
-# function in the one case where the adapter itself never came back.
+# Work done here: note which devices were up before suspend, let BlueZ reconnect
+# them, then DROP the BR/EDR HID link so the device stops using the hidp context
+# the reset orphaned; the next key press makes the keyboard page the host and the
+# link it builds is clean. A host-initiated connect is never attempted on it --
+# the Keychron is not pageable while idle. LE devices get one bounded nudge, and
+# the USB function is re-enumerated in the one case where the adapter itself
+# never came back.
 #
 # The post half must run detached: systemd-sleep.service kills its whole cgroup
 # when it exits, so a plain `setsid ... &` child is SIGTERM'd within
@@ -82,6 +92,13 @@ bt_devices() {
 
 bt_up() {
     bluetoothctl info "$1" 2>/dev/null | grep -q 'Connected: yes'
+}
+
+# BR/EDR HID (hidp) -- the keyboard. LE HOGP devices (the mouse) reconnect
+# cleanly by themselves and must be left alone.
+is_bredr_hid() {
+    bluetoothctl info "$1" 2>/dev/null |
+        grep -q '00001124-0000-1000-8000-00805f9b34fb'
 }
 
 # Devices from $STATE (or all paired devices, if it is missing) that are down.
@@ -151,32 +168,52 @@ post)
         exit 0
     fi
 
-    # Two rounds of 10 s let the devices and BlueZ finish what they started.
-    missing=""
-    round=0
-    while [ $round -lt 2 ]; do
-        sleep 10
-        missing=$(down)
-        if [ -z "$missing" ]; then
-            logger -t bt-resume "all devices from before suspend reconnected on their own"
-            exit 0
-        fi
-        round=$((round + 1))
+    # BR/EDR HID: the device keeps the hidp context of the link the controller
+    # reset destroyed and still believes it is connected, so its key presses go
+    # into a dead link and it never re-pages (2026-11-09 12:16:38, silent until
+    # the keyboard was power-cycled at 12:16:59). A teardown the DEVICE sees
+    # clears that; the next key press then makes the keyboard page the host and
+    # a device-initiated link is clean (confirmed 12:26 and 12:35).
+    #
+    # Never connect it from here: the Keychron is not pageable while idle, so a
+    # host-initiated connect only fails ("Operation already in progress" at
+    # 09:23, no link at 12:26 and 12:35) and would leave the keyboard down. The
+    # price of this design is one swallowed key press per resume.
+    #
+    # BlueZ re-establishes links after the firmware reload, but not at a
+    # predictable moment: intervals are 1,2,4,8,16,... and on 2026-11-06 a device
+    # only reappeared 12 s after resume. A single snapshot would miss that and
+    # leave the silent link in place, so poll for up to 25 s.
+    #
+    # Each device is dropped at most ONCE. Dropping it again when the user's own
+    # key press has just rebuilt the link would swallow that press too, and keep
+    # swallowing it, so the first successful drop ends the work for that MAC.
+    ticks=0
+    dropped=""
+    while [ "$ticks" -lt 50 ]; do
+        for mac in $(cat "$STATE" 2>/dev/null); do
+            case " $dropped " in *" $mac "*) continue;; esac
+            bt_up "$mac" || continue
+            is_bredr_hid "$mac" || continue
+            logger -t bt-resume "dropping stale hidp link, next key press rebuilds it: $mac"
+            timeout 10 bluetoothctl disconnect "$mac" >/dev/null 2>&1
+            dropped="$dropped $mac"
+        done
+        sleep 0.5
+        ticks=$((ticks + 1))
     done
 
-    logger -t bt-resume "nudging devices still down: $(echo $missing)"
-    for mac in $missing; do
+    # LE HOGP devices (the mouse) reconnect by themselves, and a sleeping one is
+    # also not pageable, but a bounded attempt costs nothing and catches the case
+    # where the device is awake and waiting.
+    sleep 2
+    for mac in $(down); do
+        is_bredr_hid "$mac" && continue
+        logger -t bt-resume "nudging $mac"
         timeout 8 bluetoothctl connect "$mac" >/dev/null 2>&1 &
     done
     wait
-
-    sleep 5
-    missing=$(down)
-    if [ -z "$missing" ]; then
-        logger -t bt-resume "all devices reconnected after a nudge"
-    else
-        logger -t bt-resume "still down after a nudge: $(echo $missing)"
-    fi
+    logger -t bt-resume "resume recovery done"
     ;;
 esac
 EOF

@@ -1,21 +1,26 @@
 #!/bin/sh
-# Install a systemd sleep hook that recovers Bluetooth after resume by rebinding
-# the btusb driver.
+# Install a systemd sleep hook that recovers Bluetooth after resume by nudging
+# the devices that did not come back on their own.
 #
 # Why: this machine's xHCI controller (0000:0c:00.0) fails its save/restore on
-# every S3 resume -- "xHC error in resume, USBSTS 0x401, Reinit" -- and the kernel
-# resets the Bluetooth controller, which reloads its firmware. The controller's
-# connection table survives that reset as garbage: the paired devices report
-# Connected, new HID nodes even appear, and they send nothing until they are
-# power-cycled by hand.
+# every S3 resume -- "xHC error in resume, USBSTS 0x401, Reinit" -- and btmtk
+# reloads the Bluetooth controller firmware as part of its own resume. That
+# reset drops every link, and the devices plus BlueZ re-establish them by
+# themselves within a few seconds (measured 2026-11-06, with no hook running at
+# all: Keychron HID node 6 s after resume).
 #
-# Restarting bluetooth.service does NOT fix that: it re-attaches BlueZ to the same
-# stale controller, and stopping the daemon closes the HCI device, which costs a
-# second firmware reload (measured: two re-inits per resume, and the new daemon
-# came up 194 ms before the second one finished). Rebinding the driver does fix it:
-# btusb is unloaded and reloaded, the USB device is re-probed and the controller
-# state is rebuilt from scratch, then BlueZ reconnects the bonded devices -- same
-# MACs, no re-pairing.
+# The hook used to rebind btusb instead. That is wrong: it resets the controller
+# a SECOND time, three seconds after the first one, and races the reconnect the
+# devices are already making. 2026-11-09 09:23 is the bill for that -- the wake
+# sequence was kernel reset :09.5, hook reload :12.5-:13.7, then bluetoothd
+# "connect ... Operation already in progress (114)" and the kernel "ACL packet
+# for unknown connection handle 50". The keyboard the user had just pressed to
+# wake the machine never came back until it was power-cycled by hand, and the
+# password prompt stayed unanswerable.
+#
+# So: record which paired devices were actually up before suspend, wait for them
+# after resume, and only nudge the ones that are still down. A driver reload is
+# kept for the one case it can fix, hci0 not existing at all.
 #
 # Scope: resume from S3 only. Nothing here helps hibernation (S4), where the USB
 # rail is off entirely.
@@ -43,56 +48,90 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 HOOK=/usr/lib/systemd/system-sleep/50-bluetooth-reconnect
-if [ ! -f "$HOOK" ] || ! grep -q 'BT_RESUME_DETACHED' "$HOOK"; then
+if [ ! -f "$HOOK" ] || ! grep -q 'bt-resume v3' "$HOOK"; then
     cat >"$HOOK" <<'EOF'
 #!/bin/sh
 # Bluetooth recovery after resume (MediaTek MT7922, USB 0489:e0e2).
+# bt-resume v3: nudge-only, no driver rebind.
 #
 # Installed by chezmoi: run_onchange_after_install-bt-resume-reconnect.sh
 #
-# The xHCI save/restore fails on every resume and the BT controller is reset with
-# its connection table intact but stale: devices show Connected and new HID nodes
-# appear, yet no input arrives until the device is power-cycled. Rebinding btusb
-# rebuilds the controller state; restarting bluetoothd does not.
+# The kernel resets this controller on every resume by itself (btmtk reloads the
+# firmware right after "xHC error in resume, USBSTS 0x401, Reinit"), and the
+# paired devices come back on their own within a few seconds. Rebinding btusb
+# here therefore stacks a second reset on top of that one and breaks the
+# reconnect that is already in flight -- see the installer for the 2026-11-09
+# trace where that left the keyboard dead until it was power-cycled.
 #
-# The recovery runs detached. systemd-sleep waits for this script, and doing that
-# work inline cost 60-90 s of every wake-up (measured 2026-11-02: resume at
-# 08:11:59, script finished 08:13:09), almost all of it spent in bluetoothctl
-# connect timeouts. The resume path now returns at once and the adapter comes
-# back a few seconds later, in the background.
+# Work done here: note which devices were up before suspend, wait for them after
+# resume, nudge only the ones that stayed down, and re-enumerate the USB
+# function in the one case where the adapter itself never came back.
+#
+# The post half must run detached: systemd-sleep.service kills its whole cgroup
+# when it exits, so a plain `setsid ... &` child is SIGTERM'd within
+# milliseconds (that is exactly what the earlier version did, silently, for four
+# days). systemd-run puts it in its own transient unit, which outlives the sleep
+# service; doing the work inline instead cost 60-90 s of every wake-up.
+#
+# Devices up before suspend.
+STATE=/run/bt-resume-connected
+
+bt_devices() {
+    bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'
+}
+
+bt_up() {
+    bluetoothctl info "$1" 2>/dev/null | grep -q 'Connected: yes'
+}
+
+# Devices from $STATE (or all paired devices, if it is missing) that are down.
+down() {
+    if [ -f "$STATE" ]; then
+        wanted=$(cat "$STATE")
+    else
+        wanted=$(bt_devices)
+    fi
+    for mac in $wanted; do
+        bt_up "$mac" || echo "$mac"
+    done
+}
+
 case "$1" in
+pre)
+    # Runs synchronously, before the suspend, so this must stay one bounded call:
+    # a per-device `bluetoothctl info` loop here would put N D-Bus round trips to
+    # bluetoothd -- the daemon that goes wedged on this box -- on the sleep path,
+    # and a stall there becomes a 60-90 s wake again (systemd-sleep waits for the
+    # hook). `devices Connected` returns exactly the set wanted, in one call.
+    #
+    # If this fails or times out, $STATE stays empty or stale and the post half
+    # falls back to nudging every paired device, which is only wasteful.
+    timeout 5 bluetoothctl devices Connected 2>/dev/null |
+        awk '{print $2}' >"$STATE" 2>/dev/null || true
+    exit 0
+    ;;
 post)
     if [ -z "${BT_RESUME_DETACHED:-}" ]; then
-        # Re-exec in its own session with no inherited stdio: systemd-sleep
-        # would otherwise keep waiting on the pipe until the child closed it.
-        BT_RESUME_DETACHED=1 setsid "$0" post </dev/null >/dev/null 2>&1 &
+        systemd-run --quiet --collect --no-block \
+            --unit="bt-resume-reconnect-$$" \
+            --setenv=BT_RESUME_DETACHED=1 \
+            /bin/sh "$0" post ||
+            logger -t bt-resume "ERROR: systemd-run failed, recovery not started"
         exit 0
     fi
 
-    # Wait for the adapter to reappear, then let the USB side settle: the kernel
-    # is still re-initialising the controller for the first ~2 s after resume.
-    i=0
-    while [ $i -lt 20 ] && [ ! -d /sys/class/bluetooth ]; do
-        sleep 0.5
-        i=$((i + 1))
-    done
-    sleep 3
-
-    logger -t bt-resume "rebinding btusb after resume"
-    modprobe -r btusb btmtk 2>/dev/null || true
-    sleep 1
-    modprobe btusb 2>/dev/null || true
-
+    # Wait for the adapter itself: hci0 is unregistered and registered again
+    # while btmtk reloads the firmware.
     i=0
     while [ $i -lt 20 ] && [ ! -e /sys/class/bluetooth/hci0 ]; do
         sleep 0.5
         i=$((i + 1))
     done
 
-    # Fallback: force a USB re-enumeration of the BT function if the rebind did
-    # not bring the adapter back.
+    # The xHC reinit can leave the BT USB function dead. Re-enumerating it is the
+    # only failure a driver-level reset would ever have fixed.
     if [ ! -e /sys/class/bluetooth/hci0 ]; then
-        logger -t bt-resume "no hci0 after rebind, re-authorising usb 1-6"
+        logger -t bt-resume "no hci0 after resume, re-authorising usb 1-6"
         echo 0 >/sys/bus/usb/devices/1-6/authorized 2>/dev/null || true
         sleep 2
         echo 1 >/sys/bus/usb/devices/1-6/authorized 2>/dev/null || true
@@ -102,22 +141,42 @@ post)
             i=$((i + 1))
         done
     fi
-
     if [ ! -e /sys/class/bluetooth/hci0 ]; then
-        logger -t bt-resume "ERROR: adapter did not come back after rebind"
+        logger -t bt-resume "ERROR: hci0 missing after resume, nothing to nudge"
         exit 1
     fi
 
-    # BlueZ reconnects bonded devices by itself, but a nudge is cheap and it is
-    # what the manual power-cycle of the device was standing in for. All of them
-    # at once and each capped: a connect to a device that is not listening
-    # spends its whole timeout, and one slow device must not delay the others.
-    sleep 2
-    for mac in $(bluetoothctl devices Paired 2>/dev/null | awk '{print $2}'); do
+    if [ -f "$STATE" ] && [ ! -s "$STATE" ]; then
+        logger -t bt-resume "no device was up before suspend, nothing to do"
+        exit 0
+    fi
+
+    # Two rounds of 10 s let the devices and BlueZ finish what they started.
+    missing=""
+    round=0
+    while [ $round -lt 2 ]; do
+        sleep 10
+        missing=$(down)
+        if [ -z "$missing" ]; then
+            logger -t bt-resume "all devices from before suspend reconnected on their own"
+            exit 0
+        fi
+        round=$((round + 1))
+    done
+
+    logger -t bt-resume "nudging devices still down: $(echo $missing)"
+    for mac in $missing; do
         timeout 8 bluetoothctl connect "$mac" >/dev/null 2>&1 &
     done
     wait
-    logger -t bt-resume "hci0 back, paired devices nudged"
+
+    sleep 5
+    missing=$(down)
+    if [ -z "$missing" ]; then
+        logger -t bt-resume "all devices reconnected after a nudge"
+    else
+        logger -t bt-resume "still down after a nudge: $(echo $missing)"
+    fi
     ;;
 esac
 EOF

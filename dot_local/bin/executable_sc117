@@ -7,11 +7,19 @@
 #   shard 1  38.0 GB  weights, ~34 GB of them experts; decode reads them from <pack>/experts.bin
 #   shard 2  28.8 GB  the n-gram (PLE) table, mmap'd: one row per token, never resident
 #
-# Measured 2026-11-12 on this box (Strata 0.2.9, 16 GB card, 30.5 GiB RAM, WD_BLACK SN850X):
-#   fit              experts 34.0 GB.  Low-RAM mode is automatic here (30.5 < 34 + 10), so there is no anonymous
-#                    arena to swap: the experts are mmap'd from the pack and the KV cache stays in VRAM.
-#   experts on SSD   ~2.6 GB with no reserve; ~5.7 GB at 128K/k8v4 with RESERVE=2048 (12.6 GB of the 34 GB fit in
-#                    VRAM: 15.9 card - 5 dense - 1 MTP - 2 reserve - 1.1 KV beyond 32K).
+# Measured 2026-11-12 on this box (Strata 0.2.9 + engine 0.1.59-hip, 16 GB card, 30.5 GiB RAM, WD_BLACK SN850X):
+#   first start      engine 674 MB, pack ~40 GB, draft 5.2 GB, reader 0.9 GB -> ready in 5.4 min; later starts ~20 s.
+#   fit              experts 34.0 GB, all of it mmap'd from <pack>/experts.bin (low-RAM mode is automatic here:
+#                    30.5 < 34 + 10), so no anonymous arena is swapped; KV stays in VRAM.
+#   VRAM             15.9/15.9 GiB reported: expert cache 5.68 GiB = 4408 slots, MTP 950 MiB, and the 2048 MiB
+#                    reserve is held by the engine's plan ("8.11 GiB free, 2048 reserved").
+#   decode           22-48 tok/s (expert-cache hit rate 67-84%, `route tail skip` on by default: a ranked-out
+#                    missed expert is skipped, STRATA_ROUTE_TAIL_SKIP=0 for exactness -- answers differ slightly).
+#   prompt           the expensive part: 660 tokens cold = 45 s (14.6 tok/s), the same 6713-token harness prompt
+#                    warm = 28 s (237 tok/s).  A cold prompt reads essentially every expert once, so LEAVE THE
+#                    SERVER RUNNING: an identical prefix is reused (655 of 660 tokens in 147 ms).
+#   pictures         272-token image: 5.9 s prompt, 121 tokens out in 4.4 s, read the text and colours correctly.
+#   memory           AnonPages 3.4 GiB, page cache 23.4 GiB, zram 4.5 GiB in use while serving.
 #   context cost     15,360 elements/token (12 full-attention layers x 2 KV heads x 256, + 12 QSA indexer rows x 256).
 #                    int8: 0.50 GiB at 32K, 1.00 at 64K, 1.99 at 128K, 3.98 at 262K
 #                    k8v4: 0.40 / 0.81 / 1.62 / 3.24           q4_0: 0.26 / 0.53 / 1.05 / 2.11

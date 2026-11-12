@@ -1,18 +1,22 @@
+# The one local profile: everything here is a locally hosted model, nothing leaves the machine.
+# models.yml beside this file is WRITTEN BY `llm <recipe>` on every start (provider "local", model id "local"),
+# so `omp --profile offline` always talks to whatever llm started last. This file only decides the roles, which
+# all point at that single id, plus what is switched off.
 modelRoles:
-  smol: strata-local/sc117
-  slow: strata-local/sc117
-  vision: strata-local/sc117
-  plan: strata-local/sc117
-  designer: strata-local/sc117
-  commit: strata-local/sc117
-  tiny: strata-local/sc117
-  task: strata-local/sc117
-  advisor: strata-local/sc117
-  judge: strata-local/sc117
-  widget: strata-local/sc117
-  memory: strata-local/sc117
+  smol: local/local
+  slow: local/local
+  vision: local/local
+  plan: local/local
+  designer: local/local
+  commit: local/local
+  tiny: local/local
+  task: local/local
+  advisor: local/local
+  judge: local/local
+  widget: local/local
+  memory: local/local
 enabledModels:
-  - strata-local/sc117
+  - local/local
 retry:
   modelFallback: false
   fallbackChains: {}

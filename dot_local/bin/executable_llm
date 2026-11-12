@@ -1,99 +1,175 @@
 #!/bin/sh
-# llm — one command for every model hosted on this box, from a declaration per model, not a script per model.
+# llm — one command per model hosted on this machine. Declarative: one .conf per model, no code per model.
 #
-#   llm                      what is declared, what is running, what is missing
-#   llm <name>               run it in the FOREGROUND; Ctrl+C (or closing the window) stops it
-#   llm <name> --print       print the exact command it would run, change nothing
-#   llm new <name>           scaffold a recipe and tell you the two lines to fill in
-#   llm stop                 stop whatever is serving the port
+#   llm                    what is declared, what is on disk, what is running
+#   llm <name>             run it in the FOREGROUND; Ctrl+C (or closing the window) stops it.
+#                          Missing files are downloaded first when the recipe says where they come from.
+#   llm <name> --print     print the exact command, change nothing
+#   llm fetch <name>       only download what the recipe needs (resumable)
+#   llm prune <name>       delete this recipe's model files (prints the total; add --yes to do it)
+#   llm new <name>         scaffold a recipe, then fill in two lines
+#   llm stop               stop whatever is serving the port
 #   llm help
 #
-# A recipe is one small shell file, ~/.local/share/llm/recipes/<name>.conf, and nothing else:
+# Starting a model also rewrites the one shared omp profile, ~/.omp/profiles/offline, to point at it: after
+# `llm swift15` you talk to it with `omp --profile offline`, and after `llm sc117` the same command talks to that.
 #
-#   about="Swift 1.5 27B IQ3_XXS"        # the line `llm list` shows
+# A recipe is ~/.local/share/llm/recipes/<name>.conf (a shell file, so $HOME works):
+#
+#   about="what it is, in one line"      # shown by `llm list`
 #   engine=llama                         # llama | strata
-#   model=$HOME/models/swift15/IQ3_XXS-mtp.gguf     (llama: a .gguf; strata: the shard folder)
-#   ctx=98304
-#   kv=q4_0
-#   llama_dir=$HOME/.local/opt/llama-b12079         (llama only: where llama-server lives)
-#   template=$HOME/models/swift15/tpl.jinja         (llama only, optional: --chat-template-file)
-#   args="-ngl 99 -fa on -ub 1024 -b 2048 -t 8 --parallel 1 --cache-ram 16384 --jinja --temp 1.0 --top-p 0.95"
-#   flags=""                                        # extra flags, appended last
-#   vision=gpu                                      (strata only: gpu | cpu | off)
-#   reserve=2048                                    (strata only: MiB of VRAM kept for the desktop)
-#   mtp=1                                           (strata: --mtp on|off; llama: --spec-type draft-mtp)
+#   model=$HOME/models/x/model.gguf      # llama: a .gguf; strata: the shard folder
+#   ctx=32768                            # llama: -c; strata: --max-context
+#   kv=q4_0                              # llama: -ctk/-ctv; strata: --kv
+#   llama_dir=$HOME/.local/opt/llama-b12079   (llama) where llama-server lives
+#   template=$HOME/models/x/tpl.jinja          (llama, optional) --chat-template-file
+#   args="-ngl 99 --parallel 1 --jinja --temp 0.7 --top-p 0.95"   (llama) flags, before the port ones
+#   flags=""                                    (llama) flags, appended last
+#   mtp=0                                # llama: --spec-type draft-mtp when 1; strata: --mtp on|off
+#   vision=gpu                           (strata) gpu | cpu | off
+#   reserve=2048                         (strata) MiB of VRAM kept for the desktop
+#   strata_config=strata-q2_0.json       (strata) the run config Strata keeps for this model, in install/
+#   hf=ORG/REPO                          where the files come from (Hugging Face), optional
+#   files="Q2_0/shard-00001-of-00002.gguf Q2_0/shard-00002-of-00002.gguf"   paths inside the repo
+#   bytes="38021379872 28800138432"      expected sizes, checked after the download
+#   fetch_dir=$HOME/models/x             where files/ land (default: model's folder, or its dirname)
 #
-# Flags: --ctx N|128k, --port N, --kv FMT, --model PATH, --print.  Anything a recipe needs and this file does
-# not cover belongs in `args`, so adding a model is: copy a .conf, change two lines, `llm list`.
-#
-# Recipes here:
-#   sc117   Qwen3.8-Flash-Next Q2_0 abliterated — Strata streams 34 GB of experts off the SSD. 128K, k8v4 KV,
-#           GPU vision (1024 image tokens), MTP. Decode 22-48 tok/s; an identical prefix is reused (19 new tokens
-#           in 0.5 s) but a NEW prompt sweeps the experts (10-40 s). First start builds a ~40 GB pack; later ~20 s.
-#           Reserve 1024 leaves the desktop 608 MiB of VRAM, 2048 leaves 1930 MiB, 3072 is the engine's own advice
-#           if the desktop ever crashes after a start. `omp --profile sc117` talks to it.
-#   swift15 Swift 1.5 27B IQ3_XXS, llama.cpp b12079 Vulkan: 96K, 42 tok/s, 14.3 GiB VRAM.
-#   swift15u the heretic (abliterated) build: same profile, ~13.1 GiB at 96K.
+# Flags that override the recipe: --ctx N|128k, --port N, --kv FMT, --model PATH, --print, --yes.
 set -e
 
 STRATA=${STRATA:-strata}
 RECIPES=${LLM_RECIPES:-$HOME/.local/share/llm/recipes}
+PROFILE=${OMP_PROFILE:-$HOME/.omp/profiles/offline/agent}
 PORT=${PORT:-8080}
 CTX=${CTX:-}
 KV=${KV:-}
 MODEL=${MODEL:-}
+ASSUME=0
+PRINT=0
 
-names() {
-  for f in "$RECIPES"/*.conf; do
-    [ -e "$f" ] || continue
-    printf '%s\n' "$(basename "$f" .conf)"
-  done
-}
-
+names() { for f in "$RECIPES"/*.conf; do [ -e "$f" ] || continue; printf '%s\n' "$(basename "$f" .conf)"; done; }
 name_list() { names | tr '\n' ' '; }
+num() { case "$1" in *k|*K) echo $(( ${1%[kK]} * 1024 ));; *) echo "$1";; esac; }
+port_busy() { command -v ss >/dev/null 2>&1 && ss -ltnH "sport = :$1" 2>/dev/null | grep -q .; }
+human() { numfmt --to=iec "${1:-0}" 2>/dev/null || echo "${1:-0}B"; }
 
 usage() {
   cat <<'EOF'
 llm — run a locally hosted model in the foreground (Ctrl+C stops it).
 
-  llm                  what is declared, what is running
-  llm <name>           run one (Tab completes the names)
+  llm                  what is declared, on disk and running
+  llm <name>           run one (Tab completes the names); downloads it first if it is missing and the
+                       recipe knows where it lives
   llm <name> --print   show the command, run nothing
-  llm new <name>       scaffold a recipe in ~/.local/share/llm/recipes/
+  llm fetch <name>     download only (resumable)
+  llm prune <name>     delete this recipe's model files (prints the total; --yes to really delete)
+  llm new <name>       scaffold a recipe
   llm stop             stop whatever is serving the port
   llm help             this text
 
-flags (they override the recipe's own value)
-  --ctx N|128k         context length
-  --port N             HTTP port (8080)
-  --kv FMT             llama: f16 q8_0 q4_0 q5_1   strata: int8 k8v4 q4_0 fp16
-  --model PATH         another .gguf (llama recipes)
+flags
+  --ctx N|128k   --port N   --kv FMT   --model PATH   --print   --yes
 
-a recipe needs: engine, model, ctx.  engine=llama also wants llama_dir; engine=strata runs `strata launch` once
-to build the pack, then `strata serve` in the foreground.
+starting a model also rewrites ~/.omp/profiles/offline, so `omp --profile offline` always talks to the model
+that llm started last.
 EOF
 }
 
-port_busy() { command -v ss >/dev/null 2>&1 && ss -ltnH "sport = :$1" 2>/dev/null | grep -q .; }
-
-num() {
-  case "$1" in
-    *k|*K) echo $(( ${1%[kK]} * 1024 )) ;;
-    *) echo "$1" ;;
+load() {
+  about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; args=""; flags=""
+  mtp=0; vision=""; reserve=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
+  . "$RECIPES/$1.conf"
+  [ -n "$MODEL" ] && model=$MODEL
+  CTX=${CTX:-$ctx}
+  KV=${KV:-$kv}
+  : "${CTX:?llm: $1.conf has no ctx}"
+  : "${engine:?llm: $1.conf has no engine}"
+  case "$engine" in
+    strata) fetch_dir=${fetch_dir:-$model} ;;
+    llama)  fetch_dir=${fetch_dir:-$(dirname "$model")} ;;
   esac
 }
 
-show() {
-  for n in $(names); do
-    ( about=""; engine="?"; model=""; ctx=""; kv=""
-      . "$RECIPES/$n.conf"
-      case "$engine" in
-        llama)  state="model: $([ -f "$model" ] && echo ok || echo MISSING)" ;;
-        strata) state="dir: $([ -d "$model" ] && echo ok || echo MISSING)" ;;
-        *)      state="no engine" ;;
-      esac
-      printf '%-10s %-7s %-7s %-6s %s\n' "$n" "$engine" "$ctx" "$kv" "$state — $about" )
+# is the recipe's model on disk?  (llama: the .gguf; strata: the shard folder with a first shard in it)
+present() {
+  case "$engine" in
+    llama)  [ -f "$model" ] ;;
+    strata) [ -d "$model" ] && ls "$model"/*-00001-of-*.gguf >/dev/null 2>&1 ;;
+  esac
+}
+
+state() {
+  if present; then echo ok
+  elif [ -n "$hf" ]; then echo "missing (llm fetch $1)"
+  else echo "MISSING (no hf= in the recipe)"; fi
+}
+
+fetch_it() {
+  [ -n "$hf" ] || { echo "llm: $1 has no hf=, so it cannot download it; put the files in $model" >&2; return 1; }
+  mkdir -p "$fetch_dir"
+  i=1
+  for f in $files; do
+    out=$fetch_dir/$(basename "$f")
+    want=$(printf '%s\n' $bytes | sed -n "${i}p")
+    if [ -f "$out" ] && { [ -z "$want" ] || [ "$(stat -c %s "$out")" = "$want" ]; }; then
+      i=$((i+1)); continue
+    fi
+    echo "llm: $1 — $f"
+    curl -fL -C - --retry 5 --retry-delay 5 -o "$out" "https://huggingface.co/$hf/resolve/main/$f" || return 1
+    if [ -n "$want" ] && [ "$(stat -c %s "$out")" != "$want" ]; then
+      echo "llm: $out is $(stat -c %s "$out") bytes, expected $want" >&2; return 1
+    fi
+    i=$((i+1))
   done
+}
+
+prune_it() {
+  total=0; list=""
+  if [ -n "$files" ]; then
+    for f in $files; do
+      p=$fetch_dir/$(basename "$f")
+      [ -f "$p" ] || continue
+      total=$((total + $(stat -c %s "$p"))); list="$list $p"
+    done
+  elif [ -e "$model" ]; then
+    total=$(du -sb "$model" 2>/dev/null | cut -f1); list=$model
+  fi
+  if [ -z "$list" ]; then echo "llm: $1 — nothing on disk"; return 0; fi
+  echo "llm: $1 — $(human "$total") in:$list"
+  if [ "$ASSUME" != "1" ]; then echo "      nothing deleted; add --yes"; return 0; fi
+  # shellcheck disable=SC2086
+  rm -rf $list
+  echo "      deleted"
+}
+
+# The one shared omp profile: provider "local", model id "local" (both servers accept any id), context and
+# image support from the recipe.  The id never changes, so omp's roles in config.yml stay valid.
+write_profile() {
+  mkdir -p "$PROFILE"
+  case "$engine" in strata) in_img=", image" ;; *) in_img="" ;; esac
+  if [ "$engine" = "strata" ] && [ "${vision:-on}" = "off" ]; then in_img=""; fi
+  maxtok=32768
+  [ "$CTX" -lt "$maxtok" ] && maxtok=$(( CTX / 2 ))
+  cat > "$PROFILE/models.yml" <<EOF
+# Written by \`llm $1\` — refreshed on every start, do not edit by hand.
+# Talk to it with: omp --profile offline
+providers:
+  local:
+    baseUrl: http://127.0.0.1:$PORT/v1
+    api: openai-completions
+    authHeader: true
+    apiKey: none
+    auth: apiKey
+    models:
+      - id: local
+        name: local — $about
+        reasoning: true
+        input: [text$in_img]
+        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
+        contextWindow: $CTX
+        maxTokens: $maxtok
+EOF
+  echo "llm: omp profile 'offline' now points at $1 (port $PORT, $CTX ctx)"
 }
 
 stop_all() {
@@ -120,20 +196,43 @@ llama_dir=\$HOME/.local/opt/llama-b12079
 template=""
 args="-ngl 99 --parallel 1 --jinja --temp 0.7 --top-p 0.95"
 flags=""
+# optional, for \`llm fetch\`:
+# hf=ORG/REPO
+# files="NAME.gguf"
+# bytes="123"
 EOF
-  echo "llm: wrote $f"
-  echo "     fill in model/ctx/kv/args, then: llm list && llm $n --print"
+  echo "llm: wrote $f — fill in model/ctx/kv/args, then: llm list && llm $n --print"
 }
 
 cmd=${1:-}
 [ $# -gt 0 ] && shift || true
 
 case "$cmd" in
-  ""|list|ls) echo; printf '%-10s %-7s %-7s %-6s %s\n' NAME ENGINE CTX KV STATE; show
-              echo; if port_busy "$PORT"; then echo "serving on 127.0.0.1:$PORT — llm stop to end it"; else echo "nothing is serving on $PORT"; fi; exit 0 ;;
+  ""|list|ls)
+    printf '\n%-10s %-7s %-7s %-6s %s\n' NAME ENGINE CTX KV STATE
+    for n in $(names); do
+      ( about=""; engine="?"; model=""; ctx=""; kv=""; hf=""
+        . "$RECIPES/$n.conf"
+        case "$engine" in
+          llama)  s=$([ -f "$model" ] && echo ok || { [ -n "$hf" ] && echo "missing (llm fetch $n)" || echo "MISSING (no hf=)"; }) ;;
+          strata) s=$([ -d "$model" ] && echo ok || { [ -n "$hf" ] && echo "missing (llm fetch $n)" || echo "MISSING (no hf=)"; }) ;;
+          *)      s="no engine" ;;
+        esac
+        printf '%-10s %-7s %-7s %-6s %s\n' "$n" "$engine" "$ctx" "$kv" "$s — $about" )
+    done
+    echo
+    if port_busy "$PORT"; then echo "serving on 127.0.0.1:$PORT — llm stop to end it"; else echo "nothing is serving on $PORT"; fi
+    exit 0 ;;
   help|-h|--help) usage; exit 0 ;;
   stop) stop_all; exit 0 ;;
   new) scaffold "$1"; exit 0 ;;
+  fetch|prune)
+    action=$cmd; n=${1:-}; shift || true
+    case " $(name_list) " in *" $n "*) ;; *) echo "llm: no recipe '$n'. Declared: $(name_list)" >&2; exit 2 ;; esac
+    case "$1" in --yes) ASSUME=1 ;; esac
+    load "$n"
+    if [ "$action" = "fetch" ]; then fetch_it "$n"; echo "llm: $n — $(state "$n")"; else prune_it "$n"; fi
+    exit 0 ;;
 esac
 
 case " $(name_list) " in
@@ -141,7 +240,6 @@ case " $(name_list) " in
   *) echo "llm: no recipe '$cmd'. Declared: $(name_list)(llm new $cmd to add one)" >&2; exit 2 ;;
 esac
 
-PRINT=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --ctx)      CTX=$(num "$2"); shift 2 ;;
@@ -153,39 +251,52 @@ while [ $# -gt 0 ]; do
     --model)    MODEL=$2; shift 2 ;;
     --model=*)  MODEL=${1#*=}; shift ;;
     --print|-n) PRINT=1; shift ;;
+    --yes|-y)   ASSUME=1; shift ;;
     -h|--help)  usage; exit 0 ;;
     *) echo "llm: unknown option '$1' (llm help)" >&2; exit 2 ;;
   esac
 done
 
-about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; args=""; flags=""
-vision=""; reserve=""; mtp=""
-. "$RECIPES/$cmd.conf"
+load "$cmd"
 
-[ -n "$MODEL" ] && model=$MODEL
-CTX=${CTX:-$ctx}
-KV=${KV:-$kv}
-: "${CTX:?llm: $cmd.conf has no ctx}"
+if [ "$PRINT" = "0" ] && port_busy "$PORT"; then
+  echo "llm: $PORT is in use — llm stop first (or --port 8081)" >&2; exit 1
+fi
 
-port_busy "$PORT" && [ "$PRINT" = "0" ] && { echo "llm: $PORT is in use — llm stop first (or --port 8081)" >&2; exit 1; }
+if ! present; then
+  if [ "$PRINT" = "1" ]; then
+    echo "llm: $cmd — model is not on disk; a start would run: llm fetch $cmd"
+  else
+    fetch_it "$cmd"
+    present && : || { echo "llm: $cmd still missing after the download" >&2; exit 1; }
+  fi
+fi
 
 case "$engine" in
   llama)
     : "${llama_dir:?llm: $cmd.conf has no llama_dir}"
     server=$llama_dir/llama-server
     [ -x "$server" ] || { echo "llm: $server is missing" >&2; exit 1; }
-    [ -f "$model" ] || { echo "llm: model file not found: $model" >&2; exit 1; }
     set -- "$server" -m "$model" -c "$CTX" -ctk "$KV" -ctv "$KV"
     [ -n "$args" ] && set -- "$@" $args
-    [ -n "$template" ] && [ -f "$template" ] && set -- "$@" --chat-template-file "$template"
+    if [ -n "$template" ]; then
+      [ -f "$template" ] || { echo "llm: template not found: $template" >&2; exit 1; }
+      set -- "$@" --chat-template-file "$template"
+    fi
     [ "${mtp:-0}" = "1" ] && set -- "$@" --spec-type draft-mtp
     [ -n "$flags" ] && set -- "$@" $flags
     set -- "$@" --host 127.0.0.1 --port "$PORT"
+    if [ "$PRINT" = "1" ]; then
+      echo "llm: $cmd | port $PORT — this is what would run:"
+      printf '  '; printf '%s ' "$@" | sed "s|$HOME|~|g"; echo; exit 0
+    fi
+    write_profile "$cmd"
+    echo "llm: $cmd | port $PORT | ctx $CTX | kv $KV — Ctrl+C stops it"
+    exec "$@"
     ;;
   strata)
-    [ -d "$model" ] || { echo "llm: model folder not found: $model" >&2; exit 1; }
-    vision=${vision:-on}; reserve=${reserve:-2048}; mtp=${mtp:-1}
-    CFG=$HOME/.local/share/strata/install/strata-q2_0.json
+    vision=${vision:-on}; reserve=${reserve:-2048}; mtp=${mtp:-0}; strata_config=${strata_config:-strata-$cmd.json}
+    CFG=$HOME/.local/share/strata/install/$strata_config
     setup=0
     if [ ! -f "$CFG" ]; then
       setup=1
@@ -203,8 +314,8 @@ sys.exit(0 if ok else 1)
 PY
     fi
     if [ "$PRINT" = "1" ]; then
-      echo "llm: $cmd | $engine | ctx $CTX | kv $KV | vision $vision | reserve ${reserve} MiB"
-      [ "$setup" = "1" ] && echo "    would first: $STRATA launch --model-path $model --context $CTX --kv $KV --vision $vision --parallel 1 --set vram-reserve-mib=$reserve --set STRATA_PREFILL_CPU_SHARE=auto --mtp on --no-tui --yes (then --stop)"
+      echo "llm: $cmd | strata | ctx $CTX | kv $KV | vision $vision | reserve ${reserve} MiB | config $strata_config"
+      [ "$setup" = "1" ] && echo "    would first: $STRATA launch --model-path $model --context $CTX --kv $KV --vision $vision --parallel 1 --set vram-reserve-mib=$reserve --set STRATA_PREFILL_CPU_SHARE=auto --mtp $([ "$mtp" = 1 ] && echo on || echo off) --no-tui --yes (then --stop)"
       echo "    then: $STRATA serve --profile $CFG --host 127.0.0.1 --port $PORT"
       exit 0
     fi
@@ -216,8 +327,8 @@ PY
       "$STRATA" launch "$@" >/dev/null
       "$STRATA" launch --stop >/dev/null 2>&1 || true
       sleep 1
-      # setup writes its own reserve for a 16 GB card (700 MiB with the GPU reader, leaving the desktop 608 MiB);
-      # the run config is a plain file, so put back the one that was asked for.
+      # setup writes its own reserve for a 16 GB card (700 MiB with the GPU picture reader, which left the desktop
+      # 608 MiB); the run config is a plain file, so put back the one that was asked for.
       python3 - "$CFG" "$reserve" <<'PYCONF'
 import json, sys
 path, reserve = sys.argv[1], sys.argv[2]
@@ -230,20 +341,10 @@ else:
 json.dump(cfg, open(path, "w"), indent=1)
 PYCONF
     fi
-    echo "llm: $cmd | ctx $CTX | kv $KV | vision $vision | reserve ${reserve} MiB | port $PORT — Ctrl+C stops it"
+    write_profile "$cmd"
+    echo "llm: $cmd | ctx $CTX | kv $KV | vision $vision | reserve $reserve MiB | port $PORT — Ctrl+C stops it"
     exec "$STRATA" serve --profile "$CFG" --host 127.0.0.1 --port "$PORT"
     ;;
   *)
-    echo "llm: $cmd.conf has engine='$engine'; use llama or strata" >&2
-    exit 2
-    ;;
+    echo "llm: $cmd.conf has engine='$engine'; use llama or strata" >&2; exit 2 ;;
 esac
-
-if [ "$PRINT" = "1" ]; then
-  echo "llm: $cmd | port $PORT — this is what would run:"
-  printf '  '; printf '%s ' "$@" | sed "s|$HOME|~|g"; echo
-  exit 0
-fi
-
-echo "llm: $cmd | port $PORT | ctx $CTX | kv $KV — Ctrl+C stops it"
-exec "$@"

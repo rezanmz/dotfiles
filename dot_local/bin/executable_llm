@@ -1,7 +1,7 @@
 #!/bin/sh
 # llm — one command per model hosted on this machine. Declarative: one .conf per model, no code per model.
 #
-#   llm                    what is declared, what is on disk, what is running
+#   llm                    what is declared, where it came from, what is on disk, what is running
 #   llm <name>             run it in the FOREGROUND; Ctrl+C (or closing the window) stops it.
 #                          Missing files are downloaded first when the recipe says where they come from.
 #   llm <name> --print     print the exact command, change nothing
@@ -57,7 +57,7 @@ usage() {
   cat <<'EOF'
 llm — run a locally hosted model in the foreground (Ctrl+C stops it).
 
-  llm                  what is declared, on disk and running
+  llm                  what is declared, its huggingface source or checkpoint, on disk and running
   llm <name>           run one (Tab completes the names); downloads it first if it is missing and the
                        recipe knows where it lives
   llm <name> --print   show the command, run nothing
@@ -211,14 +211,24 @@ case "$cmd" in
   ""|list|ls)
     printf '\n%-10s %-7s %-7s %-6s %s\n' NAME ENGINE CTX KV STATE
     for n in $(names); do
-      ( about=""; engine="?"; model=""; ctx=""; kv=""; hf=""
+      ( about=""; engine="?"; model=""; ctx=""; kv=""; hf=""; files=""
         . "$RECIPES/$n.conf"
         case "$engine" in
           llama)  s=$([ -f "$model" ] && echo ok || { [ -n "$hf" ] && echo "missing (llm fetch $n)" || echo "MISSING (no hf=)"; }) ;;
           strata) s=$([ -d "$model" ] && echo ok || { [ -n "$hf" ] && echo "missing (llm fetch $n)" || echo "MISSING (no hf=)"; }) ;;
           *)      s="no engine" ;;
         esac
-        printf '%-10s %-7s %-7s %-6s %s\n' "$n" "$engine" "$ctx" "$kv" "$s — $about" )
+        printf '%-10s %-7s %-7s %-6s %s\n' "$n" "$engine" "$ctx" "$kv" "$s — $about"
+        # where the weights come from: the HF repo (naming the file when the recipe is one file) or the checkpoint
+        if [ -z "$hf" ]; then
+          printf '%-10s %s (no hf= in the recipe)\n' "" "$model"
+        else
+          src="https://huggingface.co/$hf"
+          set -- $files
+          if [ "$engine" = "llama" ] && [ $# -eq 1 ]; then src="$src/$1"
+          elif [ $# -gt 0 ]; then src="$src ($# files)"; fi
+          printf '%-10s %s\n' "" "$src"
+        fi )
     done
     echo
     if port_busy "$PORT"; then echo "serving on 127.0.0.1:$PORT — llm stop to end it"; else echo "nothing is serving on $PORT"; fi

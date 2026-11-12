@@ -1,0 +1,172 @@
+modelRoles:
+  smol: strata-local/sc117
+  slow: strata-local/sc117
+  vision: strata-local/sc117
+  plan: strata-local/sc117
+  designer: strata-local/sc117
+  commit: strata-local/sc117
+  tiny: strata-local/sc117
+  task: strata-local/sc117
+  advisor: strata-local/sc117
+  judge: strata-local/sc117
+  widget: strata-local/sc117
+  memory: strata-local/sc117
+enabledModels:
+  - strata-local/sc117
+retry:
+  modelFallback: false
+  fallbackChains: {}
+disabledProviders:
+  - 9router
+  - openrouter
+  - anthropic
+  - openai
+  - openai-codex
+  - google
+  - google-vertex
+  - google-gemini-cli
+  - google-antigravity
+  - groq
+  - mistral
+  - xai
+  - xai-oauth
+  - github-copilot
+  - cursor
+  - azure
+  - amazon-bedrock
+  - bedrock-mantle
+  - cerebras
+  - deepinfra
+  - deepseek
+  - siliconflow
+  - siliconflow-cn
+  - fireworks
+  - together
+  - modular
+  - typesafe
+  - coreweave
+  - nvidia
+  - devin
+  - gmi-cloud
+  - huggingface
+  - inception
+  - moonshot
+  - stepfun
+  - helmcode
+  - meta
+  - nanogpt
+  - novita
+  - venice
+  - vercel-ai-gateway
+  - cloudflare-ai-gateway
+  - cloudflare-workers-ai
+  - snowflake
+  - litellm
+  - kilo
+  - zai
+  - zhipu-coding-plan
+  - umans
+  - qianfan
+  - qwen-portal
+  - synthetic
+  - minimax
+  - minimax-code
+  - minimax-code-cn
+  - alibaba-coding-plan
+  - alibaba-token-plan
+  - sakana
+  - sambanova
+  - scaleway
+  - aimlapi
+  - gitlab-duo
+  - gitlab-duo-agent
+  - opencode-zen
+  - opencode-go
+defaultThinkingLevel: low
+find:
+  enabled: "off"
+prewalk:
+  auto: "off"
+features:
+  unexpectedStopDetection: none
+tui:
+  autoGraph: "off"
+advisor:
+  enabled: false
+recap:
+  enabled: false
+async:
+  widgets: false
+task:
+  completionProbe: false
+edit:
+  autoRepair:
+    enabled: false
+composer:
+  predictions: false
+  shape: band
+memory:
+  backend: "off"
+hindsight:
+  autoRecall: false
+  autoRetain: false
+autolearn:
+  enabled: false
+web_search:
+  enabled: false
+fetch:
+  enabled: false
+browser:
+  enabled: false
+dev:
+  autoqa: false
+  autoqaConsent: denied
+telemetry:
+  otlpExportEnabled: false
+startup:
+  checkUpdate: false
+marketplace:
+  autoUpdate: "off"
+collab:
+  autoStart: "off"
+images:
+  blockImages: true
+  describeForTextModels: false
+  urls:
+    enabled: false
+generate_image:
+  enabled: false
+speech:
+  enabled: false
+stt:
+  enabled: false
+speechgen:
+  enabled: false
+github:
+  enabled: false
+mcp:
+  enableProjectConfig: false
+lsp:
+  enabled: false
+eval:
+  autoProvision: false
+providers:
+  cacheWarming: "off"
+  cacheRetention: none
+compaction:
+  methodOrder:
+    - snapcompact
+    - handoff
+    - shake
+    - soft
+  remoteEndpoint: null
+  remoteStreamingV2Enabled: false
+  idleEnabled: false
+skills:
+  enabled: false
+symbolPreset: unicode
+theme:
+  dark: titanium
+setupVersion: 3
+update:
+  auto: false

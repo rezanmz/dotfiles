@@ -1,0 +1,72 @@
+#!/bin/sh
+# SC117 Qwen3.8-Flash-Next GSQ-RCO-abliterated Q2_0 — Strata engine on the RX 9070 XT (16 GB) + 30 GiB RAM.
+#
+# Weights: SC117/Qwen3.8-Flash-Next-GSQ-RCO-abliterated-GGUF, the Q2_0 tier (2.25 bpw mixed per-tensor).  It is the
+# only tier that fits this computer: Strata's catalogue rates Q2_0 "fits" and IQ2_XS / IQ3_XXS / IQ3_S "too big"
+# (4.1 / 11.5 / 18.9 GB of experts would have to be read from the SSD).
+#   shard 1  38.0 GB  weights, ~34 GB of them experts; decode reads them from <pack>/experts.bin
+#   shard 2  28.8 GB  the n-gram (PLE) table, mmap'd: one row per token, never resident
+#
+# Measured 2026-11-12 on this box (Strata 0.2.9, 16 GB card, 30.5 GiB RAM, WD_BLACK SN850X):
+#   fit              experts 34.0 GB.  Low-RAM mode is automatic here (30.5 < 34 + 10), so there is no anonymous
+#                    arena to swap: the experts are mmap'd from the pack and the KV cache stays in VRAM.
+#   experts on SSD   ~2.6 GB with no reserve; ~5.7 GB at 128K/k8v4 with RESERVE=2048 (12.6 GB of the 34 GB fit in
+#                    VRAM: 15.9 card - 5 dense - 1 MTP - 2 reserve - 1.1 KV beyond 32K).
+#   context cost     15,360 elements/token (12 full-attention layers x 2 KV heads x 256, + 12 QSA indexer rows x 256).
+#                    int8: 0.50 GiB at 32K, 1.00 at 64K, 1.99 at 128K, 3.98 at 262K
+#                    k8v4: 0.40 / 0.81 / 1.62 / 3.24           q4_0: 0.26 / 0.53 / 1.05 / 2.11
+#                    the 36 DeltaNet layers cost a fixed 112 MiB at any context.
+#   pictures         CPU reader by default (this card is under 23.5 GB): ~1.7 s a picture, ~0.9 GB of RAM.
+#                    VISION=gpu asks for the HIP reader: ~0.2 s a picture, and it takes 700 MiB of reserve plus
+#                    ~1-1.4 GB of the expert cache (a few percent of decode).
+#   RAM              the desktop keeps its live 4 GiB; expert pages are reclaimable cache, so a heavy browser makes
+#                    both slower.  swappiness is 180 here, i.e. the kernel pushes desktop pages into zram before it
+#                    drops expert cache — backwards for serving: `sudo sysctl -w vm.swappiness=20` while serving.
+#
+# The first start writes the Q2_0 pack (~40 GB, 2-5 min) and fetches the engine.  Stop it with `strata launch --stop`.
+# Point omp at it with: omp --profile sc117
+#
+# Env: CTX (131072), KV (k8v4), VISION (cpu), PORT (8080), MTP (1), RESERVE (2048), RESTART (0), PLAN (0),
+#      MODEL_DIR (~/models/sc117-flash-next/Q2_0), STRATA (strata)
+set -e
+
+STRATA=${STRATA:-strata}
+MODEL_DIR=${MODEL_DIR:-$HOME/models/sc117-flash-next/Q2_0}
+CTX=${CTX:-131072}
+KV=${KV:-k8v4}
+VISION=${VISION:-cpu}
+PORT=${PORT:-8080}
+MTP=${MTP:-1}
+RESERVE=${RESERVE:-2048}
+
+if ! command -v "$STRATA" >/dev/null 2>&1; then
+  echo "sc117: $STRATA not found on PATH (strata launch is the engine front end)." >&2
+  exit 1
+fi
+
+first=$(ls "$MODEL_DIR"/*-00001-of-00002.gguf 2>/dev/null | head -n 1 || true)
+if [ -z "$first" ]; then
+  echo "sc117: no first shard (*-00001-of-00002.gguf) in $MODEL_DIR" >&2
+  echo "       fetch it there, or set MODEL_DIR=... (see the model card's Q2_0 folder)." >&2
+  exit 1
+fi
+
+# Never start on a busy port: the client would silently talk to whatever else is listening.
+if command -v ss >/dev/null 2>&1 && ss -ltnH "sport = :$PORT" 2>/dev/null | grep -q .; then
+  echo "sc117: port $PORT is already in use -- another server is running there." >&2
+  echo "       strata launch --status   (reuse it, or PORT=8081 sc117, or RESTART=1 sc117)" >&2
+  exit 1
+fi
+
+set -- --model-path "$MODEL_DIR" --context "$CTX" --kv "$KV" --vision "$VISION" --parallel 1 \
+       --port "$PORT" --set "vram-reserve-mib=$RESERVE" --no-tui --yes
+if [ "$MTP" = "1" ]; then
+  set -- "$@" --mtp on
+else
+  set -- "$@" --mtp off
+fi
+[ "${RESTART:-0}" = "1" ] && set -- "$@" --restart
+[ "${PLAN:-0}" = "1" ] && set -- "$@" --plan
+
+echo "sc117: Q2_0 abliterated | ctx $CTX | kv $KV | vision $VISION | reserve ${RESERVE} MiB | mtp $MTP | port $PORT"
+exec "$STRATA" launch "$@"

@@ -1,0 +1,197 @@
+#!/bin/sh
+# llm — one command for every model hosted on this box. Runs it in the FOREGROUND and ends on Ctrl+C.
+#
+#   llm                     what is installed, what is running  (same as `llm list`)
+#   llm sc117               the Strata model, in the foreground
+#   llm swift15             ... any recipe below; Tab completes the names
+#   llm stop                stop whatever is serving (Strata instance or a llama-server)
+#   llm <name> --help       usage, plus that recipe's defaults
+#
+# Flags: --ctx N|128k (default per recipe), --port N (8080), --kv FMT (per recipe), --model PATH (a .gguf)
+# Any recipe also reads its own env (THINK, NGL, MTP, VISION, RESERVE, ...) — set it before the command.
+#
+# Recipes (measured on the RX 9070 XT, 16 GB, 30 GiB RAM; numbers in the script each one runs):
+#   sc117     Qwen3.8-Flash-Next Q2_0 abliterated, 125B-A6B — Strata streams 34 GB of experts from the SSD.
+#             128K ctx, k8v4 KV, GPU vision (1024 image tokens), MTP drafting. Decode 22-48 tok/s; an identical
+#             prefix is reused (19 new tokens = 0.5 s) but a NEW prompt sweeps the experts off the drive (10-40 s).
+#             First start builds a ~40 GB pack; later starts ~20 s. `omp --profile sc117` talks to it.
+#   swift15   Swift 1.5 Qwen3.8-27B IQ3_XXS (llama.cpp b12079 Vulkan): 96K ctx, 42 tok/s, 14.3 GiB VRAM.
+#   swift15u  the same, heretic (abliterated) build — same profile, ~13.1 GiB at 96K.
+#   sorjin21  Sorjîn2.1-12B Kurmanji Q5_K_M (llama.cpp ROCm 12284): 96K ctx, 57.5 tok/s, 11.6 GiB.
+#   kakugo    Kakugo 3B Sorani Q8_0: 32K ctx, 100 tok/s, 7.4 GiB; thinking off, greedy.
+#
+# Strata needs a pack per model, so a first run (or a change of --ctx/--kv) does the setup, then restarts in the
+# foreground; that extra step is ~20 s and only happens when the choice changes.
+set -e
+
+STRATA=${STRATA:-strata}
+PORT=${PORT:-8080}
+CTX=${CTX:-}
+KV=${KV:-}
+MODEL=${MODEL:-}
+RECIPES=${LLM_RECIPES:-$HOME/.local/share/llm/recipes}
+
+NAMES="sc117 swift15 swift15u sorjin21 kakugo"
+
+usage() {
+  cat <<'EOF'
+llm — run a locally hosted model in the foreground (Ctrl+C stops it).
+
+  llm                 list the recipes and what is running now
+  llm <name>          run one (Tab completes the name)
+  llm stop            stop whatever is serving on the port
+  llm help            this text
+
+flags for any recipe
+  --ctx N|128k        context length        (sc117 131072, swift15/swift15u/sorjin21 98304, kakugo 32768)
+  --port N            HTTP port             (8080)
+  --kv FMT            sc117: q4_0 k8v4 int8 fp16   llama.cpp: q4_0 f16
+  --model PATH        another .gguf for the same recipe
+
+recipes
+  sc117      Qwen3.8-Flash-Next Q2_0 abliterated  — Strata, experts streamed from the SSD   (omp --profile sc117)
+  swift15    Swift 1.5 27B IQ3_XXS                — llama.cpp Vulkan                       42 tok/s
+  swift15u   Swift 1.5 27B IQ3_XXS heretic        — llama.cpp Vulkan                       42 tok/s
+  sorjin21   Sorjîn2.1 12B Kurmanji Q5_K_M        — llama.cpp ROCm                         57 tok/s
+  kakugo     Kakugo 3B Sorani Q8_0                — llama.cpp ROCm                        100 tok/s
+
+env a recipe also reads: THINK (sorjin21/kakugo), NGL, MTP, VISION, RESERVE, MODEL_DIR (sc117), LLAMA_DIR
+EOF
+}
+
+port_busy() { command -v ss >/dev/null 2>&1 && ss -ltnH "sport = :$1" 2>/dev/null | grep -q .; }
+
+running_summary() {
+  if port_busy "$PORT"; then
+    if [ -f "$HOME/.local/state/strata/launch/q2_0-128k.json" ] 2>/dev/null || "$STRATA" launch --status >/dev/null 2>&1; then
+      echo "127.0.0.1:$PORT  (a model is serving; llm stop to end it)"
+    else
+      echo "127.0.0.1:$PORT  (a llama-server is serving)"
+    fi
+  else
+    echo "nothing is serving on $PORT"
+  fi
+}
+
+list_recipes() {
+  printf '%-10s %-62s %s\n' RECIPE WHAT DEFAULT
+  printf '%-10s %-62s %s\n' sc117   "Qwen3.8-Flash-Next Q2_0 abliterated — Strata, experts on the SSD" "128K k8v4 22-48 tok/s"
+  printf '%-10s %-62s %s\n' swift15 "Swift 1.5 27B IQ3_XXS — llama.cpp Vulkan"                        "96K q4_0 42 tok/s"
+  printf '%-10s %-62s %s\n' swift15u "Swift 1.5 27B IQ3_XXS heretic (abliterated) — llama.cpp Vulkan" "96K q4_0 42 tok/s"
+  printf '%-10s %-62s %s\n' sorjin21 "Sorjîn2.1 12B Kurmanji Q5_K_M — llama.cpp ROCm"                 "96K q4_0 57 tok/s"
+  printf '%-10s %-62s %s\n' kakugo  "Kakugo 3B Sorani Q8_0 — llama.cpp ROCm, greedy"                  "32K      100 tok/s"
+  echo
+  echo "$(running_summary)"
+}
+
+# 128k -> 131072 (Strata takes either; llama.cpp needs the number)
+num() {
+  case "$1" in
+    *k|*K) echo $(( ${1%[kK]} * 1024 )) ;;
+    *) echo "$1" ;;
+  esac
+}
+
+stop_all() {
+  "$STRATA" launch --stop >/dev/null 2>&1 || true
+  pkill -x llama-server 2>/dev/null || true
+  sleep 1
+  if port_busy "$PORT"; then echo "llm: still something on $PORT (look: ss -ltnp 'sport = :$PORT')" >&2; exit 1; fi
+  echo "llm: stopped"
+}
+
+cmd=${1:-}
+[ $# -gt 0 ] && shift || true
+
+case "$cmd" in
+  ""|list|ls) list_recipes; exit 0 ;;
+  help|-h|--help) usage; exit 0 ;;
+  stop) stop_all; exit 0 ;;
+esac
+
+case " $NAMES " in
+  *" $cmd "*) ;;
+  *) echo "llm: no recipe '$cmd'. One of: $NAMES (llm help)" >&2; exit 2 ;;
+esac
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --ctx)      CTX=$(num "$2"); shift 2 ;;
+    --ctx=*)    CTX=$(num "${1#*=}"); shift ;;
+    --port)     PORT=$2; shift 2 ;;
+    --port=*)   PORT=${1#*=}; shift ;;
+    --kv)       KV=$2; shift 2 ;;
+    --kv=*)     KV=${1#*=}; shift ;;
+    --model)    MODEL=$2; shift 2 ;;
+    --model=*)  MODEL=${1#*=}; shift ;;
+    -h|--help)  usage; echo; echo "recipe $cmd defaults are in $RECIPES/$cmd"; exit 0 ;;
+    *) echo "llm: unknown option '$1' (llm help)" >&2; exit 2 ;;
+  esac
+done
+
+if [ "$cmd" = "sc117" ]; then
+  CTX=${CTX:-131072}
+  KV=${KV:-k8v4}
+  VISION=${VISION:-gpu}
+  RESERVE=${RESERVE:-2048}
+  MTP=${MTP:-1}
+  MODEL_DIR=${MODEL_DIR:-$HOME/models/sc117-flash-next/Q2_0}
+  CFG=$HOME/.local/share/strata/install/strata-q2_0.json
+
+  port_busy "$PORT" && { echo "llm: $PORT is in use — llm stop first (or --port 8081)" >&2; exit 1; }
+
+  # Is the saved run config already the one we are asking for?  Comparing beats re-running setup: that would
+  # start a background instance, which then has to be stopped before the foreground one can bind the port.
+  setup=0
+  if [ ! -f "$CFG" ]; then
+    setup=1
+  else
+    python3 - "$CFG" "$CTX" "$KV" "$RESERVE" "$VISION" <<'PY' || setup=1
+import json, sys
+cfg, ctx, kv, reserve, vision = sys.argv[1:6]
+c = json.load(open(cfg))
+args = c.get("args") or []
+def val(flag):
+    return args[args.index(flag) + 1] if flag in args and args.index(flag) + 1 < len(args) else None
+ok = (val("--max-context") == ctx and val("--kv") == kv and val("--vram-reserve-mib") == reserve
+      and bool((c.get("vision") or {}).get("gpu")) == (vision == "gpu"))
+sys.exit(0 if ok else 1)
+PY
+  fi
+
+  if [ "$setup" = "1" ]; then
+    echo "llm: preparing sc117 for ctx $CTX / kv $KV / reserve $RESERVE MiB / vision $VISION (a pack is built once)"
+    set -- --model-path "$MODEL_DIR" --context "$CTX" --kv "$KV" --vision "$VISION" --parallel 1 \
+           --port "$PORT" --set "vram-reserve-mib=$RESERVE" --set STRATA_PREFILL_CPU_SHARE=auto --no-tui --yes
+    [ "$MTP" = "1" ] && set -- "$@" --mtp on || set -- "$@" --mtp off
+    "$STRATA" launch "$@" >/dev/null
+    "$STRATA" launch --stop >/dev/null 2>&1 || true
+    sleep 1
+    # setup writes its own reserve for a 16 GB card (700 MiB with the GPU picture reader, which left the desktop
+    # 608 MiB free); the run config is a plain file, so put the one that was asked for back.
+    python3 - "$CFG" "$RESERVE" <<'PYCONF'
+import json, sys
+path, reserve = sys.argv[1], sys.argv[2]
+cfg = json.load(open(path))
+args = cfg.get("args") or []
+if "--vram-reserve-mib" in args:
+    args[args.index("--vram-reserve-mib") + 1] = reserve
+else:
+    args += ["--vram-reserve-mib", reserve]
+json.dump(cfg, open(path, "w"), indent=1)
+PYCONF
+  fi
+
+  echo "llm: sc117 | ctx $CTX | kv $KV | vision $VISION | reserve ${RESERVE} MiB | port $PORT — Ctrl+C stops it"
+  exec "$STRATA" serve --profile "$CFG" --host 127.0.0.1 --port "$PORT"
+fi
+
+# llama.cpp recipes: their own script is the recipe (flags, sampling, template), this only fills in the env it reads.
+[ -n "$CTX" ]   && export CTX
+[ -n "$MODEL" ] && export MODEL
+export PORT
+script=$RECIPES/$cmd
+[ -x "$script" ] || { echo "llm: $script is missing (the recipe's own launcher)" >&2; exit 1; }
+echo "llm: $cmd | port $PORT${CTX:+ | ctx $(num "$CTX")}${KV:+ | kv $KV} — Ctrl+C stops it"
+[ -n "$KV" ] && export KV
+exec "$script"

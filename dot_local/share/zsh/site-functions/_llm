@@ -1,0 +1,34 @@
+#compdef llm
+# Tab completion for `llm` (see ~/.local/bin/llm).  Recipes are the names in NAMES there; keep them in step.
+
+_llm() {
+  local -a cmds recipes
+  cmds=(list stop help)
+  recipes=(sc117 swift15 swift15u sorjin21 kakugo)
+
+  _arguments -C \
+    '1:command or recipe:->first' \
+    '*::argument:->args'
+
+  case $state in
+    first)
+      _describe -t commands 'llm command' cmds
+      _describe -t recipes 'local model' recipes
+      ;;
+    args)
+      case $words[2] in
+        list|stop|help) ;;
+        *)
+          _arguments \
+            '--ctx[context length]:ctx:(32768 65536 98304 131072 262144)' \
+            '--port[HTTP port]:port:(8080 8081 8082 8083)' \
+            '--kv[KV cache format]:format:(q4_0 k8v4 int8 fp16 f16)' \
+            '--model[another GGUF]:file:_files -g "*.gguf"' \
+            '(-h --help)'{-h,--help}'[usage and this recipe'"'"'s defaults]'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_llm "$@"

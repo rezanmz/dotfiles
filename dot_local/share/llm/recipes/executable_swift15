@@ -1,0 +1,48 @@
+#!/bin/sh
+# Swift 1.5 Qwen3.8-27B (GSQ-RCO IQ3_XXS-mtp) — RX 9070 XT 16 GB, tuned for time-to-first-token.
+#
+# Measured 2026-11-03 (llama.cpp b12079 Vulkan, 96K ctx, q4_0 KV, ub 1024):
+#   cold first prompt (12-14K harness prompt) ......... 11.2-13.7 s  (~1058 t/s prefill)
+#   same session, turn 2+ (omp appendOnlyContext=on) .. 0.33 s        (23 tokens)
+#   new omp session against a warm server ............. 0.31 s        (68 tokens)
+#   tool continuation (tool result appended) .......... 0.18 s        (27 tokens)
+#   decode ............................................ 42 t/s
+#   VRAM at 96K + ub1024 .............................. 14.3 GiB (2.0 GiB left for the desktop)
+#   128K ctx 14.4 GiB; 262K does not fit
+#   -ub 1024 vs 256 = +10% prefill (dense), at +370 MiB VRAM
+#
+# Requirements for sub-second TTFT:
+#   1. LEAVE THIS RUNNING while you work (the prompt cache is the win).
+#   2. omp needs `provider.appendOnlyContext: on` in ~/.omp/agent/config.yml,
+#      otherwise every prompt re-prefills the whole conversation (14 s each).
+#
+# The chat template below is patched: upstream Swift 1.5 raises a 500 for any
+# reasoning_effort outside xhigh/medium/low, and omp sends "high"/"minimal".
+# The patch maps minimal->low, medium->medium, anything else (high/xhigh/max)->xhigh.
+#
+# Env: CTX (98304), PORT (8080), MODEL, LLAMA_DIR
+set -e
+LLAMA=${LLAMA_DIR:-$HOME/.local/opt/llama-b12079}
+MODEL=${MODEL:-$HOME/models/swift15/IQ3_XXS-mtp.gguf}
+CTX=${CTX:-98304}
+PORT=${PORT:-8080}
+TEMPLATE=${TEMPLATE:-$LLAMA/swift15-chat-template.jinja}
+
+# Never start on a busy port: llama-server would die with "HTTP server error" while
+# clients silently talk to the stale process (already happened once).
+if command -v ss >/dev/null 2>&1 && ss -ltnH "sport = :$PORT" 2>/dev/null | grep -q .; then
+  echo "swift15: port $PORT is already in use -- another server is running." >&2
+  echo "         reuse it, pick another port (PORT=8081 swift15), or stop it: pkill -f llama-server" >&2
+  exit 1
+fi
+
+tmpl=""
+[ -f "$TEMPLATE" ] && tmpl="--chat-template-file $TEMPLATE"
+
+exec "$LLAMA/llama-server" \
+  -m "$MODEL" \
+  -c "$CTX" -ngl 99 -fa on -ctk q4_0 -ctv q4_0 \
+  -ub 1024 -b 2048 -t 8 --parallel 1 --cache-ram 16384 --jinja $tmpl \
+  --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 \
+  --presence-penalty 0.0 --repeat-penalty 1.0 \
+  --host 127.0.0.1 --port "$PORT"

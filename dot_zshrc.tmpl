@@ -106,7 +106,8 @@ fi
 # makes the functions *findable*. oh-my-zsh used to call compinit for us; when
 # this config stopped sourcing it (see the Powerlevel10k block above) that call
 # was lost, which is why `sudo systemc<Tab>` did not complete.
-fpath=(/usr/share/zsh/site-functions /usr/share/zsh/functions/Completion/* $fpath)
+# Own completions live here (e.g. _llm for the local-model tool): first on fpath so they win.
+fpath=("$HOME/.local/share/zsh/site-functions" /usr/share/zsh/site-functions /usr/share/zsh/functions/Completion/* $fpath)
 autoload -Uz compinit
 # -C skips the security check on an existing dump file (much faster startup);
 # regenerate with `rm -f ~/.zcompdump* && exec zsh` if completions look stale.

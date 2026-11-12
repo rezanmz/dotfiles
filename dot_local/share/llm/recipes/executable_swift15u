@@ -1,0 +1,39 @@
+#!/bin/sh
+# Swift 1.5 Qwen3.8-27B — Heretic (abliterated) build, IQ3_XXS-mtp, RX 9070 XT 16 GB.
+#
+# Same weights shape and same runtime profile as `swift15`, so the measured numbers carry over:
+#   cold first prompt ~11-14 s prefill, turn 3+ in a session 0.29 s (needs appendOnlyContext),
+#   decode ~42 t/s, VRAM ~13.1 GiB at 96K.
+#
+# Uncensored-ness, measured by the publisher (not by me):
+#   strict refusals 99 -> 80 of 100 harmful prompts (Heretic's lenient count says 36, but most
+#   of those are dodges, not real answers). It follows through on ~1 in 5 refused requests.
+#   KL divergence vs Swift 1.5: 0.082 on top of the IQ3_XXS quantisation loss.
+#
+# This build ships its own chat template, which already accepts omp's reasoning_effort aliases
+# (high/max -> xhigh, minimal -> low), so unlike `swift15` it needs no local patch.
+#
+# Env: CTX (98304), PORT (8080), MTP=1, MODEL, LLAMA_DIR, TEMPLATE
+set -e
+LLAMA=${LLAMA_DIR:-$HOME/.local/opt/llama-b12079}
+MODEL=${MODEL:-$HOME/models/swift15/heretic-IQ3_XXS-mtp.gguf}
+TEMPLATE=${TEMPLATE:-$HOME/models/swift15/heretic-chat-template.jinja}
+CTX=${CTX:-98304}
+PORT=${PORT:-8080}
+
+if command -v ss >/dev/null 2>&1 && ss -ltnH "sport = :$PORT" 2>/dev/null | grep -q .; then
+  echo "swift15u: port $PORT is already in use (swift15 running?) -- pkill -f llama-server, or PORT=8081" >&2
+  exit 1
+fi
+
+mtp=""
+[ "${MTP:-0}" = "1" ] && mtp="--spec-type draft-mtp"
+
+exec "$LLAMA/llama-server" \
+  -m "$MODEL" \
+  -c "$CTX" -ngl 99 -fa on -ctk q4_0 -ctv q4_0 \
+  -ub 1024 -b 2048 -t 8 --parallel 1 --cache-ram 16384 --jinja \
+  --chat-template-file "$TEMPLATE" $mtp \
+  --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0 \
+  --presence-penalty 0.0 --repeat-penalty 1.0 \
+  --host 127.0.0.1 --port "$PORT"

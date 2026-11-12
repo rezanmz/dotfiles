@@ -1,0 +1,70 @@
+#!/bin/sh
+# Qwen-Image-2.1-Turbo — text-to-image on the RX 9070 XT, via stable-diffusion.cpp (Vulkan).
+#
+# Weights: abenzerps/Qwen-Image-2.1-Turbo-Quantized (Q4_K_M GGUF), Qwen3-VL-8B text
+# encoder (Q4_K_M GGUF), qwen_image_2.1 VAE. Base model Qwen/Qwen-Image-2.1-Turbo, 7B,
+# 8-step turbo. The publisher states the base model has no built-in safety filter.
+#
+# Measured 2026-11-12 (sd.cpp master-1086-465adf3, Vulkan RADV GFX1201, 16 GB):
+#   1024x1024, 8 steps ................................ 16.6 s end to end
+#     of which sampling 13.3 s (1.51 s/it), VAE decode 2.24 s, text encode 1.01 s
+#   2048x2048 ......................................... see RENDER-2048 note below
+#
+# WHY VULKAN, NOT ROCm: the prebuilt ROCm sd-cli needs system ROCm (libhipblas.so.3);
+# this box has no ROCm runtime installed — llama.cpp only works because it ships its
+# own libs. Vulkan needs nothing extra and sees the 9070 XT as
+# "AMD Radeon RX 9070 XT (RADV GFX1201) | fp16: dot2 | bf16: 1 | coopmat".
+#
+# SAMPLING: 8 steps with the model's OWN sigma schedule. Do not substitute
+# "--steps 8" on a normal KSampler-style schedule — the publisher and sd.cpp both warn
+# that the plain schedule does not reproduce turbo. The preset is
+#   1.0,0.978453,0.95418,0.926626,0.89508,0.845148,0.704534,0.414568,0
+# CFG 1.0 makes negative prompts a no-op. Euler. Do not add a Turbo/Lightning LoRA;
+# the checkpoint already is the turbo build.
+#
+# MEMORY: model files total ~9.1 GiB but that is not total VRAM use. The Qwen-Image-2.1
+# prefix cache is the hidden cost: at default f32 it reserves ~4 GiB per condition
+# (~4 KiB/token at 4096 tokens). If a run dies with OOM, lower CTX-side pressure with
+# PREFIX= q8_0 (~1.06 GiB) or q4_0 (~0.56 GiB), or drop resolution. --offload-to-cpu
+# is available and slower.
+#
+# USAGE
+#   qwenimg -p "your prompt"                  -> ~/images/qwen/<seed>.png
+#   qwenimg -p "..." -o out.png -W 2048 -H 2048
+#   SEED=1234 qwenimg -p "..."                -> reproducible
+#   PREFIX=q8_0 qwenimg -p "..."              -> smaller prefix cache
+#
+# Env: W (1024), H (1024), SEED (random), PREFIX (unset = sd.cpp default), STEPS (8),
+#      CFG (1.0), OUTDIR (~/images/qwen), OFFLOAD (0), SD_DIR
+set -e
+SD_DIR=${SD_DIR:-$HOME/.local/opt/sdcpp-vk}
+MODELS=${MODELS:-$HOME/models/qwen-img}
+OUTDIR=${OUTDIR:-$HOME/images/qwen}
+
+W=${W:-1024}
+H=${H:-1024}
+STEPS=${STEPS:-8}
+CFG=${CFG:-1.0}
+SEED=${SEED:-$(od -An -N2 -tu2 /dev/urandom | tr -d ' ')}
+
+mkdir -p "$OUTDIR"
+OUT=${OUT:-$OUTDIR/$SEED.png}
+
+# -p is mandatory; everything else has a default.
+if [ $# -eq 0 ]; then
+  echo "qwenimg: need at least a prompt, e.g." >&2
+  echo "  qwenimg -p \"a red ceramic cup on a wooden table\"" >&2
+  exit 2
+fi
+
+extra=""
+[ -n "$PREFIX" ] && extra="--model-args qwen_image_2_1_prefix_cache_type=$PREFIX"
+[ "${OFFLOAD:-0}" = "1" ] && extra="$extra --offload-to-cpu"
+
+exec "$SD_DIR/sd-cli" \
+  --diffusion-model "$MODELS/qwen-image-2.1-turbo-Q4_K_M.gguf" \
+  --vae "$MODELS/vae/qwen_image_2.1_vae_bf16.safetensors" \
+  --llm "$MODELS/Qwen3VL-8B-Instruct-Q4_K_M.gguf" \
+  --sigmas qwen-image-2.1-turbo --steps "$STEPS" --cfg-scale "$CFG" --sampling-method euler \
+  --width "$W" --height "$H" --seed "$SEED" \
+  -o "$OUT" $extra "$@"

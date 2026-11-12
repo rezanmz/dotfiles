@@ -6,7 +6,8 @@
 #   96K ctx VRAM ...................................... 11.64 GiB (4.6 GiB left for the desktop)
 #   32K ctx VRAM ...................................... 11.17 GiB
 #   prefill, 9.0K-token prompt ........................ 5.70 s   (~1585 t/s blended)
-#   decode ............................................ ~64 t/s
+#   decode (llama-bench, tg128, 3 reps) ............... 57.5 ± 0.0 t/s
+#   prefill (llama-bench, pp512) ...................... 2004 ± 561 t/s
 #   model load to listening ........................... ~4 s (mmap + page cache)
 #
 # THINKING IS OFF BY DEFAULT on purpose. The publisher says the instruction tuning was

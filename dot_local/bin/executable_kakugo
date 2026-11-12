@@ -5,8 +5,11 @@
 #
 # Measured 2026-11-11 (llama.cpp build 12284 ROCm, 32K ctx):
 #   32K ctx VRAM ...................................... 7.36 GiB
-#   prefill, 15.7K-token Sorani prompt ................ 4.61 s   (~3399 t/s)
-#   decode ............................................ ~130 t/s
+#   prefill, 15.7K-token Sorani prompt ................ 4.61 s   (~3399 t/s, blended)
+#   decode (llama-bench, tg128, 3 reps) ............... 100.1 ± 2.7 t/s
+#   prefill (llama-bench, pp512) ...................... 5484 ± 230 t/s
+#   For comparison, same build/box: Sorjin2.1-12B Q5_K_M = 57.5 t/s decode,
+#   2004 t/s prefill. Same --parallel 1, same 8 threads.
 #   NOTE: Flash Attention is unavailable for this arch on ROCm — llama.cpp logs
 #   "Flash Attention over K/V rows not supported, set to disabled" and falls back.
 #   So -fa on is deliberately NOT passed here; it would only mislead.

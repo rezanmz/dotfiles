@@ -1,90 +1,81 @@
 #!/bin/sh
-# llm — one command for every model hosted on this box. Runs it in the FOREGROUND and ends on Ctrl+C.
+# llm — one command for every model hosted on this box, from a declaration per model, not a script per model.
 #
-#   llm                     what is installed, what is running  (same as `llm list`)
-#   llm sc117               the Strata model, in the foreground
-#   llm swift15             ... any recipe below; Tab completes the names
-#   llm stop                stop whatever is serving (Strata instance or a llama-server)
-#   llm <name> --help       usage, plus that recipe's defaults
+#   llm                      what is declared, what is running, what is missing
+#   llm <name>               run it in the FOREGROUND; Ctrl+C (or closing the window) stops it
+#   llm <name> --print       print the exact command it would run, change nothing
+#   llm new <name>           scaffold a recipe and tell you the two lines to fill in
+#   llm stop                 stop whatever is serving the port
+#   llm help
 #
-# Flags: --ctx N|128k (default per recipe), --port N (8080), --kv FMT (per recipe), --model PATH (a .gguf)
-# Any recipe also reads its own env (THINK, NGL, MTP, VISION, RESERVE, ...) — set it before the command.
+# A recipe is one small shell file, ~/.local/share/llm/recipes/<name>.conf, and nothing else:
 #
-# Recipes (measured on the RX 9070 XT, 16 GB, 30 GiB RAM; numbers in the script each one runs):
-#   sc117     Qwen3.8-Flash-Next Q2_0 abliterated, 125B-A6B — Strata streams 34 GB of experts from the SSD.
-#             128K ctx, k8v4 KV, GPU vision (1024 image tokens), MTP drafting. Decode 22-48 tok/s; an identical
-#             prefix is reused (19 new tokens = 0.5 s) but a NEW prompt sweeps the experts off the drive (10-40 s).
-#             First start builds a ~40 GB pack; later starts ~20 s. `omp --profile sc117` talks to it.
-#   swift15   Swift 1.5 Qwen3.8-27B IQ3_XXS (llama.cpp b12079 Vulkan): 96K ctx, 42 tok/s, 14.3 GiB VRAM.
-#   swift15u  the same, heretic (abliterated) build — same profile, ~13.1 GiB at 96K.
-#   sorjin21  Sorjîn2.1-12B Kurmanji Q5_K_M (llama.cpp ROCm 12284): 96K ctx, 57.5 tok/s, 11.6 GiB.
-#   kakugo    Kakugo 3B Sorani Q8_0: 32K ctx, 100 tok/s, 7.4 GiB; thinking off, greedy.
+#   about="Swift 1.5 27B IQ3_XXS"        # the line `llm list` shows
+#   engine=llama                         # llama | strata
+#   model=$HOME/models/swift15/IQ3_XXS-mtp.gguf     (llama: a .gguf; strata: the shard folder)
+#   ctx=98304
+#   kv=q4_0
+#   llama_dir=$HOME/.local/opt/llama-b12079         (llama only: where llama-server lives)
+#   template=$HOME/models/swift15/tpl.jinja         (llama only, optional: --chat-template-file)
+#   args="-ngl 99 -fa on -ub 1024 -b 2048 -t 8 --parallel 1 --cache-ram 16384 --jinja --temp 1.0 --top-p 0.95"
+#   flags=""                                        # extra flags, appended last
+#   vision=gpu                                      (strata only: gpu | cpu | off)
+#   reserve=2048                                    (strata only: MiB of VRAM kept for the desktop)
+#   mtp=1                                           (strata: --mtp on|off; llama: --spec-type draft-mtp)
 #
-# Strata needs a pack per model, so a first run (or a change of --ctx/--kv) does the setup, then restarts in the
-# foreground; that extra step is ~20 s and only happens when the choice changes.
+# Flags: --ctx N|128k, --port N, --kv FMT, --model PATH, --print.  Anything a recipe needs and this file does
+# not cover belongs in `args`, so adding a model is: copy a .conf, change two lines, `llm list`.
+#
+# Recipes here:
+#   sc117   Qwen3.8-Flash-Next Q2_0 abliterated — Strata streams 34 GB of experts off the SSD. 128K, k8v4 KV,
+#           GPU vision (1024 image tokens), MTP. Decode 22-48 tok/s; an identical prefix is reused (19 new tokens
+#           in 0.5 s) but a NEW prompt sweeps the experts (10-40 s). First start builds a ~40 GB pack; later ~20 s.
+#           Reserve 1024 leaves the desktop 608 MiB of VRAM, 2048 leaves 1930 MiB, 3072 is the engine's own advice
+#           if the desktop ever crashes after a start. `omp --profile sc117` talks to it.
+#   swift15 Swift 1.5 27B IQ3_XXS, llama.cpp b12079 Vulkan: 96K, 42 tok/s, 14.3 GiB VRAM.
+#   swift15u the heretic (abliterated) build: same profile, ~13.1 GiB at 96K.
 set -e
 
 STRATA=${STRATA:-strata}
+RECIPES=${LLM_RECIPES:-$HOME/.local/share/llm/recipes}
 PORT=${PORT:-8080}
 CTX=${CTX:-}
 KV=${KV:-}
 MODEL=${MODEL:-}
-RECIPES=${LLM_RECIPES:-$HOME/.local/share/llm/recipes}
 
-NAMES="sc117 swift15 swift15u sorjin21 kakugo"
+names() {
+  for f in "$RECIPES"/*.conf; do
+    [ -e "$f" ] || continue
+    printf '%s\n' "$(basename "$f" .conf)"
+  done
+}
+
+name_list() { names | tr '\n' ' '; }
 
 usage() {
   cat <<'EOF'
 llm — run a locally hosted model in the foreground (Ctrl+C stops it).
 
-  llm                 list the recipes and what is running now
-  llm <name>          run one (Tab completes the name)
-  llm stop            stop whatever is serving on the port
-  llm help            this text
+  llm                  what is declared, what is running
+  llm <name>           run one (Tab completes the names)
+  llm <name> --print   show the command, run nothing
+  llm new <name>       scaffold a recipe in ~/.local/share/llm/recipes/
+  llm stop             stop whatever is serving the port
+  llm help             this text
 
-flags for any recipe
-  --ctx N|128k        context length        (sc117 131072, swift15/swift15u/sorjin21 98304, kakugo 32768)
-  --port N            HTTP port             (8080)
-  --kv FMT            sc117: q4_0 k8v4 int8 fp16   llama.cpp: q4_0 f16
-  --model PATH        another .gguf for the same recipe
+flags (they override the recipe's own value)
+  --ctx N|128k         context length
+  --port N             HTTP port (8080)
+  --kv FMT             llama: f16 q8_0 q4_0 q5_1   strata: int8 k8v4 q4_0 fp16
+  --model PATH         another .gguf (llama recipes)
 
-recipes
-  sc117      Qwen3.8-Flash-Next Q2_0 abliterated  — Strata, experts streamed from the SSD   (omp --profile sc117)
-  swift15    Swift 1.5 27B IQ3_XXS                — llama.cpp Vulkan                       42 tok/s
-  swift15u   Swift 1.5 27B IQ3_XXS heretic        — llama.cpp Vulkan                       42 tok/s
-  sorjin21   Sorjîn2.1 12B Kurmanji Q5_K_M        — llama.cpp ROCm                         57 tok/s
-  kakugo     Kakugo 3B Sorani Q8_0                — llama.cpp ROCm                        100 tok/s
-
-env a recipe also reads: THINK (sorjin21/kakugo), NGL, MTP, VISION, RESERVE, MODEL_DIR (sc117), LLAMA_DIR
+a recipe needs: engine, model, ctx.  engine=llama also wants llama_dir; engine=strata runs `strata launch` once
+to build the pack, then `strata serve` in the foreground.
 EOF
 }
 
 port_busy() { command -v ss >/dev/null 2>&1 && ss -ltnH "sport = :$1" 2>/dev/null | grep -q .; }
 
-running_summary() {
-  if port_busy "$PORT"; then
-    if [ -f "$HOME/.local/state/strata/launch/q2_0-128k.json" ] 2>/dev/null || "$STRATA" launch --status >/dev/null 2>&1; then
-      echo "127.0.0.1:$PORT  (a model is serving; llm stop to end it)"
-    else
-      echo "127.0.0.1:$PORT  (a llama-server is serving)"
-    fi
-  else
-    echo "nothing is serving on $PORT"
-  fi
-}
-
-list_recipes() {
-  printf '%-10s %-62s %s\n' RECIPE WHAT DEFAULT
-  printf '%-10s %-62s %s\n' sc117   "Qwen3.8-Flash-Next Q2_0 abliterated — Strata, experts on the SSD" "128K k8v4 22-48 tok/s"
-  printf '%-10s %-62s %s\n' swift15 "Swift 1.5 27B IQ3_XXS — llama.cpp Vulkan"                        "96K q4_0 42 tok/s"
-  printf '%-10s %-62s %s\n' swift15u "Swift 1.5 27B IQ3_XXS heretic (abliterated) — llama.cpp Vulkan" "96K q4_0 42 tok/s"
-  printf '%-10s %-62s %s\n' sorjin21 "Sorjîn2.1 12B Kurmanji Q5_K_M — llama.cpp ROCm"                 "96K q4_0 57 tok/s"
-  printf '%-10s %-62s %s\n' kakugo  "Kakugo 3B Sorani Q8_0 — llama.cpp ROCm, greedy"                  "32K      100 tok/s"
-  echo
-  echo "$(running_summary)"
-}
-
-# 128k -> 131072 (Strata takes either; llama.cpp needs the number)
 num() {
   case "$1" in
     *k|*K) echo $(( ${1%[kK]} * 1024 )) ;;
@@ -92,28 +83,65 @@ num() {
   esac
 }
 
+show() {
+  for n in $(names); do
+    ( about=""; engine="?"; model=""; ctx=""; kv=""
+      . "$RECIPES/$n.conf"
+      case "$engine" in
+        llama)  state="model: $([ -f "$model" ] && echo ok || echo MISSING)" ;;
+        strata) state="dir: $([ -d "$model" ] && echo ok || echo MISSING)" ;;
+        *)      state="no engine" ;;
+      esac
+      printf '%-10s %-7s %-7s %-6s %s\n' "$n" "$engine" "$ctx" "$kv" "$state — $about" )
+  done
+}
+
 stop_all() {
   "$STRATA" launch --stop >/dev/null 2>&1 || true
   pkill -x llama-server 2>/dev/null || true
   sleep 1
-  if port_busy "$PORT"; then echo "llm: still something on $PORT (look: ss -ltnp 'sport = :$PORT')" >&2; exit 1; fi
+  port_busy "$PORT" && { echo "llm: still something on $PORT (ss -ltnp 'sport = :$PORT')" >&2; exit 1; }
   echo "llm: stopped"
+}
+
+scaffold() {
+  n=${1:-}
+  case "$n" in ""|*/*|.*) echo "llm new <name>: a plain name, e.g. 'llm new qwen27'" >&2; exit 2 ;; esac
+  f=$RECIPES/$n.conf
+  [ -e "$f" ] && { echo "llm: $f exists" >&2; exit 1; }
+  mkdir -p "$RECIPES"
+  cat > "$f" <<EOF
+about="what it is, in one line"
+engine=llama
+model=\$HOME/models/$n/model.gguf
+ctx=32768
+kv=q4_0
+llama_dir=\$HOME/.local/opt/llama-b12079
+template=""
+args="-ngl 99 --parallel 1 --jinja --temp 0.7 --top-p 0.95"
+flags=""
+EOF
+  echo "llm: wrote $f"
+  echo "     fill in model/ctx/kv/args, then: llm list && llm $n --print"
 }
 
 cmd=${1:-}
 [ $# -gt 0 ] && shift || true
 
 case "$cmd" in
-  ""|list|ls) list_recipes; exit 0 ;;
+  ""|list|ls) echo; printf '%-10s %-7s %-7s %-6s %s\n' NAME ENGINE CTX KV STATE; show
+              echo; if port_busy "$PORT"; then echo "serving on 127.0.0.1:$PORT — llm stop to end it"; else echo "nothing is serving on $PORT"; fi; exit 0 ;;
   help|-h|--help) usage; exit 0 ;;
   stop) stop_all; exit 0 ;;
+  new) scaffold "$1"; exit 0 ;;
 esac
 
-case " $NAMES " in
+case " $(name_list) " in
   *" $cmd "*) ;;
-  *) echo "llm: no recipe '$cmd'. One of: $NAMES (llm help)" >&2; exit 2 ;;
+  *) echo "llm: no recipe '$cmd'. Declared: $(name_list)(llm new $cmd to add one)" >&2; exit 2 ;;
 esac
 
+PRINT=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --ctx)      CTX=$(num "$2"); shift 2 ;;
@@ -124,29 +152,45 @@ while [ $# -gt 0 ]; do
     --kv=*)     KV=${1#*=}; shift ;;
     --model)    MODEL=$2; shift 2 ;;
     --model=*)  MODEL=${1#*=}; shift ;;
-    -h|--help)  usage; echo; echo "recipe $cmd defaults are in $RECIPES/$cmd"; exit 0 ;;
+    --print|-n) PRINT=1; shift ;;
+    -h|--help)  usage; exit 0 ;;
     *) echo "llm: unknown option '$1' (llm help)" >&2; exit 2 ;;
   esac
 done
 
-if [ "$cmd" = "sc117" ]; then
-  CTX=${CTX:-131072}
-  KV=${KV:-k8v4}
-  VISION=${VISION:-gpu}
-  RESERVE=${RESERVE:-2048}
-  MTP=${MTP:-1}
-  MODEL_DIR=${MODEL_DIR:-$HOME/models/sc117-flash-next/Q2_0}
-  CFG=$HOME/.local/share/strata/install/strata-q2_0.json
+about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; args=""; flags=""
+vision=""; reserve=""; mtp=""
+. "$RECIPES/$cmd.conf"
 
-  port_busy "$PORT" && { echo "llm: $PORT is in use — llm stop first (or --port 8081)" >&2; exit 1; }
+[ -n "$MODEL" ] && model=$MODEL
+CTX=${CTX:-$ctx}
+KV=${KV:-$kv}
+: "${CTX:?llm: $cmd.conf has no ctx}"
 
-  # Is the saved run config already the one we are asking for?  Comparing beats re-running setup: that would
-  # start a background instance, which then has to be stopped before the foreground one can bind the port.
-  setup=0
-  if [ ! -f "$CFG" ]; then
-    setup=1
-  else
-    python3 - "$CFG" "$CTX" "$KV" "$RESERVE" "$VISION" <<'PY' || setup=1
+port_busy "$PORT" && [ "$PRINT" = "0" ] && { echo "llm: $PORT is in use — llm stop first (or --port 8081)" >&2; exit 1; }
+
+case "$engine" in
+  llama)
+    : "${llama_dir:?llm: $cmd.conf has no llama_dir}"
+    server=$llama_dir/llama-server
+    [ -x "$server" ] || { echo "llm: $server is missing" >&2; exit 1; }
+    [ -f "$model" ] || { echo "llm: model file not found: $model" >&2; exit 1; }
+    set -- "$server" -m "$model" -c "$CTX" -ctk "$KV" -ctv "$KV"
+    [ -n "$args" ] && set -- "$@" $args
+    [ -n "$template" ] && [ -f "$template" ] && set -- "$@" --chat-template-file "$template"
+    [ "${mtp:-0}" = "1" ] && set -- "$@" --spec-type draft-mtp
+    [ -n "$flags" ] && set -- "$@" $flags
+    set -- "$@" --host 127.0.0.1 --port "$PORT"
+    ;;
+  strata)
+    [ -d "$model" ] || { echo "llm: model folder not found: $model" >&2; exit 1; }
+    vision=${vision:-on}; reserve=${reserve:-2048}; mtp=${mtp:-1}
+    CFG=$HOME/.local/share/strata/install/strata-q2_0.json
+    setup=0
+    if [ ! -f "$CFG" ]; then
+      setup=1
+    else
+      python3 - "$CFG" "$CTX" "$KV" "$reserve" "$vision" <<'PY' || setup=1
 import json, sys
 cfg, ctx, kv, reserve, vision = sys.argv[1:6]
 c = json.load(open(cfg))
@@ -157,19 +201,24 @@ ok = (val("--max-context") == ctx and val("--kv") == kv and val("--vram-reserve-
       and bool((c.get("vision") or {}).get("gpu")) == (vision == "gpu"))
 sys.exit(0 if ok else 1)
 PY
-  fi
-
-  if [ "$setup" = "1" ]; then
-    echo "llm: preparing sc117 for ctx $CTX / kv $KV / reserve $RESERVE MiB / vision $VISION (a pack is built once)"
-    set -- --model-path "$MODEL_DIR" --context "$CTX" --kv "$KV" --vision "$VISION" --parallel 1 \
-           --port "$PORT" --set "vram-reserve-mib=$RESERVE" --set STRATA_PREFILL_CPU_SHARE=auto --no-tui --yes
-    [ "$MTP" = "1" ] && set -- "$@" --mtp on || set -- "$@" --mtp off
-    "$STRATA" launch "$@" >/dev/null
-    "$STRATA" launch --stop >/dev/null 2>&1 || true
-    sleep 1
-    # setup writes its own reserve for a 16 GB card (700 MiB with the GPU picture reader, which left the desktop
-    # 608 MiB free); the run config is a plain file, so put the one that was asked for back.
-    python3 - "$CFG" "$RESERVE" <<'PYCONF'
+    fi
+    if [ "$PRINT" = "1" ]; then
+      echo "llm: $cmd | $engine | ctx $CTX | kv $KV | vision $vision | reserve ${reserve} MiB"
+      [ "$setup" = "1" ] && echo "    would first: $STRATA launch --model-path $model --context $CTX --kv $KV --vision $vision --parallel 1 --set vram-reserve-mib=$reserve --set STRATA_PREFILL_CPU_SHARE=auto --mtp on --no-tui --yes (then --stop)"
+      echo "    then: $STRATA serve --profile $CFG --host 127.0.0.1 --port $PORT"
+      exit 0
+    fi
+    if [ "$setup" = "1" ]; then
+      echo "llm: preparing $cmd for ctx $CTX / kv $KV / reserve $reserve MiB / vision $vision (a pack is built once)"
+      set -- --model-path "$model" --context "$CTX" --kv "$KV" --vision "$vision" --parallel 1 \
+             --port "$PORT" --set "vram-reserve-mib=$reserve" --set STRATA_PREFILL_CPU_SHARE=auto --no-tui --yes
+      [ "$mtp" = "1" ] && set -- "$@" --mtp on || set -- "$@" --mtp off
+      "$STRATA" launch "$@" >/dev/null
+      "$STRATA" launch --stop >/dev/null 2>&1 || true
+      sleep 1
+      # setup writes its own reserve for a 16 GB card (700 MiB with the GPU reader, leaving the desktop 608 MiB);
+      # the run config is a plain file, so put back the one that was asked for.
+      python3 - "$CFG" "$reserve" <<'PYCONF'
 import json, sys
 path, reserve = sys.argv[1], sys.argv[2]
 cfg = json.load(open(path))
@@ -180,18 +229,21 @@ else:
     args += ["--vram-reserve-mib", reserve]
 json.dump(cfg, open(path, "w"), indent=1)
 PYCONF
-  fi
+    fi
+    echo "llm: $cmd | ctx $CTX | kv $KV | vision $vision | reserve ${reserve} MiB | port $PORT — Ctrl+C stops it"
+    exec "$STRATA" serve --profile "$CFG" --host 127.0.0.1 --port "$PORT"
+    ;;
+  *)
+    echo "llm: $cmd.conf has engine='$engine'; use llama or strata" >&2
+    exit 2
+    ;;
+esac
 
-  echo "llm: sc117 | ctx $CTX | kv $KV | vision $VISION | reserve ${RESERVE} MiB | port $PORT — Ctrl+C stops it"
-  exec "$STRATA" serve --profile "$CFG" --host 127.0.0.1 --port "$PORT"
+if [ "$PRINT" = "1" ]; then
+  echo "llm: $cmd | port $PORT — this is what would run:"
+  printf '  '; printf '%s ' "$@" | sed "s|$HOME|~|g"; echo
+  exit 0
 fi
 
-# llama.cpp recipes: their own script is the recipe (flags, sampling, template), this only fills in the env it reads.
-[ -n "$CTX" ]   && export CTX
-[ -n "$MODEL" ] && export MODEL
-export PORT
-script=$RECIPES/$cmd
-[ -x "$script" ] || { echo "llm: $script is missing (the recipe's own launcher)" >&2; exit 1; }
-echo "llm: $cmd | port $PORT${CTX:+ | ctx $(num "$CTX")}${KV:+ | kv $KV} — Ctrl+C stops it"
-[ -n "$KV" ] && export KV
-exec "$script"
+echo "llm: $cmd | port $PORT | ctx $CTX | kv $KV — Ctrl+C stops it"
+exec "$@"

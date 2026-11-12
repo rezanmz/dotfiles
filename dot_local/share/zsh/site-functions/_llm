@@ -1,10 +1,12 @@
 #compdef llm
-# Tab completion for `llm` (see ~/.local/bin/llm).  Recipes are the names in NAMES there; keep them in step.
+# Tab completion for `llm`.  Recipe names are read from the recipes folder, so a new .conf appears here at once.
 
 _llm() {
   local -a cmds recipes
-  cmds=(list stop help)
-  recipes=(sc117 swift15 swift15u sorjin21 kakugo)
+  local dir=${LLM_RECIPES:-$HOME/.local/share/llm/recipes}
+  local kv_llama kv_strata
+  cmds=(list stop help new)
+  recipes=(${dir}/*.conf(N:t:r))
 
   _arguments -C \
     '1:command or recipe:->first' \
@@ -18,13 +20,17 @@ _llm() {
     args)
       case $words[2] in
         list|stop|help) ;;
+        new) _message 'name for the new recipe' ;;
         *)
+          kv_llama=(f16 q8_0 q4_0 q5_1 q4_1)
+          kv_strata=(int8 k8v4 q4_0 fp16)
           _arguments \
-            '--ctx[context length]:ctx:(32768 65536 98304 131072 262144)' \
+            '--ctx[context length]:ctx:(32768 65536 98304 131072 196608 262144)' \
             '--port[HTTP port]:port:(8080 8081 8082 8083)' \
-            '--kv[KV cache format]:format:(q4_0 k8v4 int8 fp16 f16)' \
+            "--kv[KV cache format]:format:(${${kv_llama}:#} ${${kv_strata}:#})" \
             '--model[another GGUF]:file:_files -g "*.gguf"' \
-            '(-h --help)'{-h,--help}'[usage and this recipe'"'"'s defaults]'
+            '--print[show the command, run nothing]' \
+            '(-h --help)'{-h,--help}'[usage]'
           ;;
       esac
       ;;

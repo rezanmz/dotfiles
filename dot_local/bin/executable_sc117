@@ -16,9 +16,9 @@
 #                    int8: 0.50 GiB at 32K, 1.00 at 64K, 1.99 at 128K, 3.98 at 262K
 #                    k8v4: 0.40 / 0.81 / 1.62 / 3.24           q4_0: 0.26 / 0.53 / 1.05 / 2.11
 #                    the 36 DeltaNet layers cost a fixed 112 MiB at any context.
-#   pictures         CPU reader by default (this card is under 23.5 GB): ~1.7 s a picture, ~0.9 GB of RAM.
-#                    VISION=gpu asks for the HIP reader: ~0.2 s a picture, and it takes 700 MiB of reserve plus
-#                    ~1-1.4 GB of the expert cache (a few percent of decode).
+#   pictures         GPU (HIP) reader: 1,024 image tokens a picture, ~0.2 s.  It costs 700 MiB of reserve plus
+#                    ~1-1.4 GB of the expert cache, so `strata launch`'s own default is the CPU reader (300 image
+#                    tokens, ~1.7 s) -- VISION=cpu picks that and returns ~1 GB to the experts; VISION=off disables.
 #   RAM              the desktop keeps its live 4 GiB; expert pages are reclaimable cache, so a heavy browser makes
 #                    both slower.  swappiness is 180 here, i.e. the kernel pushes desktop pages into zram before it
 #                    drops expert cache — backwards for serving: `sudo sysctl -w vm.swappiness=20` while serving.
@@ -26,7 +26,7 @@
 # The first start writes the Q2_0 pack (~40 GB, 2-5 min) and fetches the engine.  Stop it with `strata launch --stop`.
 # Point omp at it with: omp --profile sc117
 #
-# Env: CTX (131072), KV (k8v4), VISION (cpu), PORT (8080), MTP (1), RESERVE (2048), RESTART (0), PLAN (0),
+# Env: CTX (131072), KV (k8v4), VISION (gpu), PORT (8080), MTP (1), RESERVE (2048), RESTART (0), PLAN (0),
 #      MODEL_DIR (~/models/sc117-flash-next/Q2_0), STRATA (strata)
 set -e
 
@@ -34,7 +34,7 @@ STRATA=${STRATA:-strata}
 MODEL_DIR=${MODEL_DIR:-$HOME/models/sc117-flash-next/Q2_0}
 CTX=${CTX:-131072}
 KV=${KV:-k8v4}
-VISION=${VISION:-cpu}
+VISION=${VISION:-gpu}
 PORT=${PORT:-8080}
 MTP=${MTP:-1}
 RESERVE=${RESERVE:-2048}

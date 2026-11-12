@@ -6,9 +6,16 @@
 # 8-step turbo. The publisher states the base model has no built-in safety filter.
 #
 # Measured 2026-11-12 (sd.cpp master-1086-465adf3, Vulkan RADV GFX1201, 16 GB):
-#   1024x1024, 8 steps ................................ 16.6 s end to end
-#     of which sampling 13.3 s (1.51 s/it), VAE decode 2.24 s, text encode 1.01 s
-#   2048x2048 ......................................... see RENDER-2048 note below
+#   1024x1024, 8 steps ................ 16.6 s wall
+#       text encode 1.01 s + sampling 13.29 s + VAE decode 2.24 s (+ ~0.1 s misc)
+#   2048x2048, 8 steps ................ 106.7 s wall (real 1m47.5s)
+#       text encode 1.26 s + sampling 91.93 s + VAE decode 13.48 s
+#
+# Note on "s/it": sd.cpp's progress bar prints a per-step figure that is NOT the
+# whole-sampling average. At 2048 it displayed 1.45 s/it while sampling actually took
+# 91.93 s for 8 steps, i.e. ~11.5 s/it. The wall-clock total and the per-phase lines
+# ("sampling completed, taking N s") are the trustworthy numbers; the bar is not.
+# 2048 costs ~7x the sampling time of 1024 (4x pixels, bigger attention and VAE).
 #
 # WHY VULKAN, NOT ROCm: the prebuilt ROCm sd-cli needs system ROCm (libhipblas.so.3);
 # this box has no ROCm runtime installed — llama.cpp only works because it ships its

@@ -1,0 +1,71 @@
+#!/bin/sh
+# Kakugo 3B Central Kurdish (Sorani, ckb) — Granite-4.0-micro based, Apache-2.0.
+# ptrdvn/kakugo-3B-ckb, converted + quantised locally to Q8_0 (3.37 GiB) because no GGUF
+# was published (mradermacher/kakugo-3B-ckb-GGUF does not exist; only the Kurmanji one does).
+#
+# Measured 2026-11-11 (llama.cpp build 12284 ROCm, 32K ctx):
+#   32K ctx VRAM ...................................... 7.36 GiB
+#   prefill, 15.7K-token Sorani prompt ................ 4.61 s   (~3399 t/s)
+#   decode ............................................ ~130 t/s
+#   NOTE: Flash Attention is unavailable for this arch on ROCm — llama.cpp logs
+#   "Flash Attention over K/V rows not supported, set to disabled" and falls back.
+#   So -fa on is deliberately NOT passed here; it would only mislead.
+#
+# This is the best *Sorani-native* model on the Hub, but it is 3B. Per KuMMLU
+# (WiNLP 2026, aclanthology.org/2026.winlp-main.15.pdf), the best general model
+# (Gemini 3.1 Pro, 88.1%) beats every Kurdish-specialised model by ~50 points on
+# Central Kurdish knowledge. Use this for Sorani conversation and translation,
+# not as a knowledge base.
+#
+# SAMPLING MATTERS HERE. At llama-server's default temperature the model gets
+# short factual answers wrong: asked "پایتەختی فەرەنسا کام شارە؟" it answered
+# پیرۆت once and پاریس other times. Greedy decoding is stable and correct, so
+# this launcher defaults to --temp 0. Raise T=.7 for creative writing.
+#
+# THINK TAGS LEAK. The model was trained by the Kakugo pipeline on gpt-oss-120b
+# reasoning traces, with the thinking toggle carried in the *system prompt*, not
+# in a template flag: "Before you respond, first think about your response and
+# enclose your thinking process in <think> and </think> delimiters." vs
+# "Be concise in your responses." (verified against ptrdvn/kakugo-ckb: 37 of 60
+# sampled rows per regime, and 0 of 214 "Be concise" assistant turns contain
+# think tags). In practice, even under the concise system prompt, ~50% of greedy
+# answers still open with a literal <think> block in message.content.
+#
+# Prefilling an empty <think></think> in the template does NOT fix this: it makes
+# llama.cpp route the whole answer into reasoning_content and leaves content
+# empty, or makes the model emit its closing </think> a second time mid-answer.
+# Both were tried. The publisher's own model card shows no think-stripping, so
+# this launcher leaves the behaviour visible rather than silently mangling text.
+#
+# Env: CTX (32768), PORT (8080), MODEL, LLAMA_DIR, T (0), NGL (99)
+set -e
+LLAMA=${LLAMA_DIR:-$HOME/.unsloth/llama.cpp/build/bin}
+MODEL=${MODEL:-$HOME/models/kakugo-ckb/kakugo-3B-ckb-Q8_0.gguf}
+TEMPLATE=${TEMPLATE:-$HOME/models/kakugo-ckb/chat_template.jinja}
+CTX=${CTX:-32768}
+PORT=${PORT:-8080}
+NGL=${NGL:-99}
+
+# Never start on a busy port: llama-server would die with "HTTP server error" while
+# clients silently talk to the stale process (already happened once).
+if command -v ss >/dev/null 2>&1 && ss -ltnH "sport = :$PORT" 2>/dev/null | grep -q .; then
+  echo "kakugo: port $PORT is already in use -- another server is running." >&2
+  echo "        reuse it, pick another port (PORT=8081 kakugo), or stop it: pkill -f llama-server" >&2
+  exit 1
+fi
+
+tmpl=""
+[ -f "$TEMPLATE" ] && tmpl="--chat-template-file $TEMPLATE"
+
+# Pin to the discrete card: the Raphael iGPU advertises ~15.6 GiB of shared system
+# RAM and would silently overflow into main memory.
+HIP_VISIBLE_DEVICES=${HIP_VISIBLE_DEVICES:-0}
+export HIP_VISIBLE_DEVICES
+
+exec "$LLAMA/llama-server" \
+  -m "$MODEL" \
+  -c "$CTX" -ngl "$NGL" -ctk q8_0 -ctv q8_0 \
+  -ub 1024 -b 2048 -t 8 --parallel 1 --cache-ram 16384 --jinja $tmpl \
+  --temp "${T:-0}" --top-p 0.95 --top-k 40 --min-p 0.0 \
+  --presence-penalty 0.0 --repeat-penalty 1.0 \
+  --host 127.0.0.1 --port "$PORT"

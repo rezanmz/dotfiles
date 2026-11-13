@@ -28,6 +28,12 @@
 #   mtp=0                                # llama: --spec-type draft-mtp when 1; strata: --mtp on|off
 #   vision=gpu                           (strata) gpu | cpu | off
 #   reserve=2048                         (strata) MiB of VRAM kept for the desktop
+#   experts=auto                         (strata) auto | mmap | resident: how the experts the GPU does not hold are
+#                                        kept.  mmap reads them through the OS page cache; resident copies them into
+#                                        RAM once.  Strata's own auto picks resident whenever the pack's arena fits
+#                                        RAM minus 10 GB, which on 30 GiB is the wrong answer (the engine then warns
+#                                        and falls back to the file cache anyway).  Written into the run config as
+#                                        --mmap-experts/--resident-experts, replacing whichever is there.
 #   strata_config=strata-q2_0.json       (strata) the run config Strata keeps for this model, in install/
 #   hf=ORG/REPO                          where the files come from (Hugging Face), optional
 #   files="Q2_0/shard-00001-of-00002.gguf Q2_0/shard-00002-of-00002.gguf"   paths inside the repo
@@ -77,7 +83,7 @@ EOF
 
 load() {
   about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; args=""; flags=""
-  mtp=0; vision=""; reserve=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
+  mtp=0; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
   . "$RECIPES/$1.conf"
   [ -n "$MODEL" ] && model=$MODEL
   CTX=${CTX:-$ctx}
@@ -305,26 +311,27 @@ case "$engine" in
     exec "$@"
     ;;
   strata)
-    vision=${vision:-on}; reserve=${reserve:-2048}; mtp=${mtp:-0}; strata_config=${strata_config:-strata-$cmd.json}
+    vision=${vision:-on}; reserve=${reserve:-2048}; mtp=${mtp:-0}; experts=${experts:-auto}
+    strata_config=${strata_config:-strata-$cmd.json}
     CFG=$HOME/.local/share/strata/install/$strata_config
     setup=0
     if [ ! -f "$CFG" ]; then
       setup=1
     else
-      python3 - "$CFG" "$CTX" "$KV" "$reserve" "$vision" <<'PY' || setup=1
+      python3 - "$CFG" "$CTX" "$KV" "$vision" <<'PY' || setup=1
 import json, sys
-cfg, ctx, kv, reserve, vision = sys.argv[1:6]
+cfg, ctx, kv, vision = sys.argv[1:5]
 c = json.load(open(cfg))
-args = c.get("args") or []
+args = [str(a) for a in (c.get("args") or [])]
 def val(flag):
     return args[args.index(flag) + 1] if flag in args and args.index(flag) + 1 < len(args) else None
-ok = (val("--max-context") == ctx and val("--kv") == kv and val("--vram-reserve-mib") == reserve
+ok = (val("--max-context") == ctx and val("--kv") == kv
       and bool((c.get("vision") or {}).get("gpu")) == (vision == "gpu"))
 sys.exit(0 if ok else 1)
 PY
     fi
     if [ "$PRINT" = "1" ]; then
-      echo "llm: $cmd | strata | ctx $CTX | kv $KV | vision $vision | reserve ${reserve} MiB | config $strata_config"
+      echo "llm: $cmd | strata | ctx $CTX | kv $KV | vision $vision | reserve ${reserve} MiB | experts $experts | config $strata_config"
       [ "$setup" = "1" ] && echo "    would first: $STRATA launch --model-path $model --context $CTX --kv $KV --vision $vision --parallel 1 --set vram-reserve-mib=$reserve --set STRATA_PREFILL_CPU_SHARE=auto --mtp $([ "$mtp" = 1 ] && echo on || echo off) --no-tui --yes (then --stop)"
       echo "    then: $STRATA serve --profile $CFG --host 127.0.0.1 --port $PORT"
       exit 0
@@ -337,22 +344,46 @@ PY
       "$STRATA" launch "$@" >/dev/null
       "$STRATA" launch --stop >/dev/null 2>&1 || true
       sleep 1
-      # setup writes its own reserve for a 16 GB card (700 MiB with the GPU picture reader, which left the desktop
-      # 608 MiB); the run config is a plain file, so put back the one that was asked for.
-      python3 - "$CFG" "$reserve" <<'PYCONF'
+    fi
+    # Setup owns the reserve and the expert mode, and gets both wrong here: it writes 700 MiB of VRAM reserve for a
+    # 16 GB card (the desktop then has 608 MiB), and --resident-experts whenever the pack's arena fits RAM minus 10 GB
+    # — which on 30 GiB it does, though the engine then finds the resident complement does not fit beside the desktop
+    # and falls back to the file cache mid-prompt anyway.  The run config is a plain file, so write the recipe's
+    # answers over it.  Both go into user_args too: every serve, setup run and app start merges those over args, so a
+    # later setup cannot undo them.  The mode is renamed in place rather than added, because a config holding both
+    # --resident-experts and --mmap-experts runs the resident one.
+    python3 - "$CFG" "$reserve" "$experts" <<'PYCONF'
 import json, sys
-path, reserve = sys.argv[1], sys.argv[2]
+path, reserve, experts = sys.argv[1:4]
+def _groups(argv):
+    """An argument list as groups: a flag and the values after it (--flag VALUE), so a group can be replaced whole."""
+    out = []
+    for a in argv or []:
+        if str(a).startswith("--") or not out:
+            out.append([str(a)])
+        else:
+            out[-1].append(str(a))
+    return out
 cfg = json.load(open(path))
-args = cfg.get("args") or []
+args = [str(a) for a in (cfg.get("args") or [])]
 if "--vram-reserve-mib" in args:
     args[args.index("--vram-reserve-mib") + 1] = reserve
 else:
     args += ["--vram-reserve-mib", reserve]
+mine = [g for g in _groups(cfg.get("user_args")) if g[0] != "--vram-reserve-mib"]
+if experts != "auto":
+    want, other = "--" + experts + "-experts", "--" + ("resident" if experts == "mmap" else "mmap") + "-experts"
+    args = [want if a == other else a for a in args]
+    if want not in args:
+        args.append(want)
+    mine = [g for g in mine if g[0] not in (want, other)] + [[want]]
+cfg["args"] = args
+cfg["user_args"] = [t for g in mine for t in g] + ["--vram-reserve-mib", reserve]
+cfg["args_written"] = list(args)
 json.dump(cfg, open(path, "w"), indent=1)
 PYCONF
-    fi
     write_profile "$cmd"
-    echo "llm: $cmd | ctx $CTX | kv $KV | vision $vision | reserve $reserve MiB | port $PORT — Ctrl+C stops it"
+    echo "llm: $cmd | ctx $CTX | kv $KV | vision $vision | reserve $reserve MiB | experts $experts | port $PORT — Ctrl+C stops it"
     exec "$STRATA" serve --profile "$CFG" --host 127.0.0.1 --port "$PORT"
     ;;
   *)

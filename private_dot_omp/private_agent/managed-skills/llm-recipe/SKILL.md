@@ -1,6 +1,6 @@
 ---
 name: llm-recipe
-description: "Add or retune a local model in the llm CLI: measure the machine, read the model metadata cheaply, research which runtime serves it best, size weights and KV, write the recipe, verify, commit."
+description: "Add or retune a local model in the llm CLI: measure the machine, read the model metadata cheaply, research which runtime and which capabilities (vision, tools, KV formats, speculative decoding) to turn on, size weights and KV, write the recipe, verify, commit."
 ---
 
 # Adding a model to `llm`
@@ -24,8 +24,12 @@ you measure contradicts anything you remember, the measurement wins, and the cor
    desktop. Fast with the card pinned out is a failed recipe.
 4. **A tier that lives in page cache beats a bigger tier that spills.** When weights do not fit VRAM+RAM, every *new*
    prompt re-reads the working set from SSD. That, not decode speed, is what makes a model feel wrong.
-5. **No speed claims in confs, headers, or `about=`.** Memory facts only (ctx, sizes, tokens, formats). The user does
-   not want throughput numbers in config.
+5. **Every capability the model and the runtime can give — on, and verified.** Not just text: vision, tool calling,
+   and every acceleration trick the stack supports (the checklist is step 3). Turning a capability off is a decision to
+   state and justify, never a default to inherit. A recipe that quietly serves text-only, or with speculative decoding
+   left off because nobody checked, is incomplete.
+6. **No speed claims in confs, headers, or `about=`.** Memory facts only (ctx, sizes, tokens, formats, flags). The user
+   does not want throughput numbers in config; they age badly and a config is not the place for them.
 
 ## Step 0 — measure the machine, now
 
@@ -54,6 +58,9 @@ driver/runtime versions, and any swap/zram policy — then read the runtime's ow
   first range). You want `*.attention.head_count_kv`, `*.attention.key_length`/`value_length`, `*.block_count`,
   `*.full_attention_interval` or `*.attention.recurrent_layers`, `*.expert_count`, `*.expert_used_count`,
   `*.embedding_length`, `*.context_length`, plus any indexer/PLE/draft-head keys.
+- **Capabilities are in the metadata too**, and they decide step 3: `tokenizer.chat_template` (does it parse tool
+  calls?), `*.ple.image_token_id` or an `mmproj` in the repo (vision), MTP/draft-head tensors (speculative decoding),
+  `general.sampling.*` (the model's own tuned sampling defaults — do not invent your own). Read them, do not assume.
 
 ## Step 2 — budget the weights
 
@@ -69,30 +76,56 @@ driver/runtime versions, and any swap/zram policy — then read the runtime's ow
 - **Only then** pick `ctx`: the largest value whose KV still leaves the reserve. Shrink the KV (lower-precision K/V,
   quantized cache) before cutting context.
 
-## Step 3 — decide how to serve it (research, do not inherit)
+## Step 3 — research how to run it, and what to turn on
 
-Multiple local runtimes compete, and the right one differs by architecture, quant format, GPU and version. Do not
-copy the previous recipe's engine, and do not take this skill's word for anything engine-shaped: it is deliberately
-empty here because it would rot. Answer these with sources, for *this* model on *this* machine:
+Multiple local runtimes compete, and the right one differs by architecture, quant format, GPU and version. Do not copy
+the previous recipe's engine and do not inherit the previous recipe's flags: every line below is a question to answer
+with a source (upstream model-support code, open issues/PRs, the model author's own recommended runner, the runtime's
+`--help` and docs) and then confirm by observation. Docs lag releases.
 
-- Does the runtime support the arch at all, and as of which release/PR? (upstream model-support code, open issues, the
-  model author's own recommended runner)
+**Support and placement**
+
+- Does the runtime support this arch at all, and as of which release/PR?
 - Does it offload this arch to this GPU and driver/runtime version, including this quant's kernels and this GPU's
   instruction set/target?
 - Which KV cache formats it really accepts for this arch — and does it silently fall back? What does its KV math do
-  with recurrent/linear layers, indexers, MLA, multi-token-prediction or draft heads?
-- Can weights stay mmap'd in page cache, or must experts/weights stream? What does each cost on a *fresh* prompt?
+  with recurrent/linear layers, indexers, MLA, draft heads?
+- Can weights stay mmap'd in page cache, or must experts stream? What does each cost on a *fresh* prompt? Some runtimes
+  default to the memory-hungry placement; measure both.
 - Which quant formats the repo ships vs what the runtime prefers (repacking, imatrix, mixed tiers), and what that costs
   in quality per byte.
-- Whether speculative decoding / draft models pay off here, or only add memory pressure.
 
-Then verify the claims by observation — run it, read its log, check which flags it accepted and what n_ctx / cache
-type it reports back. Docs lag releases.
+**Capabilities — go through this list for every model**
+
+1. **Vision / images**, when the model has it: an `mmproj` (llama.cpp) or a separate tower (other engines). Budget it in
+   VRAM or CPU explicitly, and prefer it on — the user wants the capability, not a text-only recipe. Only turn it off
+   if it costs the desktop its headroom, and then say so in the header; prefer `cpu` over `off` when that fits. Check
+   what the runtime reports: `input_modalities` should include `image`.
+2. **Tool calling / function calling**: the chat template must parse them and the runtime must expose the fields. State
+   how tools are enabled and test one real tool call through the API — a template that cannot emit tool calls breaks
+   every agent client, and that is invisible until a client tries.
+3. **Speculative decoding / draft models** (MTP, draft head, EAGLE, n-gram lookup, suffix drafts): is there a drafter
+   that fits the remaining memory, and does it pay? Watch the acceptance rate in the log instead of assuming; if it
+   costs memory the desktop needs, prefer off and say why.
+4. **KV optimizations**: quantized/compressed KV formats, KV streaming vs resident, KV growth, prompt caching and prefix
+   reuse, cache tails. Take the format that buys the most context inside the reserve (preference 1), then verify from
+   the engine log that it was accepted.
+5. **Batching and scheduling knobs that change memory**: parallel slots, prefill chunk sizes, expert cache size,
+   adaptive overlap. Prefer one slot for a single-user box unless there is a reason.
+6. **The sampling defaults the model ships** (`general.sampling.*`, `generation_config.json`) over guesses.
+7. **Anything else the runtime offers for this arch**: repacking, imatrix/mixed tiers, fusing, prompt-lookup decoding,
+   graph capture, CPU-expert offload modes, reasoning-effort controls. Read the runtime's option list fresh each time;
+   this list is a starting point, not the catalogue.
+
+Then verify the claims by observation — run it, read its log, check which flags it accepted and what n_ctx, cache type,
+modalities and draft acceptance it reports back.
 
 Implement the choice through the variables the launcher actually documents. Read those from `llm` itself
 (`llm new <name>` scaffold, `llm help`, the header comment of `$(command -v llm)`) — that is the contract, not any list
-in this skill. If the winning approach needs a knob `llm` does not expose, add it to `llm` and its completion instead of
-working around it in a recipe. Keep engine findings out of this file: `learn` them.
+in this skill. **When the winning approach needs a knob `llm` does not expose, add it to `llm` and its completion**
+instead of hand-editing an engine config that the next setup run overwrites. A recipe key that maps to one engine flag
+(like `experts=mmap`) is the right shape: diffable, tracked, and visible in `llm <name> --print`. Keep engine findings
+out of this file: `learn` them.
 
 ## Step 4 — write the recipe
 
@@ -102,7 +135,9 @@ llm <name> --print      # verify the exact argv before running: context, cache t
 ```
 
 Rules: one file per model; `$HOME` paths; never reference a path that belongs to another recipe; only keys the scaffold
-documents. Add the optional fetch block when the repo and byte sizes are known, so `llm fetch` works later:
+documents. The header comment carries the memory facts and the *why* (what did not fit, which knob was forced and onto
+which value, what a later setup run would revert) — never throughput. Add the optional fetch block when the repo and
+byte sizes are known, so `llm fetch` works later:
 
 ```
 hf=ORG/REPO
@@ -115,7 +150,8 @@ fetch_dir=$HOME/models/<name>
 
 - `llm <name>` in the foreground. Watch VRAM/RAM during load and after warm-up; read the engine log it names.
 - Confirm from the log/API that the settings you asked for were **accepted** (context, cache type, offload, expert
-  cache), not silently downgraded.
+  cache), not silently downgraded — and that the capability checklist is live, not just requested: `/v1/models` reports
+  the input modalities, a real tool call round-trips, the drafter's acceptance is non-zero.
 - Sample free VRAM/RAM with the desktop busy; if the driver evicts the model or the desktop stutters, raise the
   runtime's reserve or lower context/offload. Iterate until it is comfortable, then stop.
 - `omp --profile offline` must answer: `llm` rewrites the shared offline profile on every start (provider `local`, model

@@ -97,10 +97,37 @@ load() {
 }
 
 # is the recipe's model on disk?  (llama: the .gguf; strata: the shard folder with a first shard in it)
+complete() {
+  # the recipe's bytes="..." against what is on disk: a half-downloaded file is not a model, and curl writes straight
+  # to the destination, so a stopped fetch leaves a shorter file that would otherwise read as present
+  [ -n "$bytes" ] || return 0
+  d=${fetch_dir:-}
+  [ -n "$d" ] || case "$engine" in              # the same default load() applies
+    strata) d=$model ;;
+    *)      d=$(dirname "$model") ;;
+  esac
+  i=1
+  for f in $files; do
+    want=$(printf '%s\n' $bytes | sed -n "${i}p")
+    [ -n "$want" ] || return 0
+    p=$d/$(basename "$f")
+    [ -f "$p" ] && [ "$(stat -c %s "$p")" = "$want" ] || return 1
+    i=$((i+1))
+  done
+  return 0
+}
+
 present() {
   case "$engine" in
-    llama)  [ -f "$model" ] ;;
-    strata) [ -d "$model" ] && ls "$model"/*-00001-of-*.gguf >/dev/null 2>&1 ;;
+    llama)  [ -f "$model" ] && complete ;;
+    # strata: the shard set (-0000N-of-0000M), or the single .gguf a one-file model ships (Gyro: weights and the
+    # n-gram table in one file, no shard suffix).  Same test as strata's own find_single().
+    strata)
+      [ -d "$model" ] || return 1
+      if ls "$model"/*-00001-of-*.gguf >/dev/null 2>&1; then complete; return; fi
+      set -- "$model"/*.gguf
+      [ "$#" = "1" ] && [ -f "$1" ] && case "${1##*/}" in mmproj*) return 1 ;; esac
+      complete ;;
   esac
 }
 
@@ -220,8 +247,7 @@ case "$cmd" in
       ( about=""; engine="?"; model=""; ctx=""; kv=""; hf=""; files=""
         . "$RECIPES/$n.conf"
         case "$engine" in
-          llama)  s=$([ -f "$model" ] && echo ok || { [ -n "$hf" ] && echo "missing (llm fetch $n)" || echo "MISSING (no hf=)"; }) ;;
-          strata) s=$([ -d "$model" ] && echo ok || { [ -n "$hf" ] && echo "missing (llm fetch $n)" || echo "MISSING (no hf=)"; }) ;;
+          llama|strata) s=$(present && echo ok || { [ -n "$hf" ] && echo "missing (llm fetch $n)" || echo "MISSING (no hf=)"; }) ;;
           *)      s="no engine" ;;
         esac
         printf '%-10s %-7s %-7s %-6s %s\n' "$n" "$engine" "$ctx" "$kv" "$s — $about"

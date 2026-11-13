@@ -30,6 +30,12 @@ you measure contradicts anything you remember, the measurement wins, and the cor
    left off because nobody checked, is incomplete.
 6. **No speed claims in confs, headers, or `about=`.** Memory facts only (ctx, sizes, tokens, formats, flags). The user
    does not want throughput numbers in config; they age badly and a config is not the place for them.
+7. **Nothing a recipe does may wear the hardware out.** The user cares about this explicitly. Reading is free; writing is
+   not. A model that has to be re-downloaded, re-exported, re-converted or re-packed on every start, or a runtime that
+   spools a cache to disk continuously, turns a read-only workload into sustained SSD writes — that is a failure mode to
+   design out, not to tolerate. One-off downloads, conversions and pack builds are fine; a cost that recurs per start,
+   per prompt or per token is not. Check it before recommending a route, and prefer the option that reads the same bytes
+   every start (the wear checklist in step 3).
 
 ## Step 0 — measure the machine, now
 
@@ -117,6 +123,24 @@ with a source (upstream model-support code, open issues/PRs, the model author's 
    graph capture, CPU-expert offload modes, reasoning-effort controls. Read the runtime's option list fresh each time;
    this list is a starting point, not the catalogue.
 
+**Wear — answer these before recommending a route** (preference 7: SSD write endurance is the one machine resource a bad
+serving setup actually consumes, and it is not something the recipe should spend on the user's behalf)
+
+- **Does it write on start?** A pack/pack-build, a re-export, an index rebuild, a "warming" step that rewrites the model
+  file: all fine *once*, all unacceptable per start. Check whether the build is keyed on a marker (file present → skip)
+  and what invalidates that marker; a recipe that changes ctx/kv/anything can re-trigger it, so know the cost of that
+  edit before making it.
+- **Does it write while serving?** Prompt/KV cache spooled to a file, slot-save paths, continuous logs at debug level,
+  page-file or swap pressure on a machine whose model does not fit RAM. Look for a cache directory growing during a test
+  run, and for `swapon` activity — zram writes are RAM and harmless, a swap partition on SSD is not.
+- **Does it write by design per token?** Some engines spool state (KV offload, prompt cache to disk, "lazy" n-gram
+  readers that index a file). A read-only mmap of the weights is the target shape: same bytes in, no writes out.
+- **Does streaming read or rewrite?** Expert streaming from a mapped file is reads; a runtime that "prepares" or
+  re-quantizes on load is writes. This is the difference between an SSD lasting years and one lasting months.
+- **Verify it, do not assume it:** watch the disk counters across a real session — `iostat -x 1`, or
+  `/proc/<pid>/io` (`read_bytes` vs `write_bytes`) — plus `df` on the model's filesystem before and after. Report what
+  was written, not that it "should" be read-only.
+
 Then verify the claims by observation — run it, read its log, check which flags it accepted and what n_ctx, cache type,
 modalities and draft acceptance it reports back.
 
@@ -152,6 +176,9 @@ fetch_dir=$HOME/models/<name>
 - Confirm from the log/API that the settings you asked for were **accepted** (context, cache type, offload, expert
   cache), not silently downgraded — and that the capability checklist is live, not just requested: `/v1/models` reports
   the input modalities, a real tool call round-trips, the drafter's acceptance is non-zero.
+- Prove the wear profile: read `/proc/<pid>/io` before and after a real prompt and a restart. Serving should show
+  `read_bytes` climbing and `write_bytes` flat; a restart should not re-write the model. If a start writes GBs, say how
+  much and make it a one-off, or pick another route.
 - Sample free VRAM/RAM with the desktop busy; if the driver evicts the model or the desktop stutters, raise the
   runtime's reserve or lower context/offload. Iterate until it is comfortable, then stop.
 - `omp --profile offline` must answer: `llm` rewrites the shared offline profile on every start (provider `local`, model

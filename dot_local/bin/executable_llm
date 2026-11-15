@@ -23,6 +23,7 @@
 #   kv=q4_0                              # llama: -ctk/-ctv; strata: --kv
 #   llama_dir=$HOME/.local/opt/llama-b12079   (llama) where llama-server lives
 #   template=$HOME/models/x/tpl.jinja          (llama, optional) --chat-template-file
+#   mmproj=$HOME/models/x/mmproj.gguf          (llama, optional) --mmproj; also turns on image input in the profile
 #   args="-ngl 99 --parallel 1 --jinja --temp 0.7 --top-p 0.95"   (llama) flags, before the port ones
 #   flags=""                                    (llama) flags, appended last
 #   mtp=0                                # llama: --spec-type draft-mtp when 1; strata: --mtp on|off
@@ -82,7 +83,7 @@ EOF
 }
 
 load() {
-  about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; args=""; flags=""
+  about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; mmproj=""; args=""; flags=""
   mtp=0; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
   . "$RECIPES/$1.conf"
   [ -n "$MODEL" ] && model=$MODEL
@@ -119,7 +120,7 @@ complete() {
 
 present() {
   case "$engine" in
-    llama)  [ -f "$model" ] && complete ;;
+    llama)  [ -f "$model" ] && { [ -z "$mmproj" ] || [ -f "$mmproj" ]; } && complete ;;
     # strata: the shard set (-0000N-of-0000M), or the single .gguf a one-file model ships (Gyro: weights and the
     # n-gram table in one file, no shard suffix).  Same test as strata's own find_single().
     strata)
@@ -179,8 +180,10 @@ prune_it() {
 # image support from the recipe.  The id never changes, so omp's roles in config.yml stay valid.
 write_profile() {
   mkdir -p "$PROFILE"
-  case "$engine" in strata) in_img=", image" ;; *) in_img="" ;; esac
-  if [ "$engine" = "strata" ] && [ "${vision:-on}" = "off" ]; then in_img=""; fi
+  case "$engine" in
+    strata) in_img=", image"; [ "${vision:-on}" = "off" ] && in_img="" ;;
+    *)      in_img=""; [ -n "${mmproj:-}" ] && in_img=", image" ;;
+  esac
   maxtok=32768
   [ "$CTX" -lt "$maxtok" ] && maxtok=$(( CTX / 2 ))
   cat > "$PROFILE/models.yml" <<EOF
@@ -325,6 +328,7 @@ case "$engine" in
       [ -f "$template" ] || { echo "llm: template not found: $template" >&2; exit 1; }
       set -- "$@" --chat-template-file "$template"
     fi
+    [ -n "$mmproj" ] && set -- "$@" --mmproj "$mmproj"
     [ "${mtp:-0}" = "1" ] && set -- "$@" --spec-type draft-mtp
     [ -n "$flags" ] && set -- "$@" $flags
     set -- "$@" --host 127.0.0.1 --port "$PORT"

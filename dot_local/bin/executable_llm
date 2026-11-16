@@ -12,7 +12,7 @@
 #   llm help
 #
 # Starting a model also rewrites the one shared omp profile, ~/.omp/profiles/offline, to point at it: after
-# `llm swift15` you talk to it with `omp --profile offline`, and after `llm sc117` the same command talks to that.
+# `llm huihui27` you talk to it with `omp --profile offline`, and after `llm sc117` the same command talks to that.
 #
 # A recipe is ~/.local/share/llm/recipes/<name>.conf (a shell file, so $HOME works):
 #

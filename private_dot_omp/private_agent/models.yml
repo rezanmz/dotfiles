@@ -4,9 +4,13 @@
 #
 # 9router: roles bind the router's COMBO ids (Deepseek-Flash, MiMo-Pro, …), not
 # opencode-go source models. A combo owns member order and cross-provider
-# fallback (e.g. Deepseek-Flash = ds → deepinfra → ocg), so omp keeps one stable
-# selector per role and the routing policy lives in 9Router. Source ids
-# (`ocg/<slug>`) stay declared for ad-hoc use and for lanes with no combo.
+# fallback (e.g. Deepseek-Flash = cmc → ocg), so omp keeps one stable selector
+# per role and the routing policy lives in 9Router. Source ids (`ocg/<slug>`)
+# stay declared for ad-hoc use and for lanes with no combo. Every family combo
+# is same-family only: Command Code (cmc/<vendor>/<model>) first because it is
+# the live subscription, then the opencode-go twin as fallback. Family fidelity
+# matters — a cross-family member makes `GLM-Flash`, say, answer as DeepSeek
+# (2026-11-21 fix), so add a version bump as a member edit in the same family.
 # Combo ids are case-sensitive and carry no `ocg/` prefix.
 #
 # Verified 2026-10-17 against https://opencode.ai/zen/go/v1/models (37 live ids):

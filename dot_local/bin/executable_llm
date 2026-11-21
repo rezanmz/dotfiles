@@ -60,6 +60,18 @@ num() { case "$1" in *k|*K) echo $(( ${1%[kK]} * 1024 ));; *) echo "$1";; esac; 
 port_busy() { command -v ss >/dev/null 2>&1 && ss -ltnH "sport = :$1" 2>/dev/null | grep -q .; }
 human() { numfmt --to=iec "${1:-0}" 2>/dev/null || echo "${1:-0}B"; }
 
+# Starting a second model while one is already mapped is how the GPU runs out: two 15 GiB allocations on a 16 GB card
+# gave "radv/amdgpu: Not enough memory for command submission" and took the desktop down (2026-11-21).  Every start
+# path goes through here, so the check cannot be forgotten at a call site.  A busy *port* is already refused below;
+# this covers the model that is resident without holding the port (a stray server, a benchmark, a crashed parent).
+# Match every local-inference binary, not just the server: a benchmark (llama-perplexity, llama-bench, llama-cli) or a
+# stratum daemon holds the same VRAM and must count.  A pattern of 'llama-server' alone missed a running perplexity and
+# let a second model start on top of it (2026-11-21, second crash).
+MODEL_PROCS='llama-server|llama-perplexity|llama-bench|llama-cli|llama-quantize|strata serve'
+other_model() {
+  pgrep -f "$MODEL_PROCS" 2>/dev/null | wc -l
+}
+
 usage() {
   cat <<'EOF'
 llm — run a locally hosted model in the foreground (Ctrl+C stops it).
@@ -306,6 +318,17 @@ load "$cmd"
 
 if [ "$PRINT" = "0" ] && port_busy "$PORT"; then
   echo "llm: $PORT is in use — llm stop first (or --port 8081)" >&2; exit 1
+fi
+
+# Second guard: a model already resident on another port (or a stray benchmark) still owns the VRAM, and starting a
+# second one is what crashed the machine on 2026-11-21.  --print stays silent so it can still show the command.
+if [ "$PRINT" = "0" ]; then
+  n=$(other_model)
+  if [ "$n" != "0" ]; then
+    echo "llm: $n model process(es) already running — llm stop first" >&2
+    pgrep -af "$MODEL_PROCS" | sed 's/^/     /' >&2
+    exit 1
+  fi
 fi
 
 if ! present; then

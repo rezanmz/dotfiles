@@ -4,11 +4,15 @@
 #   llm                    what is declared, where it came from, what is on disk, what is running
 #   llm <name>             run it in the FOREGROUND; Ctrl+C (or closing the window) stops it.
 #                          Missing files are downloaded first when the recipe says where they come from.
+#   llm <name> -b|--background
+#                          start it detached, return to the prompt once the server answers; log in
+#                          ~/.local/state/llm/<name>.log; `llm stop` ends it
+#   llm monitor [name]     live readout of the running server (tok/s, tokens, slots); Ctrl+C to leave
 #   llm <name> --print     print the exact command, change nothing
 #   llm fetch <name>       only download what the recipe needs (resumable)
 #   llm prune <name>       delete this recipe's model files (prints the total; add --yes to do it)
 #   llm new <name>         scaffold a recipe, then fill in two lines
-#   llm stop               stop whatever is serving the port
+#   llm stop               stop whatever is serving the port (foreground or background)
 #   llm help
 #
 # Starting a model also rewrites the one shared omp profile, ~/.omp/profiles/offline, to point at it: after
@@ -55,6 +59,7 @@ STRATA=${STRATA:-strata}
 RECIPES=${LLM_RECIPES:-$HOME/.local/share/llm/recipes}
 OMP_PROFILES_DIR=${OMP_PROFILES_DIR:-$HOME/.omp/profiles}
 PORT=${PORT:-8080}
+STATE_DIR=${LLM_STATE_DIR:-$HOME/.local/state/llm}
 # The effort omp asks for unless a recipe says otherwise: one step above medium.  Higher tiers cost minutes per model
 # call at this machine's decode rate, so `high` is the default and a recipe can override it with thinking=.  A recipe
 # that must not think (trained that way) starts its engine with thinking off, which leaves omp nothing to select.
@@ -64,10 +69,41 @@ KV=${KV:-}
 MODEL=${MODEL:-}
 ASSUME=0
 PRINT=0
+BACKGROUND=0
 
 names() { for f in "$RECIPES"/*.conf; do [ -e "$f" ] || continue; printf '%s\n' "$(basename "$f" .conf)"; done; }
 name_list() { names | tr '\n' ' '; }
 num() { case "$1" in *k|*K) echo $(( ${1%[kK]} * 1024 ));; *) echo "$1";; esac; }
+# Which recipe owns a port?  The running server does not know its own name, so a start records it beside the pid.
+# Everything that reports "something is serving" reads this first and falls back to the pid's own command line, so a
+# server started by hand (or by a previous version of this script) is still identified.
+state_file() { echo "$STATE_DIR/$1"; }
+model_of_port() {   # $1 port -> "recipe<TAB>pid<TAB>engine<TAB>model-path"
+  f=$(state_file "port-$1")
+  [ -f "$f" ] && cat "$f" && return 0
+  pid=$(ss -ltnpH "sport = :$1" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | head -1)
+  [ -n "$pid" ] && printf '\t%s\t\t%s\n' "$pid" "$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | sed -E 's/.*-m ([^ ]+).*/\1/')"
+}
+# A human line for a port: recipe name, engine, model file, and what its endpoint says it is.
+describe_port() {   # $1 port
+  port=$1
+  line=$(model_of_port "$port")
+  [ -n "$line" ] || return 1
+  name=$(printf '%s' "$line" | cut -f1); pid=$(printf '%s' "$line" | cut -f2)
+  engine=$(printf '%s' "$line" | cut -f3); mpath=$(printf '%s' "$line" | cut -f4)
+  [ -n "$name" ] || name="(started outside llm)"
+  printf 'serving on 127.0.0.1:%s — %s' "$port" "$name"
+  [ -n "$engine" ] && printf ' [%s]' "$engine"
+  [ -n "$mpath" ] && printf '  %s' "$mpath"
+  [ -n "$pid" ] && printf '  (pid %s)' "$pid"
+  printf '\n'
+}
+record_model() {    # $1 port $2 recipe $3 engine $4 model
+  mkdir -p "$STATE_DIR"
+  printf '%s\t%s\t%s\t%s\n' "$2" "$$" "$3" "$4" > "$(state_file "port-$1")"
+}
+clear_state() { rm -f "$STATE_DIR"/port-* 2>/dev/null || true; }
+
 port_busy() { command -v ss >/dev/null 2>&1 && ss -ltnH "sport = :$1" 2>/dev/null | grep -q .; }
 human() { numfmt --to=iec "${1:-0}" 2>/dev/null || echo "${1:-0}B"; }
 
@@ -90,6 +126,8 @@ llm — run a locally hosted model in the foreground (Ctrl+C stops it).
   llm                  what is declared, its huggingface source or checkpoint, on disk and running
   llm <name>           run one (Tab completes the names); downloads it first if it is missing and the
                        recipe knows where it lives
+  llm <name> -b        start in the background and return once it answers
+  llm monitor [name]   live readout: tokens/s, prompt vs generated, slot state
   llm <name> --print   show the command, run nothing
   llm fetch <name>     download only (resumable)
   llm prune <name>     delete this recipe's model files (prints the total; --yes to really delete)
@@ -266,9 +304,56 @@ write_roles() {
   ' "$cfg" > "$cfg.llm-tmp" && mv "$cfg.llm-tmp" "$cfg"
 }
 
+
+# Live readout.  llama.cpp exposes /slots: each slot carries n_prompt_tokens (prefill) and next_token[0].n_decoded
+# (generated so far), so sampling twice gives real tok/s without parsing Prometheus text.  Strata has its own
+# `monitor`, which is delegated to rather than reimplemented.  Anything else gets a status line and nothing invented.
+monitor_port() {   # $1 port
+  port=$1
+  line=$(model_of_port "$port")
+  engine=$(printf '%s' "$line" | cut -f3)
+  if [ "$engine" = "strata" ]; then
+    exec "$STRATA" monitor --url "http://127.0.0.1:$port"
+  fi
+  prev_p=0; prev_g=0; prev_t=0
+  while :; do
+    json=$(curl -sf --max-time 3 "http://127.0.0.1:$port/slots" 2>/dev/null) || {
+      printf '\r\033[2K%s  server not answering on %s' "$(date +%H:%M:%S)" "$port"; sleep 2; continue; }
+    now=$(date +%s%N)
+    stats=$(printf '%s' "$json" | python3 -c '
+import json,sys
+try: sl=json.load(sys.stdin)
+except Exception: sl=[]
+# n_decoded on next_token[0] counts tokens generated in the CURRENT request (0 once it finishes), so keep the
+# high-water mark per slot instead of summing live values: a finished request would read 0 and look like a reset.
+p=sum(s.get("n_prompt_tokens") or 0 for s in sl)
+g=sum((s.get("next_token") or [{}])[0].get("n_decoded") or 0 for s in sl)
+b=sum(1 for s in sl if s.get("is_processing"))
+print("%d %d %d" % (p,g,b))
+' 2>/dev/null)
+    [ -n "$stats" ] || stats="0 0 0"
+    np=${stats%% *}; rest=${stats#* }; gen=${rest%% *}; busy=${rest#* }
+    [ "$gen" -gt "$prev_g" ] || gen=$prev_g   # hold the high-water mark; a finished request resets the counter to 0
+    if [ -n "$prev_t" ] && [ "$prev_t" -gt 0 ]; then
+      dt=$(( (now - prev_t) / 1000000 ))
+      [ "$dt" -lt 1 ] && dt=1
+      # n_decoded snaps back to 0 when a request finishes, and n_prompt_tokens is re-counted per request: a negative
+      # delta is a counter reset, not throughput, so clamp to 0 instead of printing -169 tok/s.
+      pp=$(( (np - prev_p) * 1000 / dt )); gg=$(( (gen - prev_g) * 1000 / dt ))
+      [ "$pp" -lt 0 ] && pp=0; [ "$gg" -lt 0 ] && gg=0
+    else pp=0; gg=0; fi
+    prev_p=$np; prev_g=$gen; prev_t=$now
+    printf '\r\033[2K%s  prefill %5s tok/s  gen %5s tok/s  |  prompt %6s  generated %6s  |  %s  %s' \
+      "$(date +%H:%M:%S)" "$pp" "$gg" "$np" "$gen" \
+      "$([ "${busy:-0}" -gt 0 ] && echo busy || echo idle)" "$(describe_port "$port" | sed 's/^serving on 127.0.0.1:[0-9]* — //; s/(pid.*//')"
+    sleep 1
+  done
+}
+
 stop_all() {
   "$STRATA" launch --stop >/dev/null 2>&1 || true
   pkill -x llama-server 2>/dev/null || true
+  clear_state
   sleep 1
   port_busy "$PORT" && { echo "llm: still something on $PORT (ss -ltnp 'sport = :$PORT')" >&2; exit 1; }
   echo "llm: stopped"
@@ -325,7 +410,21 @@ case "$cmd" in
         fi )
     done
     echo
-    if port_busy "$PORT"; then echo "serving on 127.0.0.1:$PORT — llm stop to end it"; else echo "nothing is serving on $PORT"; fi
+    if port_busy "$PORT"; then
+      describe_port "$PORT" || echo "serving on 127.0.0.1:$PORT — llm stop to end it"
+      echo "     llm stop to end it, llm monitor to watch it"
+    else
+      echo "nothing is serving on $PORT"
+    fi
+    exit 0 ;;
+  monitor)
+    mport=$PORT
+    if [ -n "${1:-}" ]; then
+      case " $(name_list) " in *" $1 "*) ;; *) echo "llm: no recipe '$1'" >&2; exit 2 ;; esac
+      load "$1"; mport=${PORT}
+    fi
+    printf '\n'
+    monitor_port "$mport"
     exit 0 ;;
   help|-h|--help) usage; exit 0 ;;
   stop) stop_all; exit 0 ;;
@@ -355,6 +454,7 @@ while [ $# -gt 0 ]; do
     --model)    MODEL=$2; shift 2 ;;
     --model=*)  MODEL=${1#*=}; shift ;;
     --print|-n) PRINT=1; shift ;;
+    --background|-b) BACKGROUND=1; shift ;;
     --yes|-y)   ASSUME=1; shift ;;
     -h|--help)  usage; exit 0 ;;
     *) echo "llm: unknown option '$1' (llm help)" >&2; exit 2 ;;
@@ -418,6 +518,25 @@ case "$engine" in
       printf '  '; printf '%s ' "$@" | sed "s|$HOME|~|g"; echo; exit 0
     fi
     write_profile "$cmd"
+    mkdir -p "$STATE_DIR"
+    if [ "$BACKGROUND" = "1" ]; then
+      log=$STATE_DIR/$cmd.log
+      record_model "$PORT" "$cmd" llama "$model"
+      nohup "$@" >>"$log" 2>&1 &
+      bgpid=$!
+      i=0
+      while [ $i -lt 240 ]; do
+        curl -sf "http://127.0.0.1:$PORT/health" >/dev/null 2>&1 && break
+        kill -0 "$bgpid" 2>/dev/null || { echo "llm: $cmd died during startup — $log" >&2; tail -5 "$log" >&2; rm -f "$(state_file "port-$PORT")"; exit 1; }
+        sleep 1; i=$((i+1))
+      done
+      [ $i -lt 240 ] || { echo "llm: $cmd did not answer on $PORT within 240s — $log" >&2; exit 1; }
+      printf '%s\t%s\t%s\t%s\n' "$cmd" "$bgpid" llama "$model" > "$(state_file "port-$PORT")"
+      echo "llm: $cmd | port $PORT | ctx $CTX | kv $KV — running in the background (pid $bgpid), log $log"
+      echo "     llm stop to end it, llm monitor to watch it"
+      exit 0
+    fi
+    record_model "$PORT" "$cmd" llama "$model"
     echo "llm: $cmd | port $PORT | ctx $CTX | kv $KV — Ctrl+C stops it"
     exec "$@"
     ;;
@@ -494,6 +613,24 @@ cfg["args_written"] = list(args)
 json.dump(cfg, open(path, "w"), indent=1)
 PYCONF
     write_profile "$cmd"
+    mkdir -p "$STATE_DIR"
+    if [ "$BACKGROUND" = "1" ]; then
+      log=$STATE_DIR/$cmd.log
+      nohup "$STRATA" serve --profile "$CFG" --host 127.0.0.1 --port "$PORT" >>"$log" 2>&1 &
+      bgpid=$!
+      i=0
+      while [ $i -lt 300 ]; do
+        port_busy "$PORT" && break
+        kill -0 "$bgpid" 2>/dev/null || { echo "llm: $cmd died during startup — $log" >&2; tail -5 "$log" >&2; exit 1; }
+        sleep 1; i=$((i+1))
+      done
+      [ $i -lt 300 ] || { echo "llm: $cmd did not start on $PORT within 300s — $log" >&2; exit 1; }
+      printf '%s\t%s\t%s\t%s\n' "$cmd" "$bgpid" strata "$model" > "$(state_file "port-$PORT")"
+      echo "llm: $cmd | port $PORT — running in the background (pid $bgpid), log $log"
+      echo "     llm stop to end it, llm monitor to watch it"
+      exit 0
+    fi
+    printf '%s\t%s\t%s\t%s\n' "$cmd" "$$" strata "$model" > "$(state_file "port-$PORT")"
     echo "llm: $cmd | ctx $CTX | kv $KV | vision $vision | reserve $reserve MiB | experts $experts | port $PORT — Ctrl+C stops it"
     exec "$STRATA" serve --profile "$CFG" --host 127.0.0.1 --port "$PORT"
     ;;

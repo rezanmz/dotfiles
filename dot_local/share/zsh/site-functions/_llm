@@ -5,7 +5,7 @@ _llm() {
   local -a cmds recipes
   local dir=${LLM_RECIPES:-$HOME/.local/share/llm/recipes}
   local kv_llama kv_strata
-  cmds=(list stop help new)
+  cmds=(list stop help new monitor)
   recipes=(${dir}/*.conf(N:t:r))
 
   _arguments -C \
@@ -30,6 +30,7 @@ _llm() {
             "--kv[KV cache format]:format:(${${kv_llama}:#} ${${kv_strata}:#})" \
             '--model[another GGUF]:file:_files -g "*.gguf"' \
             '--print[show the command, run nothing]' \
+            '(-b --background)'{-b,--background}'[start detached and return once the server answers]' \
             '(-h --help)'{-h,--help}'[usage]'
           ;;
       esac

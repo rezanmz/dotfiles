@@ -1,3 +1,4 @@
+{{- if ne .machine "work" -}}
 providers:
   webSearchOrder:
     - ecosia
@@ -22,18 +23,20 @@ providers:
     - google
     - mojeek
     - public
+{{ end -}}
 modelRoles:
 {{- if eq .machine "work" }}
-  default: github-copilot/gpt-6.1-sol:xhigh
+  default: github-copilot/gpt-6.2-sol-1m:xhigh
   slow: github-copilot/claude-opus-5.5:max
   smol: github-copilot/claude-haiku-5.5:medium
-  vision: github-copilot/gpt-6.1-sol:high
-  plan: github-copilot/claude-sonnet-5.5:xhigh
+  vision: github-copilot/gpt-6.2-sol:high
+  plan: github-copilot/gemini-4-neon:xhigh
   designer: github-copilot/claude-sonnet-5.5:high
   commit: github-copilot/gpt-6-luna:low
   tiny: github-copilot/gpt-6-luna:low
-  task: github-copilot/gpt-6.1-sol:medium
+  task: github-copilot/gpt-6.2-sol:medium
   advisor: github-copilot/claude-sonnet-5.5:xhigh
+  web: web/ecosia
 {{- else }}
   # Roles bind 9Router COMBO ids (see models.yml): the combo owns member order
   # and cross-provider fallback, so a member swap or provider outage is fixed in
@@ -115,38 +118,64 @@ retry:
   usageAwareFallback: false
   fallbackChains:
 {{- if eq .machine "work" }}
-    # Each chain starts with the role's previous primary, then a
-    # cross-vendor alternative.
+    # Keep the prior primary first for changed roles, then a vendor alternative.
     default:
-      - github-copilot/gpt-5.6-terra:high
+      - github-copilot/gpt-6.1-sol:xhigh
       - github-copilot/claude-sonnet-5.5:xhigh
     slow:
-      - github-copilot/claude-opus-5:max
-      - github-copilot/gpt-6.1-sol:max
+      - github-copilot/gpt-6.2-sol:max
+      - github-copilot/claude-sonnet-5.5:max
     plan:
-      - github-copilot/gpt-5.6-sol:xhigh
+      - github-copilot/claude-sonnet-5.5:xhigh
       - github-copilot/claude-opus-5.5:high
     smol:
-      - github-copilot/gemini-3.7-flash:low
+      - github-copilot/mai-code-2-flash:low
       - github-copilot/gpt-6-luna:medium
     task:
-      - github-copilot/gpt-5.6-terra:high
+      - github-copilot/gpt-6.1-sol:medium
       - github-copilot/claude-sonnet-5.5:high
     vision:
-      - github-copilot/claude-sonnet-5:high
+      - github-copilot/gpt-6.1-sol:high
       - github-copilot/gemini-3.8-flash:high
     designer:
       - github-copilot/claude-sonnet-5:high
-      - github-copilot/gpt-6.1-sol:high
+      - github-copilot/gpt-6.2-sol:high
     commit:
       - github-copilot/gpt-5.6-luna:low
-      - github-copilot/mai-code-1.1-flash
+      - github-copilot/mai-code-2-flash:low
     tiny:
       - github-copilot/gpt-5.6-luna:low
-      - github-copilot/mai-code-1.1-flash
+      - github-copilot/mai-code-2-flash:low
     advisor:
       - github-copilot/grok-4.6:high
-      - github-copilot/gpt-6.1-sol:high
+      - github-copilot/gpt-6.2-sol:high
+    # Preserve the work laptop's OMP v19 web search order.
+    web:
+      - web/perplexity
+      - google-gemini-cli/gemini-2.5-flash
+      - google-antigravity/gemini-2.5-flash
+      - google/gemini-2.5-flash
+      - anthropic/claude-haiku-4-5
+      - openai-codex/gpt-5.6-luna
+      - xai/grok-4.5
+      - web/zai
+      - web/exa
+      - web/tinyfish
+      - web/jina
+      - web/kagi
+      - web/tavily
+      - web/firecrawl
+      - web/brave
+      - web/kimi
+      - web/parallel
+      - web/synthetic
+      - web/startpage
+      - web/duckduckgo
+      - web/google
+      - web/mojeek
+      - web/public
+      - web/hosted
+      - web/searxng
 {{- else }}
     # Chains now spend their 9Router hops on COMBO ids: the combo already walks
     # its own members across providers (Deepseek-Flash = ds → deepinfra → ocg),
@@ -309,5 +338,8 @@ statusLine:
     - time_spent
     - subagents
     - status
+{{- if eq .machine "work" }}
+hideThinkingBlock: true
+{{- end }}
 update:
-  auto: true
+  auto: {{ ne .machine "work" }}

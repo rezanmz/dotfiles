@@ -694,19 +694,21 @@ Fonts are not vendored. Install Hack Nerd Font (`ttf-hack-nerd`) through the pla
 
 ## OMP model routing
 
-The OMP configuration is rendered from the machine role. `personal` uses the OpenCode Go routing profile. `work` uses only `github-copilot/*` models and keeps authentication machine-local.
+The OMP configuration is rendered from the machine role. `personal` uses the OpenCode Go routing profile. `work` uses only `github-copilot/*` for coding and review roles and keeps authentication machine-local. Web search has separate routing.
 
 | OMP role | Work model | Purpose |
 | --- | --- | --- |
-| `default` | GPT-6.1 Sol (xhigh) | Everyday implementation |
-| `task` | GPT-6.1 Sol (medium) | Delegated coding subagents |
+| `default` | GPT-6.2 Sol 1M (xhigh) | Implementation and long-running sessions |
+| `task` | GPT-6.2 Sol (medium) | Delegated coding without the 1M context tier |
 | `slow` | Claude Opus 5.5 (max) | Highest-judgment review and security |
-| `plan` | Claude Sonnet 5.5 (xhigh) | Architecture and deep coding plans |
+| `plan` | Gemini 4 Neon (xhigh) | Architecture and an independent perspective on coding plans |
 | `smol` | Claude Haiku 5.5 (medium) | Fast scouting, research, and mechanical agents |
-| `vision` | GPT-6.1 Sol (high) | Image and screenshot understanding |
+| `vision` | GPT-6.2 Sol (high) | Image and screenshot understanding |
 | `designer` | Claude Sonnet 5.5 (high) | UI/UX work |
 | `commit`, `tiny` | GPT-6 Luna (low) | Low-cost utility operations |
 | `advisor` | Claude Sonnet 5.5 (xhigh) | Cross-vendor second-opinion review |
+
+Start a fresh OMP session after applying model changes. Resumed sessions keep their saved model; use `/model` to switch them.
 
 Authenticate on the work laptop from inside OMP with `/login github-copilot`. Credentials are not managed by chezmoi. Verify the live catalog and quota after login:
 

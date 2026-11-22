@@ -29,6 +29,10 @@
 #   mtp=0                                # llama: --spec-type draft-mtp when 1; strata: --mtp on|off
 #   think=auto                           # llama: on|off|auto -> --reasoning.  off is for a model trained
 #                                        #   thinking-off: the template's own default is thinking on (xhigh)
+#   thinking=                            # the level omp asks this model for, written into models.yml: max (the
+#                                        #   default here), or a level the recipe's engine supports.  Clamped by omp
+#                                        #   to the model's own list, so a recipe that runs with --reasoning off simply
+#                                        #   has no thinking to select.  unset takes the launcher's DEFAULT_THINKING
 #   vision=gpu                           (strata) gpu | cpu | off
 #   reserve=2048                         (strata) MiB of VRAM kept for the desktop
 #   experts=auto                         (strata) auto | mmap | resident: how the experts the GPU does not hold are
@@ -50,6 +54,10 @@ STRATA=${STRATA:-strata}
 RECIPES=${LLM_RECIPES:-$HOME/.local/share/llm/recipes}
 PROFILE=${OMP_PROFILE:-$HOME/.omp/profiles/offline/agent}
 PORT=${PORT:-8080}
+# The effort omp asks for unless a recipe says otherwise.  max is the right default for models served on this
+# machine: the cost of more thinking is time, and a recipe that must not think (trained that way) starts its engine
+# with thinking off, which leaves omp nothing to select.  A recipe overrides it with thinking=.
+DEFAULT_THINKING=${DEFAULT_THINKING:-max}
 CTX=${CTX:-}
 KV=${KV:-}
 MODEL=${MODEL:-}
@@ -92,13 +100,14 @@ flags
   --ctx N|128k   --port N   --kv FMT   --model PATH   --print   --yes
 
 starting a model also rewrites ~/.omp/profiles/offline, so `omp --profile offline` always talks to the model
-that llm started last.
+that llm started last: the model's id becomes the recipe name, every modelRole points at it, and the thinking
+level is the recipe's thinking= (default max).
 EOF
 }
 
 load() {
   about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; mmproj=""; args=""; flags=""
-  mtp=0; think=""; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
+  mtp=0; think=""; thinking=""; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
   . "$RECIPES/$1.conf"
   [ -n "$MODEL" ] && model=$MODEL
   CTX=${CTX:-$ctx}
@@ -200,6 +209,11 @@ write_profile() {
   esac
   maxtok=32768
   [ "$CTX" -lt "$maxtok" ] && maxtok=$(( CTX / 2 ))
+  # The model id is the recipe name, not the constant "local": omp labels a model by its id in `omp models` and in the
+  # picker's search, so a constant id made every model read as "local" while the name — the only place the recipe
+  # showed — sat in a column nothing displays.  The id is what `--model` and modelRoles match on, which is why the
+  # roles below are rewritten with it in the same breath; a config.yml pointing at the previous recipe's id resolves
+  # to nothing and omp then reports missing credentials instead of a missing model.
   cat > "$PROFILE/models.yml" <<EOF
 # Written by \`llm $1\` — refreshed on every start, do not edit by hand.
 # Talk to it with: omp --profile offline
@@ -211,15 +225,35 @@ providers:
     apiKey: none
     auth: apiKey
     models:
-      - id: local
-        name: local — $about
+      - id: $1
+        name: $about
         reasoning: true
         input: [text$in_img]
         cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
         contextWindow: $CTX
         maxTokens: $maxtok
 EOF
-  echo "llm: omp profile 'offline' now points at $1 (port $PORT, $CTX ctx)"
+  write_roles "$1" "${thinking:-$DEFAULT_THINKING}"
+  echo "llm: omp profile 'offline' now points at $1 (port $PORT, $CTX ctx, thinking ${thinking:-$DEFAULT_THINKING})"
+}
+
+# Every role config.yml declares points at this one model, so the roles belong to whoever writes models.yml.  Only the
+# role lines are touched (and enabledModels): the rest of the file is the user's — feature switches, thinking level,
+# disabled providers — and rewriting it whole would silently undo their edits.
+write_roles() {
+  cfg=$PROFILE/config.yml
+  [ -f "$cfg" ] || return 0
+  awk -v id="$1" -v level="$2" '
+    /^modelRoles:/ { print; inroles=1; next }
+    inroles && /^[^[:space:]#]/ { inroles=0 }
+    inroles && /^[[:space:]]+[a-zA-Z]+:/ { sub(/:.*/, ": local/" id); print; next }
+    /^enabledModels:/ { print; inen=1; next }
+    inen && /^[[:space:]]*-/ { if (!done) { print "  - local/" id; done=1 }; next }
+    inen && /^[^[:space:]#]/ { inen=0 }
+    /^defaultThinkingLevel:/ { print "defaultThinkingLevel: " level; seen=1; next }
+    { print }
+    END { if (!seen) print "defaultThinkingLevel: " level }
+  ' "$cfg" > "$cfg.llm-tmp" && mv "$cfg.llm-tmp" "$cfg"
 }
 
 stop_all() {

@@ -1,7 +1,22 @@
 # The one local profile: everything here is a locally hosted model, nothing leaves the machine.
-# models.yml beside this file is WRITTEN BY `llm <recipe>` on every start (provider "local", model id "local"),
-# so `omp --profile offline` always talks to whatever llm started last. This file only decides the roles, which
-# all point at that single id, plus what is switched off.
+# models.yml beside this file is WRITTEN BY `llm <recipe>` on every start (provider "local", id = the recipe name), so
+# `omp --profile offline` always talks to whatever llm started last.  This file only decides the roles, which all point
+# at that one model, plus what is switched off.
+#
+# `llm` also rewrites the role lines and enabledModels below to name the recipe it just started.  That is why they are
+# `local/<recipe>` rather than a fixed id: a role naming a model that is no longer in models.yml resolves to nothing,
+# and omp then fails with "set an API key" rather than "no such model".  Edit anything else here freely — llm touches
+# only those lines.
+#
+# defaultThinkingLevel is the effort omp asks a model for, and max is the choice here: a locally served model costs
+# nothing but time, and the recipes that need thinking off (a model trained that way, like pi27) say so themselves by
+# starting the server with --reasoning off and advertising the matching efforts in models.yml.  omp clamps whatever is
+# set here to the model's advertised list, so this cannot push a model above what its recipe allows:
+#   -a model advertising minimal..xhigh runs at xhigh
+#   -an ollama-style model advertising low..max runs at max
+#   -a model advertising nothing runs with thinking off
+# A recipe that wants a different level than max for its own model sets thinking= in the recipe instead of changing
+# this line, because this line is shared by every local model.
 modelRoles:
   smol: local/local
   slow: local/local
@@ -86,7 +101,7 @@ disabledProviders:
   - gitlab-duo-agent
   - opencode-zen
   - opencode-go
-defaultThinkingLevel: low
+defaultThinkingLevel: max
 find:
   enabled: "off"
 prewalk:

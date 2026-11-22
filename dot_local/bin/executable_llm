@@ -329,6 +329,8 @@ monitor_port() {   # $1 port
   line=$(model_of_port "$port")
   engine=$(printf '%s' "$line" | cut -f3)
   if [ "$engine" = "strata" ]; then
+    # Strata ships its own live monitor (a full-screen TUI).  Delegate rather than reimplement: it knows its own
+    # telemetry.  Outside a terminal it refuses and points at --once, which is the honest answer, so pass that through.
     exec "$STRATA" monitor --url "http://127.0.0.1:$port"
   fi
   prev_p=0; prev_g=0; prev_t=0
@@ -434,10 +436,24 @@ case "$cmd" in
     fi
     exit 0 ;;
   monitor)
-    mport=$PORT
+    # Which port?  An explicit recipe wins; otherwise the port the model was actually started on (recorded in the
+    # state file), falling back to $PORT.  Reading the state file matters because `llm monitor` with no argument used
+    # to look at 8080 no matter which port was serving.
     if [ -n "${1:-}" ]; then
       case " $(name_list) " in *" $1 "*) ;; *) echo "llm: no recipe '$1'" >&2; exit 2 ;; esac
-      load "$1"; mport=${PORT}
+      load "$1"
+      # An explicit recipe only knows its default port.  Prefer the port it was actually recorded on, if any.
+      mport=$PORT
+      for f in "$STATE_DIR"/port-*; do
+        [ -f "$f" ] || continue
+        if [ "$(cut -f1 "$f")" = "$1" ]; then mport=${f##*port-}; break; fi
+      done
+      # Strata models are watched with strata's own monitor, not the /slots renderer; that is decided inside
+      # monitor_port from the engine recorded for the port, so nothing else is needed here.
+    else
+      mport=$(ls "$STATE_DIR"/port-* 2>/dev/null | sed 's/.*port-//' | head -1)
+      [ -n "$mport" ] || mport=$PORT
+      port_busy "$mport" 2>/dev/null || { echo "llm: nothing recorded as running on $mport (try: llm)" >&2; exit 2; }
     fi
     printf '\n'
     monitor_port "$mport"

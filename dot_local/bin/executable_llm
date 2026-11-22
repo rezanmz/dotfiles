@@ -17,8 +17,10 @@
 #   llm stop               stop whatever is serving the port (foreground or background)
 #   llm help
 #
-# Starting a model also rewrites the one shared omp profile, ~/.omp/profiles/offline, to point at it: after
-# `llm huihui27` you talk to it with `omp --profile offline`, and after `llm sc117` the same command talks to that.
+# Starting a model also rewrites the shared omp profiles, ~/.omp/profiles/offline and ~/.omp/profiles/localwork, to
+# point at it: after `llm huihui27` both `omp --profile offline` and `omp --profile localwork` talk to it.  A profile
+# left on a different recipe is worse than useless — it names the wrong model and advertises that model's context, so
+# a 256K server gets compacted at 128K — hence both are written unless a recipe narrows it with profiles=.
 #
 # A recipe is ~/.local/share/llm/recipes/<name>.conf (a shell file, so $HOME works):
 #
@@ -48,7 +50,7 @@
 #                                        and falls back to the file cache anyway).  Written into the run config as
 #                                        --mmap-experts/--resident-experts, replacing whichever is there.
 #   strata_config=strata-q2_0.json       (strata) the run config Strata keeps for this model, in install/
-#   profiles="offline localwork"         omp profiles to rewrite on start (default: offline)
+#   profiles="offline localwork"         omp profiles to rewrite on start (default: offline localwork)
 #   hf=ORG/REPO                          where the files come from (Hugging Face), optional
 #   files="Q2_0/shard-00001-of-00002.gguf Q2_0/shard-00002-of-00002.gguf"   paths inside the repo
 #   bytes="38021379872 28800138432"      expected sizes, checked after the download
@@ -140,9 +142,9 @@ llm — run a locally hosted model in the foreground (Ctrl+C stops it).
 flags
   --ctx N|128k   --port N   --kv FMT   --model PATH   --print   --yes
 
-starting a model also rewrites ~/.omp/profiles/offline, so `omp --profile offline` always talks to the model
-that llm started last: the model's id becomes the recipe name, every modelRole points at it, and the thinking
-level is the recipe's thinking= (default max).
+starting a model also rewrites ~/.omp/profiles/offline and ~/.omp/profiles/localwork, so both always talk to the
+model that llm started last: the model's id becomes the recipe name, every modelRole points at it, and the thinking
+level is the recipe's thinking= (default max).  A recipe that really must only have one profile says profiles="x".
 EOF
 }
 
@@ -243,8 +245,9 @@ prune_it() {
 # The shared omp profiles, one per `profiles=` entry: provider "local" with the recipe name as id, context and image
 # support from the recipe, plus the decision-model provider when the recipe names one.
 write_profile() {
-  # profiles="offline localwork" writes every profile; the default is just the one.
-  for prof in ${profiles:-offline}; do
+  # profiles="offline localwork" narrows or reorders this; the default is every profile this machine has, so none is
+  # ever left naming an older model (a stale one advertises the wrong context and mislabels the requests).
+  for prof in ${profiles:-offline localwork}; do
     write_one_profile "$prof" "$1"
     seed_profile_env "$prof"
   done

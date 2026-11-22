@@ -3,10 +3,12 @@
 # `omp --profile offline` always talks to whatever llm started last.  This file only decides the roles, which all point
 # at that one model, plus what is switched off.
 #
-# `llm` also rewrites the role lines and enabledModels below to name the recipe it just started.  That is why they are
-# `local/<recipe>` rather than a fixed id: a role naming a model that is no longer in models.yml resolves to nothing,
-# and omp then fails with "set an API key" rather than "no such model".  Edit anything else here freely — llm touches
-# only those lines.
+# The role lines and enabledModels below name `local/*` — every model this provider declares, which is always exactly
+# the one recipe llm last started.  That is deliberate: an id like `local/pi27` would go unresolvable the moment another
+# recipe started (models.yml is rewritten wholesale), and a role naming a missing model fails as "set an API key"
+# rather than "no such model".  `llm <recipe>` does still rewrite those lines to the exact id, which is harmless because
+# `local/*` and `local/<that recipe>` name the same single model; a later `chezmoi apply` reverting them to `local/*`
+# changes nothing about which model resolves.  Edit anything else here freely — llm touches only those lines.
 #
 # defaultThinkingLevel is the effort omp asks a model for, and max is the choice here: a locally served model costs
 # nothing but time, and the recipes that need thinking off (a model trained that way, like pi27) say so themselves by
@@ -18,20 +20,20 @@
 # A recipe that wants a different level than max for its own model sets thinking= in the recipe instead of changing
 # this line, because this line is shared by every local model.
 modelRoles:
-  smol: local/local
-  slow: local/local
-  vision: local/local
-  plan: local/local
-  designer: local/local
-  commit: local/local
-  tiny: local/local
-  task: local/local
-  advisor: local/local
-  judge: local/local
-  widget: local/local
-  memory: local/local
+  smol: local/*
+  slow: local/*
+  vision: local/*
+  plan: local/*
+  designer: local/*
+  commit: local/*
+  tiny: local/*
+  task: local/*
+  advisor: local/*
+  judge: local/*
+  widget: local/*
+  memory: local/*
 enabledModels:
-  - local/local
+  - local/*
 retry:
   modelFallback: false
   fallbackChains: {}

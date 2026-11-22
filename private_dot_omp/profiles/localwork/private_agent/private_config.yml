@@ -1,0 +1,182 @@
+# The local-work profile: the same capability surface as the default profile — web search, fetch, LSP, skills, rules,
+# context files — with every model role on the one local deployment.  Nothing here calls a hosted LLM: models.yml and
+# this file name only `local/*`, and the judge is joey-1 on the CPU.
+# Separate from `offline` on purpose: sessions, history and agent.db are per-profile, so "read the docs and fix this
+# repo" work never mixes with hermetic drafting.  Both profiles are rewritten by `llm <recipe>` on every start.
+#
+# Thinking is decided per turn by joey-1 (auto), not by a fixed level: see providers.autoThinkingModel below.
+modelRoles:
+  smol: local/*
+  slow: local/*
+  vision: local/*
+  plan: local/*
+  designer: local/*
+  commit: local/*
+  tiny: local/*
+  task: local/*
+  advisor: local/*
+  judge: local/*
+  widget: local/*
+  memory: local/*
+enabledModels:
+  - local/*
+retry:
+  modelFallback: false
+  fallbackChains: {}
+disabledProviders:
+  - 9router
+  - openrouter
+  - anthropic
+  - openai
+  - openai-codex
+  - google
+  - google-vertex
+  - google-gemini-cli
+  - google-antigravity
+  - groq
+  - mistral
+  - xai
+  - xai-oauth
+  - github-copilot
+  - cursor
+  - azure
+  - amazon-bedrock
+  - bedrock-mantle
+  - cerebras
+  - deepinfra
+  - deepseek
+  - siliconflow
+  - siliconflow-cn
+  - fireworks
+  - together
+  - modular
+  - typesafe
+  - coreweave
+  - nvidia
+  - devin
+  - gmi-cloud
+  - huggingface
+  - inception
+  - moonshot
+  - stepfun
+  - helmcode
+  - meta
+  - nanogpt
+  - novita
+  - venice
+  - vercel-ai-gateway
+  - cloudflare-ai-gateway
+  - cloudflare-workers-ai
+  - snowflake
+  - litellm
+  - kilo
+  - zai
+  - zhipu-coding-plan
+  - umans
+  - qianfan
+  - qwen-portal
+  - synthetic
+  - minimax
+  - minimax-code
+  - minimax-code-cn
+  - alibaba-coding-plan
+  - alibaba-token-plan
+  - sakana
+  - sambanova
+  - scaleway
+  - aimlapi
+  - gitlab-duo
+  - gitlab-duo-agent
+  - opencode-zen
+  - opencode-go
+defaultThinkingLevel: auto
+providers:
+  autoThinkingModel: online
+  judgmentProvider: auto
+find:
+  enabled: "on"
+prewalk:
+  auto: "off"
+features:
+  unexpectedStopDetection: none
+tui:
+  autoGraph: "off"
+advisor:
+  enabled: false
+recap:
+  enabled: false
+async:
+  widgets: false
+task:
+  completionProbe: false
+edit:
+  autoRepair:
+    enabled: false
+composer:
+  predictions: false
+  shape: band
+memory:
+  backend: "off"
+hindsight:
+  autoRecall: false
+  autoRetain: false
+autolearn:
+  enabled: false
+web_search:
+  enabled: true
+fetch:
+  enabled: true
+browser:
+  enabled: true
+dev:
+  autoqa: false
+  autoqaConsent: denied
+telemetry:
+  otlpExportEnabled: false
+startup:
+  checkUpdate: false
+marketplace:
+  autoUpdate: "off"
+collab:
+  autoStart: "off"
+images:
+  blockImages: false
+  describeForTextModels: false
+  urls:
+    enabled: false
+generate_image:
+  enabled: false
+speech:
+  enabled: false
+stt:
+  enabled: false
+speechgen:
+  enabled: false
+github:
+  enabled: false
+mcp:
+  enableProjectConfig: false
+lsp:
+  enabled: true
+eval:
+  autoProvision: false
+providers:
+  cacheWarming: "off"
+  cacheRetention: none
+compaction:
+  methodOrder:
+    - snapcompact
+    - handoff
+    - shake
+    - soft
+  remoteEndpoint: null
+  remoteStreamingV2Enabled: false
+  idleEnabled: false
+skills:
+  enabled: true
+symbolPreset: unicode
+theme:
+  dark: titanium
+setupVersion: 3
+update:
+  auto: false

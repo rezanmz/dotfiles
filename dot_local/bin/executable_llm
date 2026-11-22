@@ -17,7 +17,7 @@
 # A recipe is ~/.local/share/llm/recipes/<name>.conf (a shell file, so $HOME works):
 #
 #   about="what it is, in one line"      # shown by `llm list`
-#   engine=llama                         # llama | strata
+#   engine=llama                         # llama | strata | qev (a System One decision server; see joey1.conf)
 #   model=$HOME/models/x/model.gguf      # llama: a .gguf; strata: the shard folder
 #   ctx=32768                            # llama: -c; strata: --max-context
 #   kv=q4_0                              # llama: -ctk/-ctv; strata: --kv
@@ -42,6 +42,11 @@
 #                                        and falls back to the file cache anyway).  Written into the run config as
 #                                        --mmap-experts/--resident-experts, replacing whichever is there.
 #   strata_config=strata-q2_0.json       (strata) the run config Strata keeps for this model, in install/
+#   judge_url=http://127.0.0.1:8078      a qev/System One decision server for this recipe: its model becomes the
+#                                        judge role and auto-thinking, so the effort is a calibrated classification
+#                                        instead of a chat model that has to emit a label
+#   judge_model=joey-1                   the model id that server reports (its --name)
+#   profiles="offline localwork"         omp profiles to rewrite on start (default: offline)
 #   hf=ORG/REPO                          where the files come from (Hugging Face), optional
 #   files="Q2_0/shard-00001-of-00002.gguf Q2_0/shard-00002-of-00002.gguf"   paths inside the repo
 #   bytes="38021379872 28800138432"      expected sizes, checked after the download
@@ -52,7 +57,7 @@ set -e
 
 STRATA=${STRATA:-strata}
 RECIPES=${LLM_RECIPES:-$HOME/.local/share/llm/recipes}
-PROFILE=${OMP_PROFILE:-$HOME/.omp/profiles/offline/agent}
+OMP_PROFILES_DIR=${OMP_PROFILES_DIR:-$HOME/.omp/profiles}
 PORT=${PORT:-8080}
 # The effort omp asks for unless a recipe says otherwise.  max is the right default for models served on this
 # machine: the cost of more thinking is time, and a recipe that must not think (trained that way) starts its engine
@@ -107,12 +112,12 @@ EOF
 
 load() {
   about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; mmproj=""; args=""; flags=""
-  mtp=0; think=""; thinking=""; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
+  mtp=0; think=""; thinking=""; judge_url=""; judge_model=""; profiles=""; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
   . "$RECIPES/$1.conf"
   [ -n "$MODEL" ] && model=$MODEL
   CTX=${CTX:-$ctx}
   KV=${KV:-$kv}
-  : "${CTX:?llm: $1.conf has no ctx}"
+  [ "$engine" = "qev" ] || : "${CTX:?llm: $1.conf has no ctx}"
   : "${engine:?llm: $1.conf has no engine}"
   case "$engine" in
     strata) fetch_dir=${fetch_dir:-$model} ;;
@@ -143,6 +148,7 @@ complete() {
 
 present() {
   case "$engine" in
+    qev)    [ -f "$model/model.safetensors" ] ;;
     llama)  [ -f "$model" ] && { [ -z "$mmproj" ] || [ -f "$mmproj" ]; } && complete ;;
     # strata: the shard set (-0000N-of-0000M), or the single .gguf a one-file model ships (Gyro: weights and the
     # n-gram table in one file, no shard suffix).  Same test as strata's own find_single().
@@ -199,10 +205,19 @@ prune_it() {
   echo "      deleted"
 }
 
-# The one shared omp profile: provider "local", model id "local" (both servers accept any id), context and
-# image support from the recipe.  The id never changes, so omp's roles in config.yml stay valid.
+# The shared omp profiles, one per `profiles=` entry: provider "local" with the recipe name as id, context and image
+# support from the recipe, plus the decision-model provider when the recipe names one.
 write_profile() {
-  mkdir -p "$PROFILE"
+  # profiles="offline localwork" writes every profile; the default is just the one.
+  for prof in ${profiles:-offline}; do
+    write_one_profile "$prof" "$1"
+  done
+}
+
+write_one_profile() {
+  prof=$1; name=$2
+  dir=$OMP_PROFILES_DIR/$prof/agent
+  mkdir -p "$dir"
   case "$engine" in
     strata) in_img=", image"; [ "${vision:-on}" = "off" ] && in_img="" ;;
     *)      in_img=""; [ -n "${mmproj:-}" ] && in_img=", image" ;;
@@ -210,13 +225,12 @@ write_profile() {
   maxtok=32768
   [ "$CTX" -lt "$maxtok" ] && maxtok=$(( CTX / 2 ))
   # The model id is the recipe name, not the constant "local": omp labels a model by its id in `omp models` and in the
-  # picker's search, so a constant id made every model read as "local" while the name — the only place the recipe
-  # showed — sat in a column nothing displays.  The id is what `--model` and modelRoles match on, which is why the
-  # roles below are rewritten with it in the same breath; a config.yml pointing at the previous recipe's id resolves
-  # to nothing and omp then reports missing credentials instead of a missing model.
-  cat > "$PROFILE/models.yml" <<EOF
-# Written by \`llm $1\` — refreshed on every start, do not edit by hand.
-# Talk to it with: omp --profile offline
+  # picker's search, so a constant id made every model read as "local".  The id is what `--model` and modelRoles match
+  # on, so the roles are rewritten with it in the same breath.
+  {
+    cat <<EOF
+# Written by \`llm $name\` — refreshed on every start, do not edit by hand.
+# Talk to it with: omp --profile $prof
 providers:
   local:
     baseUrl: http://127.0.0.1:$PORT/v1
@@ -225,7 +239,7 @@ providers:
     apiKey: none
     auth: apiKey
     models:
-      - id: $1
+      - id: $name
         name: $about
         reasoning: true
         input: [text$in_img]
@@ -233,22 +247,45 @@ providers:
         contextWindow: $CTX
         maxTokens: $maxtok
 EOF
-  write_roles "$1" "${thinking:-$DEFAULT_THINKING}"
-  echo "llm: omp profile 'offline' now points at $1 (port $PORT, $CTX ctx, thinking ${thinking:-$DEFAULT_THINKING})"
+    # A decision server is a different api kind: typed answers, calibrated probabilities, no label parsing and no
+    # thinking budget to collide with.  It becomes the judge role and the auto-thinking backend below.
+    if [ -n "$judge_url" ]; then
+      cat <<EOF
+  judge:
+    baseUrl: $judge_url
+    api: typesafe
+    authHeader: false
+    apiKey: none
+    auth: apiKey
+    models:
+      - id: ${judge_model:-joey-1}
+        name: ${judge_model:-joey-1} — System One decision model (CPU, out of process)
+        kind: judge
+        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
+        contextWindow: 32768
+        maxTokens: 16384
+EOF
+    fi
+  } > "$dir/models.yml"
+  write_roles "$dir" "$name" "${thinking:-$DEFAULT_THINKING}" "$([ -n "$judge_url" ] && echo "${judge_model:-joey-1}")"
+  echo "llm: omp profile '$prof' now points at $name (port $PORT, $CTX ctx, thinking ${thinking:-$DEFAULT_THINKING}$([ -n "$judge_url" ] && echo ", judge ${judge_model:-joey-1}"))"
 }
 
 # Every role config.yml declares points at this one model, so the roles belong to whoever writes models.yml.  Only the
 # role lines are touched (and enabledModels): the rest of the file is the user's — feature switches, thinking level,
 # disabled providers — and rewriting it whole would silently undo their edits.
 write_roles() {
-  cfg=$PROFILE/config.yml
+  cfg=$1/config.yml
   [ -f "$cfg" ] || return 0
-  awk -v id="$1" -v level="$2" '
+  awk -v id="$2" -v level="$3" -v jid="$4" '
     /^modelRoles:/ { print; inroles=1; next }
     inroles && /^[^[:space:]#]/ { inroles=0 }
+    inroles && /^[[:space:]]*judge:/ {
+      # the judge role is the decision server when the recipe names one; `local/*` would send it to the chat model
+      print (jid != "" ? "  judge: judge/" jid : "  judge: local/" id); next }
     inroles && /^[[:space:]]+[a-zA-Z]+:/ { sub(/:.*/, ": local/" id); print; next }
     /^enabledModels:/ { print; inen=1; next }
-    inen && /^[[:space:]]*-/ { if (!done) { print "  - local/" id; done=1 }; next }
+    inen && /^[[:space:]]*-/ { if (!done) { print "  - local/" id; done=1; if (jid != "") print "  - judge/" jid }; next }
     inen && /^[^[:space:]#]/ { inen=0 }
     /^defaultThinkingLevel:/ { print "defaultThinkingLevel: " level; seen=1; next }
     { print }
@@ -299,7 +336,7 @@ case "$cmd" in
       ( about=""; engine="?"; model=""; ctx=""; kv=""; hf=""; files=""
         . "$RECIPES/$n.conf"
         case "$engine" in
-          llama|strata) s=$(present && echo ok || { [ -n "$hf" ] && echo "missing (llm fetch $n)" || echo "MISSING (no hf=)"; }) ;;
+          llama|strata|qev) s=$(present && echo ok || { [ -n "$hf" ] && echo "missing (llm fetch $n)" || echo "MISSING (no hf=)"; }) ;;
           *)      s="no engine" ;;
         esac
         printf '%-10s %-7s %-7s %-6s %s\n' "$n" "$engine" "$ctx" "$kv" "$s — $about"
@@ -487,6 +524,19 @@ PYCONF
     echo "llm: $cmd | ctx $CTX | kv $KV | vision $vision | reserve $reserve MiB | experts $experts | port $PORT — Ctrl+C stops it"
     exec "$STRATA" serve --profile "$CFG" --host 127.0.0.1 --port "$PORT"
     ;;
+  qev)
+    : "${qev_python:?llm: $cmd.conf has no qev_python}"
+    [ -x "$qev_python" ] || { echo "llm: $qev_python is missing" >&2; exit 1; }
+    QPORT=${port:-8078}
+    set -- -m qev.cli serve --model "$model" --name "${qev_name:-$cmd}" --device "${device:-cpu}" \
+           --dtype "${dtype:-float32}" --host 127.0.0.1 --port "$QPORT"
+    if [ "$PRINT" = "1" ]; then
+      echo "llm: $cmd | qev | port $QPORT | device ${device:-cpu} ${dtype:-float32} — this is what would run:"
+      printf '  '; printf '%s ' "$qev_python" "$@" | sed "s|$HOME|~|g"; echo; exit 0
+    fi
+    echo "llm: $cmd | qev | port $QPORT | device ${device:-cpu} — Ctrl+C stops it"
+    exec "$qev_python" "$@"
+    ;;
   *)
-    echo "llm: $cmd.conf has engine='$engine'; use llama or strata" >&2; exit 2 ;;
+    echo "llm: $cmd.conf has engine='$engine'; use llama, strata or qev" >&2; exit 2 ;;
 esac

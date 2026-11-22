@@ -111,22 +111,31 @@ def panel(title, readout, vals, width, colour, span, ceiling=None):
     out.append(" " * GUT + "│ " + colour + B + title + R + " " + D + readout + R + " " * max(0, pad) + "│")
 
     top_val = ceiling or (max(vals) if vals else 0.0)
-    n_ticks = min(5, PLOT_H)
+    # Five ticks need the height to be 4k+1; otherwise four ticks spread evenly (0, ⅓, ⅔, 1).
+    n_ticks = 5 if (PLOT_H - 1) % 4 == 0 else 4
+    n_ticks = min(n_ticks, PLOT_H)
+    tick_rows = ({round(k * (PLOT_H - 1) / (n_ticks - 1)): k for k in range(n_ticks)}
+                 if n_ticks > 1 else {0: 0})
     for i, row in enumerate(steps(vals, plot_w, PLOT_H, ceiling)):
-        lab = hnum(top_val * (1 - i / (PLOT_H - 1))) if (i * (n_ticks - 1)) % (PLOT_H - 1) == 0 else ""
+        lab = hnum(top_val * (1 - tick_rows[i] / (n_ticks - 1))) if i in tick_rows and n_ticks > 1 else ""
         tick = "┤" if lab else "│"
         out.append(f"{D}{lab:>{GUT}}{R}" + tick + colour + row + R + "│")
 
-    buf = ["─"] * plot_w
+    # The timeline sits on its own row under the border: on the border the rule ran into the "-" of "-13s".
+    out.append(" " * GUT + "└" + "─" * plot_w + "┘")
+    lab_row = [" "] * (GUT + 1 + plot_w)
     def put(text, pos):
         for k, ch in enumerate(text):
-            if 0 <= pos + k < plot_w:
-                buf[pos + k] = ch
-    for text, pos in ((f"-{span}s", 0), (f"-{span * 3 // 4}s", plot_w // 4),
-                      (f"-{span // 2}s", plot_w // 2), (f"-{span // 4}s", 3 * plot_w // 4),
-                      ("now", max(0, plot_w - 3))):
-        put(text, pos)
-    out.append(" " * GUT + "└" + D + "".join(buf) + R + "┘")
+            col = GUT + 1 + pos + k
+            if 0 <= col < len(lab_row):
+                lab_row[col] = ch
+    if span >= 5:
+        put(f"-{span}s", 0)
+        put(f"-{span * 3 // 4}s", plot_w // 4)
+        put(f"-{span // 2}s", plot_w // 2)
+        put(f"-{span // 4}s", 3 * plot_w // 4)
+    put("now", max(0, plot_w - 3))
+    out.append(D + "".join(lab_row).rstrip() + R)
     return out
 
 
@@ -137,14 +146,14 @@ def build(port, name, series, stats, width, span, err=None):
     for title, s, colour, unit in (
         ("generation", series["gen"], GREEN, "tok/s"),
         ("prefill", series["pre"], CYAN, "tok/s"),
-        ("prompt cache", series["cache"], MAGENTA, "tokens"),
+        ("prompt cache", series["cache"], MAGENTA, "% hit"),
     ):
         readout = f"now {hnum(s.now())}  avg {hnum(s.avg())}  peak {hnum(s.peak())} {unit}"
         out.extend(panel(title, readout, s.v, w, colour, max(1, len(s.v)), s.scale))
 
     out.append(
         f" {D}generated{R} {B}{hnum(stats['gen_total'])}{R}  {D}prefilled{R} {B}{hnum(stats['pre_total'])}{R}  "
-        f"{D}cached{R} {B}{hnum(stats['cache_now'])}{R}  {D}requests{R} {B}{stats['requests']}{R}  "
+        f"{D}cache hit{R} {B}{hnum(stats['cache_now'])}%{R}  {D}requests{R} {B}{stats['requests']}{R}  "
         f"{'busy' if stats['busy'] else 'idle'}  {D}ctrl-c to leave{R}"
     )
     return out
@@ -208,13 +217,14 @@ def main():
     global PLOT_H
     # Three panels, each PLOT_H+3 lines (top, legend, plot, axis), plus a header and a footer.
     # 4k+1 rows fit five even ticks; 4 rows fall back to four (max, 2/3, 1/3, 0) so a 24-line terminal is not overrun.
-    avail = (line_rows - 11) // 3
-    PLOT_H = 4 if avail < 5 else min(13, ((avail - 1) // 4) * 4 + 1)
+    PLOT_H = max(3, min(13, (line_rows - 14) // 3))   # 3 panels x (PLOT_H + 4) + header + footer
     plot_w = max(20, cols - 11)
     window = a.window or plot_w
     series = {k: Series(window) for k in ("gen", "pre", "cache")}
+    series["cache"].scale = 100.0   # a percentage axis, fixed, like nvtop's
 
     prev = None
+    last_hit = 0.0
     gen_total = pre_total = 0
     requests = 0
     t0 = time.time()
@@ -238,6 +248,12 @@ def main():
         proc_now = sum(s.get("n_prompt_tokens_processed") or 0 for s in slots)
         dec_now = sum((s.get("next_token") or [{}])[0].get("n_decoded") or 0 for s in slots)
         cache_now = sum(s.get("n_prompt_tokens_cache") or 0 for s in slots)
+        # n_prompt_tokens_cache is per-request and reads 0 whenever nothing is in flight; plotted raw it looks like the
+        # cache evaporates between turns.  Measured: a repeated 564-token prompt served 552 from cache (4 evaluated).
+        # So plot the hit RATE of the last request and hold it while idle.
+        served = cache_now + proc_now
+        if served > 0:
+            last_hit = 100.0 * cache_now / served
         busy = any(s.get("is_processing") for s in slots)
 
         if prev is None:
@@ -258,13 +274,13 @@ def main():
 
         series["gen"].add(d_g)
         series["pre"].add(d_p)
-        series["cache"].add(cache_now)
+        series["cache"].add(last_hit)
         prev = (proc_now, dec_now)
 
         stats = {
             "gen_total": gen_total + dec_now,
             "pre_total": pre_total,
-            "cache_now": cache_now,
+            "cache_now": last_hit,
             "requests": requests,
             "busy": busy,
         }

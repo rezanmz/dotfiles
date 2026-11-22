@@ -43,28 +43,25 @@ def blank(n):
 
 
 def line(vals, width, height):
-    """`height` text rows of a connected line, newest sample at the right, scaled to the window's own peak.
-
-    One sample per character cell.  The vertical run between consecutive samples is filled in the newer cell, so
-    the line reads as continuous instead of as detached dots.
-    """
+    """A 1-pixel-wide connected line: 2 horizontal dot-columns per character cell, so each sample is one dot and
+    the run between two samples is one pixel wide.  Filling both dot columns of a cell (the obvious first
+    implementation) draws a 2-pixel bar per sample, which reads as a bar chart, not a line."""
     if width <= 0 or height <= 0:
         return []
-    v = list(vals)[-width:]
-    v = [0.0] * (width - len(v)) + v
+    px_w = width * 2  # dot columns available
+    v = list(vals)[-px_w:]
+    v = [0.0] * (px_w - len(v)) + v
     hi = max(v) or 1.0
-    px = height * 4  # pixel rows, 4 per text row
-    ys = [min(px - 1, max(0, int(round((x / hi) * (px - 1))))) for x in v]
+    px_h = height * 4  # dot rows available
+    ys = [min(px_h - 1, max(0, int(round((x / hi) * (px_h - 1))))) for x in v]
 
     cells = [[0] * width for _ in range(height)]
     for i, y in enumerate(ys):
-        lo = ys[i - 1] if i else y
-        a, b = min(lo, y), max(lo, y)
-        for p in range(a, b + 1):
-            row_from_top = height - 1 - (p // 4)
-            within = p % 4
-            for dot_col in (0, 1):  # both dot columns: neighbouring cells then join seamlessly
-                cells[row_from_top][i] |= BITS[within][dot_col]
+        prev = ys[i - 1] if i else y
+        cx, dcol = divmod(i, 2)          # one sample -> one dot column
+        for p in range(min(prev, y), max(prev, y) + 1):
+            row = height - 1 - (p // 4)
+            cells[row][cx] |= BITS[p % 4][dcol]
     return ["".join(chr(0x2800 + c) if c else "\u2800" for c in row) for row in cells]
 
 
@@ -196,7 +193,7 @@ def main():
 
     base = f"http://127.0.0.1:{a.port}"
     cols = max(46, min(shutil.get_terminal_size((100, 24)).columns, 140)) - 2 - 2 - 5
-    window = a.window or max(20, cols)
+    window = a.window or max(40, cols * 2)   # two samples per character cell
     series = {k: Series(window) for k in ("gen", "pre", "cache")}
 
     prev = None

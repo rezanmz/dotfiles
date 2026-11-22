@@ -244,7 +244,23 @@ write_profile() {
   # profiles="offline localwork" writes every profile; the default is just the one.
   for prof in ${profiles:-offline}; do
     write_one_profile "$prof" "$1"
+    seed_profile_env "$prof"
   done
+}
+
+# A profile is its own agent directory, and omp reads `.env` from THAT directory — not from ~/.omp/agent.  Without it
+# every Hindsight call goes out with an empty bearer and fails with "Authentication failed: Invalid API key", which is
+# what localwork did until this was added: the default profile had a token, the profiles did not.
+# Secrets are not tracked in chezmoi, so the profile's copy is linked to the default's (a symlink keeps one source of
+# truth; a copy would silently go stale on rotation).  A profile that already has its own `.env` is left alone.
+seed_profile_env() {
+  src=$HOME/.omp/agent/.env
+  dst=$OMP_PROFILES_DIR/$1/agent/.env
+  [ -f "$src" ] || return 0
+  [ -e "$dst" ] && [ ! -L "$dst" ] && return 0
+  [ -L "$dst" ] && return 0
+  ln -s "$src" "$dst" 2>/dev/null && echo "llm: profile '$1' now reads $src for its API tokens"
+  return 0
 }
 
 write_one_profile() {

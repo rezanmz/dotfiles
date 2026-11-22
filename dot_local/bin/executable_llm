@@ -281,7 +281,10 @@ write_roles() {
   awk -v id="$2" -v level="$3" -v jid="$4" '
     /^modelRoles:/ { print; inroles=1; next }
     inroles && /^[^[:space:]#]/ { inroles=0 }
-    inroles && /^[[:space:]]*judge:/ { next }   # judge is its own provider; the tracked config owns this line
+    # The judge is its own provider, not `local/*`: `local/*` would resolve the judge role to the chat model.  This
+    # line must be PRINTED — a bare `next` drops it from the live file awk writes, which silently removed the role and
+    # sent auto-thinking back to the chat model.  With a recipe judge it is pinned; without one it is left as written.
+    inroles && /^[[:space:]]*judge:/ { if (jid != "") print "  judge: judge/" jid; else print; next }
     inroles && /^[[:space:]]+[a-zA-Z]+:/ { sub(/:.*/, ": local/" id); print; next }
     /^enabledModels:/ { print; inen=1; next }
     inen && /^[[:space:]]*-/ { if (!done) { print "  - local/" id; done=1; if (jid != "") print "  - judge/" jid }; next }

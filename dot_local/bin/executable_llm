@@ -17,7 +17,7 @@
 # A recipe is ~/.local/share/llm/recipes/<name>.conf (a shell file, so $HOME works):
 #
 #   about="what it is, in one line"      # shown by `llm list`
-#   engine=llama                         # llama | strata | qev (a System One decision server; see joey1.conf)
+#   engine=llama                         # llama | strata
 #   model=$HOME/models/x/model.gguf      # llama: a .gguf; strata: the shard folder
 #   ctx=32768                            # llama: -c; strata: --max-context
 #   kv=q4_0                              # llama: -ctk/-ctv; strata: --kv
@@ -42,10 +42,6 @@
 #                                        and falls back to the file cache anyway).  Written into the run config as
 #                                        --mmap-experts/--resident-experts, replacing whichever is there.
 #   strata_config=strata-q2_0.json       (strata) the run config Strata keeps for this model, in install/
-#   judge_url=http://127.0.0.1:8078      a qev/System One decision server for this recipe: its model becomes the
-#                                        judge role and auto-thinking, so the effort is a calibrated classification
-#                                        instead of a chat model that has to emit a label
-#   judge_model=joey-1                   the model id that server reports (its --name)
 #   profiles="offline localwork"         omp profiles to rewrite on start (default: offline)
 #   hf=ORG/REPO                          where the files come from (Hugging Face), optional
 #   files="Q2_0/shard-00001-of-00002.gguf Q2_0/shard-00002-of-00002.gguf"   paths inside the repo
@@ -58,12 +54,11 @@ set -e
 STRATA=${STRATA:-strata}
 RECIPES=${LLM_RECIPES:-$HOME/.local/share/llm/recipes}
 OMP_PROFILES_DIR=${OMP_PROFILES_DIR:-$HOME/.omp/profiles}
-JUDGE_PID_FILE=${JUDGE_PID_FILE:-$HOME/.local/state/llm-judge.pid}
 PORT=${PORT:-8080}
-# The effort omp asks for unless a recipe says otherwise.  max is the right default for models served on this
-# machine: the cost of more thinking is time, and a recipe that must not think (trained that way) starts its engine
-# with thinking off, which leaves omp nothing to select.  A recipe overrides it with thinking=.
-DEFAULT_THINKING=${DEFAULT_THINKING:-max}
+# The effort omp asks for unless a recipe says otherwise: one step above medium.  Higher tiers cost minutes per model
+# call at this machine's decode rate, so `high` is the default and a recipe can override it with thinking=.  A recipe
+# that must not think (trained that way) starts its engine with thinking off, which leaves omp nothing to select.
+DEFAULT_THINKING=${DEFAULT_THINKING:-high}
 CTX=${CTX:-}
 KV=${KV:-}
 MODEL=${MODEL:-}
@@ -113,12 +108,12 @@ EOF
 
 load() {
   about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; mmproj=""; args=""; flags=""
-  mtp=0; think=""; thinking=""; judge_url=""; judge_model=""; profiles=""; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
+  mtp=0; think=""; thinking=""; profiles=""; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
   . "$RECIPES/$1.conf"
   [ -n "$MODEL" ] && model=$MODEL
   CTX=${CTX:-$ctx}
   KV=${KV:-$kv}
-  [ "$engine" = "qev" ] || : "${CTX:?llm: $1.conf has no ctx}"
+  : "${CTX:?llm: $1.conf has no ctx}"
   : "${engine:?llm: $1.conf has no engine}"
   case "$engine" in
     strata) fetch_dir=${fetch_dir:-$model} ;;
@@ -149,7 +144,6 @@ complete() {
 
 present() {
   case "$engine" in
-    qev)    [ -f "$model/model.safetensors" ] ;;
     llama)  [ -f "$model" ] && { [ -z "$mmproj" ] || [ -f "$mmproj" ]; } && complete ;;
     # strata: the shard set (-0000N-of-0000M), or the single .gguf a one-file model ships (Gyro: weights and the
     # n-gram table in one file, no shard suffix).  Same test as strata's own find_single().
@@ -248,46 +242,9 @@ providers:
         contextWindow: $CTX
         maxTokens: $maxtok
 EOF
-    if [ -n "$judge_url" ]; then
-      cat <<EOF
-      - id: ${judge_model:-joey-1}
-        name: ${judge_model:-joey-1} — decision model for auto-thinking
-        api: typesafe
-        baseUrl: $judge_url
-        kind: judge
-        authHeader: false
-        apiKey: none
-        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
-        contextWindow: 32768
-        maxTokens: 16384
-EOF
-    fi
-    # A decision server is a different api kind: typed answers, calibrated probabilities, no label parsing and no
-    # thinking budget to collide with.  It becomes the judge role and the auto-thinking backend below.
-    if [ -n "$judge_url" ]; then
-      # The decision model is declared TWICE, on purpose.  `providers.autoThinkingModel: <name>` resolves to
-      # `local/<name>` — omp never looks under another provider for it (measured: with the model only under `judge`,
-      # auto-thinking made no request to it at all and fell back to a level).  So it is a model of `local` with its own
-      # baseUrl (per-model baseUrl is supported), which is what makes `local/<name>` and the judge role agree.
-      cat <<EOF
-  judge:
-    baseUrl: $judge_url
-    api: typesafe
-    authHeader: false
-    apiKey: none
-    auth: apiKey
-    models:
-      - id: ${judge_model:-joey-1}
-        name: ${judge_model:-joey-1} — System One decision model (CPU, out of process)
-        kind: judge
-        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
-        contextWindow: 32768
-        maxTokens: 16384
-EOF
-    fi
   } > "$dir/models.yml"
-  write_roles "$dir" "$name" "${thinking:-$DEFAULT_THINKING}" "$([ -n "$judge_url" ] && echo "${judge_model:-joey-1}")"
-  echo "llm: omp profile '$prof' now points at $name (port $PORT, $CTX ctx, thinking ${thinking:-$DEFAULT_THINKING}$([ -n "$judge_url" ] && echo ", judge ${judge_model:-joey-1}"))"
+  write_roles "$dir" "$name" "${thinking:-$DEFAULT_THINKING}"
+  echo "llm: omp profile '$prof' now points at $name (port $PORT, $CTX ctx, thinking ${thinking:-$DEFAULT_THINKING})"
 }
 
 # Every role config.yml declares points at this one model, so the roles belong to whoever writes models.yml.  Only the
@@ -296,16 +253,12 @@ EOF
 write_roles() {
   cfg=$1/config.yml
   [ -f "$cfg" ] || return 0
-  awk -v id="$2" -v level="$3" -v jid="$4" '
+  awk -v id="$2" -v level="$3" '
     /^modelRoles:/ { print; inroles=1; next }
     inroles && /^[^[:space:]#]/ { inroles=0 }
-    # The judge is its own provider, not `local/*`: `local/*` would resolve the judge role to the chat model.  This
-    # line must be PRINTED — a bare `next` drops it from the live file awk writes, which silently removed the role and
-    # sent auto-thinking back to the chat model.  With a recipe judge it is pinned; without one it is left as written.
-    inroles && /^[[:space:]]*judge:/ { print; next }   # tracked source owns this line; print it unchanged
     inroles && /^[[:space:]]+[a-zA-Z]+:/ { sub(/:.*/, ": local/" id); print; next }
     /^enabledModels:/ { print; inen=1; next }
-    inen && /^[[:space:]]*-/ { if (!done) { print "  - local/" id; done=1; if (jid != "") print "  - judge/" jid }; next }
+    inen && /^[[:space:]]*-/ { if (!done) { print "  - local/" id; done=1 }; next }
     inen && /^[^[:space:]#]/ { inen=0 }
     /^defaultThinkingLevel:/ { print "defaultThinkingLevel: " level; seen=1; next }
     { print }
@@ -313,48 +266,9 @@ write_roles() {
   ' "$cfg" > "$cfg.llm-tmp" && mv "$cfg.llm-tmp" "$cfg"
 }
 
-# The judge a recipe names (judge_url) is a separate process on a separate port, and it used to be started by hand:
-# `llm pi27` would come up with the judge role pointing at a port nobody was serving.  These two make it part of the
-# model's lifecycle — started just before the model execs, stopped with it — and idempotent, so a judge already
-# serving is reused rather than duplicated (two copies on one port is how the VRAM guard was added).
-judge_port() { printf '%s\n' "$judge_url" | sed -E 's#.*:([0-9]+)/?$#\1#'; }
-judge_up() {
-  [ -n "$judge_url" ] || return 0
-  jp=$(judge_port)
-  if port_busy "$jp"; then
-    echo "llm: judge already serving on $jp"
-    return 0
-  fi
-  # the recipe that owns this URL (joey1.conf) says how to run it
-  jr=""
-  for f in "$RECIPES"/*.conf; do
-    ( unset judge_url; . "$f" 2>/dev/null; [ "${port:-}" = "$jp" ] && [ "${engine:-}" = "qev" ] ) && jr=$(basename "$f" .conf)
-  done
-  [ -n "$jr" ] || { echo "llm: $judge_url is down and no qev recipe owns port $jp" >&2; return 1; }
-  echo "llm: starting judge $jr on $jp (background; llm stop ends it)"
-  ( . "$RECIPES/$jr.conf"
-    nohup "$qev_python" -m qev.cli serve --model "$model" --name "${qev_name:-$jr}" \
-      --device "${device:-cpu}" --dtype "${dtype:-float32}" --host 127.0.0.1 --port "$jp" \
-      >>"${TMPDIR:-/tmp}/llm-judge-$jr.log" 2>&1 & echo $! > "$JUDGE_PID_FILE" )
-  i=0
-  while [ $i -lt 90 ]; do
-    curl -sf "http://127.0.0.1:$jp/health" >/dev/null 2>&1 && { echo "llm: judge $jr ready"; return 0; }
-    sleep 1; i=$((i+1))
-  done
-  echo "llm: judge $jr did not answer on $jp after 90s (log: ${TMPDIR:-/tmp}/llm-judge-$jr.log)" >&2
-  return 1
-}
-judge_down() {
-  [ -f "$JUDGE_PID_FILE" ] || return 0
-  pid=$(cat "$JUDGE_PID_FILE" 2>/dev/null)
-  [ -n "$pid" ] && kill "$pid" 2>/dev/null && echo "llm: judge stopped (pid $pid)"
-  rm -f "$JUDGE_PID_FILE"
-}
-
 stop_all() {
   "$STRATA" launch --stop >/dev/null 2>&1 || true
   pkill -x llama-server 2>/dev/null || true
-  judge_down
   sleep 1
   port_busy "$PORT" && { echo "llm: still something on $PORT (ss -ltnp 'sport = :$PORT')" >&2; exit 1; }
   echo "llm: stopped"
@@ -395,7 +309,7 @@ case "$cmd" in
       ( about=""; engine="?"; model=""; ctx=""; kv=""; hf=""; files=""
         . "$RECIPES/$n.conf"
         case "$engine" in
-          llama|strata|qev) s=$(present && echo ok || { [ -n "$hf" ] && echo "missing (llm fetch $n)" || echo "MISSING (no hf=)"; }) ;;
+          llama|strata) s=$(present && echo ok || { [ -n "$hf" ] && echo "missing (llm fetch $n)" || echo "MISSING (no hf=)"; }) ;;
           *)      s="no engine" ;;
         esac
         printf '%-10s %-7s %-7s %-6s %s\n' "$n" "$engine" "$ctx" "$kv" "$s — $about"
@@ -504,7 +418,6 @@ case "$engine" in
       printf '  '; printf '%s ' "$@" | sed "s|$HOME|~|g"; echo; exit 0
     fi
     write_profile "$cmd"
-    judge_up || { echo "llm: refusing to start without the judge the profile names (llm stop clears a stale one)" >&2; exit 1; }
     echo "llm: $cmd | port $PORT | ctx $CTX | kv $KV — Ctrl+C stops it"
     exec "$@"
     ;;
@@ -584,19 +497,6 @@ PYCONF
     echo "llm: $cmd | ctx $CTX | kv $KV | vision $vision | reserve $reserve MiB | experts $experts | port $PORT — Ctrl+C stops it"
     exec "$STRATA" serve --profile "$CFG" --host 127.0.0.1 --port "$PORT"
     ;;
-  qev)
-    : "${qev_python:?llm: $cmd.conf has no qev_python}"
-    [ -x "$qev_python" ] || { echo "llm: $qev_python is missing" >&2; exit 1; }
-    QPORT=${port:-8078}
-    set -- -m qev.cli serve --model "$model" --name "${qev_name:-$cmd}" --device "${device:-cpu}" \
-           --dtype "${dtype:-float32}" --host 127.0.0.1 --port "$QPORT"
-    if [ "$PRINT" = "1" ]; then
-      echo "llm: $cmd | qev | port $QPORT | device ${device:-cpu} ${dtype:-float32} — this is what would run:"
-      printf '  '; printf '%s ' "$qev_python" "$@" | sed "s|$HOME|~|g"; echo; exit 0
-    fi
-    echo "llm: $cmd | qev | port $QPORT | device ${device:-cpu} — Ctrl+C stops it"
-    exec "$qev_python" "$@"
-    ;;
   *)
-    echo "llm: $cmd.conf has engine='$engine'; use llama, strata or qev" >&2; exit 2 ;;
+    echo "llm: $cmd.conf has engine='$engine'; use llama or strata" >&2; exit 2 ;;
 esac

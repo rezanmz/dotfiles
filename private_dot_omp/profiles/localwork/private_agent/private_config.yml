@@ -1,12 +1,9 @@
 # The local-work profile: the same capability surface as the default profile — web search, fetch, LSP, skills, rules,
 # context files — with every model role on the one local deployment.  Nothing here calls a hosted LLM: models.yml and
-# this file name only `local/*`, and the judge is joey-1 on the CPU.
+# this file name only `local/*`.
 # Separate from `offline` on purpose: sessions, history and agent.db are per-profile, so "read the docs and fix this
 # repo" work never mixes with hermetic drafting.  Both profiles are rewritten by `llm <recipe>` on every start.
 #
-# Thinking is decided per turn by joey-1 through the judge MODEL ROLE below; do not add providers.autoThinkingModel
-# (`autoThinkingModel: <name>` resolves to `local/<name>`, and with it set the classifier never called the judge in
-# testing).  defaultThinkingLevel must stay a concrete level (max): with `auto` the classifier is never engaged.
 modelRoles:
   smol: local/*
   slow: local/*
@@ -17,7 +14,7 @@ modelRoles:
   tiny: local/*
   task: local/*
   advisor: local/*
-  judge: judge/joey-1
+  judge: local/*
   widget: local/*
   memory: local/*
 enabledModels:
@@ -91,7 +88,7 @@ disabledProviders:
   - gitlab-duo-agent
   - opencode-zen
   - opencode-go
-defaultThinkingLevel: max
+defaultThinkingLevel: high
 find:
   enabled: "on"
 prewalk:

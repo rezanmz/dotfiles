@@ -10,15 +10,9 @@
 # `local/*` and `local/<that recipe>` name the same single model; a later `chezmoi apply` reverting them to `local/*`
 # changes nothing about which model resolves.  Edit anything else here freely — llm touches only those lines.
 #
-# defaultThinkingLevel is the effort omp asks a model for, and max is the choice here: a locally served model costs
-# nothing but time, and the recipes that need thinking off (a model trained that way, like pi27) say so themselves by
-# starting the server with --reasoning off and advertising the matching efforts in models.yml.  omp clamps whatever is
-# set here to the model's advertised list, so this cannot push a model above what its recipe allows:
-#   -a model advertising minimal..xhigh runs at xhigh
-#   -an ollama-style model advertising low..max runs at max
-#   -a model advertising nothing runs with thinking off
-# A recipe that wants a different level than max for its own model sets thinking= in the recipe instead of changing
-# this line, because this line is shared by every local model.
+# defaultThinkingLevel is the effort omp asks a model for.  `high` — one step above medium — is the choice across
+# every local model: the higher tiers cost minutes per model call at this machine's decode rate.  A recipe that wants
+# a different level for its own model sets thinking= rather than changing this line, because it is shared.
 modelRoles:
   smol: local/*
   slow: local/*
@@ -29,7 +23,7 @@ modelRoles:
   tiny: local/*
   task: local/*
   advisor: local/*
-  judge: judge/joey-1
+  judge: local/*
   widget: local/*
   memory: local/*
 enabledModels:
@@ -103,7 +97,7 @@ disabledProviders:
   - gitlab-duo-agent
   - opencode-zen
   - opencode-go
-defaultThinkingLevel: max
+defaultThinkingLevel: high
 find:
   enabled: "off"
 prewalk:

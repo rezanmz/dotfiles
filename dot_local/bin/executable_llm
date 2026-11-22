@@ -58,6 +58,7 @@ set -e
 STRATA=${STRATA:-strata}
 RECIPES=${LLM_RECIPES:-$HOME/.local/share/llm/recipes}
 OMP_PROFILES_DIR=${OMP_PROFILES_DIR:-$HOME/.omp/profiles}
+JUDGE_PID_FILE=${JUDGE_PID_FILE:-$HOME/.local/state/llm-judge.pid}
 PORT=${PORT:-8080}
 # The effort omp asks for unless a recipe says otherwise.  max is the right default for models served on this
 # machine: the cost of more thinking is time, and a recipe that must not think (trained that way) starts its engine
@@ -280,9 +281,7 @@ write_roles() {
   awk -v id="$2" -v level="$3" -v jid="$4" '
     /^modelRoles:/ { print; inroles=1; next }
     inroles && /^[^[:space:]#]/ { inroles=0 }
-    inroles && /^[[:space:]]*judge:/ {
-      # the judge role is the decision server when the recipe names one; `local/*` would send it to the chat model
-      print (jid != "" ? "  judge: judge/" jid : "  judge: local/" id); next }
+    inroles && /^[[:space:]]*judge:/ { next }   # judge is its own provider; the tracked config owns this line
     inroles && /^[[:space:]]+[a-zA-Z]+:/ { sub(/:.*/, ": local/" id); print; next }
     /^enabledModels:/ { print; inen=1; next }
     inen && /^[[:space:]]*-/ { if (!done) { print "  - local/" id; done=1; if (jid != "") print "  - judge/" jid }; next }
@@ -293,9 +292,48 @@ write_roles() {
   ' "$cfg" > "$cfg.llm-tmp" && mv "$cfg.llm-tmp" "$cfg"
 }
 
+# The judge a recipe names (judge_url) is a separate process on a separate port, and it used to be started by hand:
+# `llm pi27` would come up with the judge role pointing at a port nobody was serving.  These two make it part of the
+# model's lifecycle — started just before the model execs, stopped with it — and idempotent, so a judge already
+# serving is reused rather than duplicated (two copies on one port is how the VRAM guard was added).
+judge_port() { printf '%s\n' "$judge_url" | sed -E 's#.*:([0-9]+)/?$#\1#'; }
+judge_up() {
+  [ -n "$judge_url" ] || return 0
+  jp=$(judge_port)
+  if port_busy "$jp"; then
+    echo "llm: judge already serving on $jp"
+    return 0
+  fi
+  # the recipe that owns this URL (joey1.conf) says how to run it
+  jr=""
+  for f in "$RECIPES"/*.conf; do
+    ( unset judge_url; . "$f" 2>/dev/null; [ "${port:-}" = "$jp" ] && [ "${engine:-}" = "qev" ] ) && jr=$(basename "$f" .conf)
+  done
+  [ -n "$jr" ] || { echo "llm: $judge_url is down and no qev recipe owns port $jp" >&2; return 1; }
+  echo "llm: starting judge $jr on $jp (background; llm stop ends it)"
+  ( . "$RECIPES/$jr.conf"
+    nohup "$qev_python" -m qev.cli serve --model "$model" --name "${qev_name:-$jr}" \
+      --device "${device:-cpu}" --dtype "${dtype:-float32}" --host 127.0.0.1 --port "$jp" \
+      >>"${TMPDIR:-/tmp}/llm-judge-$jr.log" 2>&1 & echo $! > "$JUDGE_PID_FILE" )
+  i=0
+  while [ $i -lt 90 ]; do
+    curl -sf "http://127.0.0.1:$jp/health" >/dev/null 2>&1 && { echo "llm: judge $jr ready"; return 0; }
+    sleep 1; i=$((i+1))
+  done
+  echo "llm: judge $jr did not answer on $jp after 90s (log: ${TMPDIR:-/tmp}/llm-judge-$jr.log)" >&2
+  return 1
+}
+judge_down() {
+  [ -f "$JUDGE_PID_FILE" ] || return 0
+  pid=$(cat "$JUDGE_PID_FILE" 2>/dev/null)
+  [ -n "$pid" ] && kill "$pid" 2>/dev/null && echo "llm: judge stopped (pid $pid)"
+  rm -f "$JUDGE_PID_FILE"
+}
+
 stop_all() {
   "$STRATA" launch --stop >/dev/null 2>&1 || true
   pkill -x llama-server 2>/dev/null || true
+  judge_down
   sleep 1
   port_busy "$PORT" && { echo "llm: still something on $PORT (ss -ltnp 'sport = :$PORT')" >&2; exit 1; }
   echo "llm: stopped"
@@ -445,6 +483,7 @@ case "$engine" in
       printf '  '; printf '%s ' "$@" | sed "s|$HOME|~|g"; echo; exit 0
     fi
     write_profile "$cmd"
+    judge_up || { echo "llm: refusing to start without the judge the profile names (llm stop clears a stale one)" >&2; exit 1; }
     echo "llm: $cmd | port $PORT | ctx $CTX | kv $KV — Ctrl+C stops it"
     exec "$@"
     ;;

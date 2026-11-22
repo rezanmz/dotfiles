@@ -29,7 +29,7 @@ modelRoles:
   tiny: local/*
   task: local/*
   advisor: local/*
-  judge: local/*
+  judge: judge/joey-1
   widget: local/*
   memory: local/*
 enabledModels:

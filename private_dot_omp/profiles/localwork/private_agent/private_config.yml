@@ -4,7 +4,11 @@
 # Separate from `offline` on purpose: sessions, history and agent.db are per-profile, so "read the docs and fix this
 # repo" work never mixes with hermetic drafting.  Both profiles are rewritten by `llm <recipe>` on every start.
 #
-# Thinking is decided per turn by joey-1 (auto), not by a fixed level: see providers.autoThinkingModel below.
+# Thinking is decided per turn by joey-1 (auto), not by a fixed level: the judge MODEL ROLE below names it.
+# Do NOT add providers.autoThinkingModel/judgmentProvider here: `autoThinkingModel: <name>` resolves to `local/<name>`
+# (see the launcher's own note and omp's resolver), not to provider `judge`, so it silently falls back and the judge
+# is never called.  Verified with the judge's own request log: this profile calls /v1/systemone, the version with
+# those two keys did not.
 modelRoles:
   smol: local/*
   slow: local/*
@@ -15,7 +19,7 @@ modelRoles:
   tiny: local/*
   task: local/*
   advisor: local/*
-  judge: local/*
+  judge: judge/joey-1
   widget: local/*
   memory: local/*
 enabledModels:
@@ -89,10 +93,7 @@ disabledProviders:
   - gitlab-duo-agent
   - opencode-zen
   - opencode-go
-defaultThinkingLevel: auto
-providers:
-  autoThinkingModel: online
-  judgmentProvider: auto
+defaultThinkingLevel: max
 find:
   enabled: "on"
 prewalk:

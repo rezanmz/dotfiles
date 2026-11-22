@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""llm-monitor — nvtop-style live line graphs for a running llama.cpp server.
+"""llm-monitor — nvtop-style live graphs for a running llama.cpp server.
 
-Each panel is a bordered box: a braille line chart (2x4 dots per character cell, so a smooth line rather than a
-filled bar), a labelled y axis and a time x axis.  Panels: generation tok/s, prefill tok/s, and prompt-cache tokens.
+Layout follows nvtop's: each panel is a plain box whose *bottom border is the time axis*, y labels sit outside the
+left border at even ticks, and the series is drawn as a thin stepped line (─ horizontal, │ vertical) rather than a
+filled bar.  Legend and readout live on the first row inside the box.
 
-Counter notes, both learned by measuring:
+Panels: generation tok/s, prefill tok/s, prompt-cache tokens.
+
+Counter notes, both measured:
   * n_prompt_tokens           the CONTEXT size; it keeps growing during generation (one per token)
   * n_prompt_tokens_processed how much of the prompt has been evaluated — the real prefill counter
   * n_prompt_tokens_cache     prompt tokens served from the server's cache for the current request
-All three are per-request and snap to 0 when it finishes, so a decrease is a request boundary, not negative
-throughput: the finished work is banked into the session totals and that tick reads 0.
+All three are per-request and snap to 0 when one finishes, so a decrease is a request boundary, not negative
+throughput: the finished work goes into the session totals and that tick reads 0.
 
 Strata models are not handled here; `llm monitor` delegates those to `strata monitor`.
-
-    llm-monitor --port 8080 [--name pi27] [--interval 1] [--once]
 """
 
 import argparse
@@ -34,35 +35,7 @@ RED = "\033[31m"
 HOME = "\033[H"
 CLEAR_BELOW = "\033[J"
 
-# Braille dots, indexed [row_in_cell (0 = top)][dot_column (0 = left)].
-BITS = ((0x01, 0x08), (0x02, 0x10), (0x04, 0x20), (0x40, 0x80))
-
-
-def blank(n):
-    return "\u2800" * n  # braille blank: keeps every line exactly n cells wide
-
-
-def line(vals, width, height):
-    """A 1-pixel-wide connected line: 2 horizontal dot-columns per character cell, so each sample is one dot and
-    the run between two samples is one pixel wide.  Filling both dot columns of a cell (the obvious first
-    implementation) draws a 2-pixel bar per sample, which reads as a bar chart, not a line."""
-    if width <= 0 or height <= 0:
-        return []
-    px_w = width * 2  # dot columns available
-    v = list(vals)[-px_w:]
-    v = [0.0] * (px_w - len(v)) + v
-    hi = max(v) or 1.0
-    px_h = height * 4  # dot rows available
-    ys = [min(px_h - 1, max(0, int(round((x / hi) * (px_h - 1))))) for x in v]
-
-    cells = [[0] * width for _ in range(height)]
-    for i, y in enumerate(ys):
-        prev = ys[i - 1] if i else y
-        cx, dcol = divmod(i, 2)          # one sample -> one dot column
-        for p in range(min(prev, y), max(prev, y) + 1):
-            row = height - 1 - (p // 4)
-            cells[row][cx] |= BITS[p % 4][dcol]
-    return ["".join(chr(0x2800 + c) if c else "\u2800" for c in row) for row in cells]
+PLOT_H = 4  # rows inside the box that hold the line; y ticks land on each
 
 
 def hnum(x):
@@ -77,64 +50,69 @@ def hnum(x):
     return f"{x:.1f}"
 
 
-def panel(title, readout, body, width, colour="", ymax=None, span=None):
-    """A bordered box with a y axis down the left of the plot and a time axis under it."""
-    inner = max(1, width - 2)
-    left = f" {title} "
-    tab = f" {readout} " if readout else ""
-    fill = inner - len(left) - len(tab)
-    if fill < 0:
-        tab, fill = "", max(0, inner - len(left))
-    out = ["┌" + colour + B + left + R + "─" * fill + D + tab + R + "┐"]
+def steps(vals, width, height):
+    """A stepped line: '─' where a sample sits, '│' between a sample and the previous one.  This is what nvtop
+    draws — a thin line, not a column per sample."""
+    if width <= 0 or height <= 0:
+        return [""] * height
+    v = list(vals)[-width:]
+    v = [0.0] * (width - len(v)) + v
+    hi = max(v) or 1.0
+    rows = [height - 1 - int(round((x / hi) * (height - 1))) for x in v]
+    grid = [[" "] * width for _ in range(height)]
+    for i, r in enumerate(rows):
+        if i:
+            a, b = sorted((rows[i - 1], r))
+            for y in range(a, b + 1):
+                grid[y][i] = "│"
+        grid[r][i] = "─"
+    return ["".join(row) for row in grid]
 
-    gut = 5  # "  1.2k " -> the y label column
-    plot_w = max(4, inner - 2 - gut)
-    rows = line(body, plot_w, HEIGHT_ROWS)
-    for i, row in enumerate(rows):
-        if ymax is None:
-            lab = ""
-        elif i == 0:
-            lab = hnum(ymax)
-        elif i == len(rows) - 1:
+
+def panel(title, readout, vals, width, colour, span):
+    """One box in nvtop's shape: y labels outside the left edge, a plain top border, and a bottom border that is the
+    time axis.  Every row is laid out from the same arithmetic so the right border cannot drift.
+    """
+    GUT = 6                                   # y-label field, right aligned, outside the box
+    plot_w = max(8, width - GUT - 1 - 2 - 2)  # 6 label + 1 tick + 2 borders + 2 padding
+    inner = plot_w + 2                        # between the border glyphs
+    box = " " * (GUT + 1)                     # where the box starts
+
+    out = [box + "┌" + "─" * inner + "┐"]
+
+    legend = f"{title} {readout}"
+    legend = legend[: inner - 2]
+    out.append(box + "│ " + colour + B + title + R + " " + D + readout + R
+               + " " * max(0, inner - 1 - len(title) - 1 - len(readout)) + "│")
+
+    top_val = max(vals) if vals else 0.0
+    for i, row in enumerate(steps(vals, plot_w, PLOT_H)):
+        if i == 0:
+            lab = hnum(top_val)
+        elif i == PLOT_H - 1:
             lab = "0"
-        elif i == len(rows) // 2:
-            lab = hnum(ymax / 2)
+        elif i == PLOT_H // 2:
+            lab = hnum(top_val / 2)
         else:
             lab = ""
-        out.append("│ " + f"{D}{lab:>4}{R} " + colour + row + R + " │")
+        out.append(f"{D}{lab:>{GUT}}{R}┤ " + colour + row + R + "  │")
 
-    # x axis: drawn as a rule of exact width with the labels overwritten onto it, so it can never overflow.
-    if span:
-        content = inner - 2                      # the text between "│ " and " │"
-        buf = ["─"] * content
-        for i in range(max(0, gut - 1)):   # the y-label gutter: no rule there, the └ marks where the plot starts
-            buf[i] = " "
-        def put(text, pos):
-            for i, ch in enumerate(text):
-                if 0 <= pos + i < content:
-                    buf[pos + i] = ch
-        put("└", gut - 1)
-        put(f"-{span}s", gut)
-        mid = f"-{span // 2}s"
-        plot_start, plot_end = gut + 2, content - 1
-        put(mid, plot_start + (plot_end - plot_start - len(mid)) // 2)
-        put("now", content - 3)
-        out.append("│ " + D + "".join(buf) + R + " │")
-    out.append("└" + "─" * inner + "┘")
+    buf = ["─"] * inner
+    def put(text, pos):
+        for k, ch in enumerate(text):
+            if 0 <= pos + k < inner:
+                buf[pos + k] = ch
+    for text, pos in ((f"-{span}s", 1), (f"-{span * 3 // 4}s", 1 + inner // 4),
+                      (f"-{span // 2}s", 1 + inner // 2), (f"-{span // 4}s", 1 + 3 * inner // 4),
+                      ("now", max(1, inner - 4))):
+        put(text, pos)
+    out.append(box + "└" + D + "".join(buf) + R + "┘")
     return out
 
 
-HEIGHT_ROWS = 5
-
-
 def build(port, name, series, stats, width, span, err=None):
-    w = max(46, min(width, 140))
-    out = []
-    head = f" {B}{name or 'model'}{R}  {D}127.0.0.1:{port}{R}"
-    if err:
-        head += f"   {RED}{err}{R}"
-    out.append(head)
-    out.append("")
+    w = max(40, min(width, 140))
+    out = [f" {B}{name or 'model'}{R}  {D}127.0.0.1:{port}{R}" + (f"   {RED}{err}{R}" if err else "")]
 
     for title, s, colour, unit in (
         ("generation", series["gen"], GREEN, "tok/s"),
@@ -142,16 +120,12 @@ def build(port, name, series, stats, width, span, err=None):
         ("prompt cache", series["cache"], MAGENTA, "tokens"),
     ):
         readout = f"now {hnum(s.now())}  avg {hnum(s.avg())}  peak {hnum(s.peak())} {unit}"
-        out.extend(panel(title, readout, s.v, w, colour, ymax=max(s.peak(), 1.0), span=span))
+        out.extend(panel(title, readout, s.v, w, colour, span))
 
-    out.append("")
     out.append(
-        f" {D}generated{R} {B}{hnum(stats['gen_total'])}{R}   "
-        f"{D}prefilled{R} {B}{hnum(stats['pre_total'])}{R}   "
-        f"{D}cached{R} {B}{hnum(stats['cache_now'])}{R}   "
-        f"{D}requests{R} {B}{stats['requests']}{R}   "
-        f"{'busy' if stats['busy'] else 'idle'}   {D}uptime {stats['uptime']}{R}   "
-        f"{D}ctrl-c to leave{R}"
+        f" {D}generated{R} {B}{hnum(stats['gen_total'])}{R}  {D}prefilled{R} {B}{hnum(stats['pre_total'])}{R}  "
+        f"{D}cached{R} {B}{hnum(stats['cache_now'])}{R}  {D}requests{R} {B}{stats['requests']}{R}  "
+        f"{'busy' if stats['busy'] else 'idle'}  {D}ctrl-c to leave{R}"
     )
     return out
 
@@ -170,7 +144,7 @@ class Series:
         return self.v[-1] if self.v else 0.0
 
     def avg(self):
-        nz = [x for x in self.v if x > 0]  # active samples only: idle ticks would drag the average to 0
+        nz = [x for x in self.v if x > 0]
         return (sum(nz) / len(nz)) if nz else 0.0
 
     def peak(self):
@@ -187,13 +161,13 @@ def main():
     ap.add_argument("--port", type=int, default=8080)
     ap.add_argument("--name", default="")
     ap.add_argument("--interval", type=float, default=1.0)
-    ap.add_argument("--window", type=int, default=None, help="samples kept (default: one per plot column)")
-    ap.add_argument("--once", action="store_true", help="print one reading and exit (for scripts)")
+    ap.add_argument("--window", type=int, default=None)
+    ap.add_argument("--once", action="store_true", help="one reading and exit (for scripts)")
     a = ap.parse_args()
 
     base = f"http://127.0.0.1:{a.port}"
-    cols = max(46, min(shutil.get_terminal_size((100, 24)).columns, 140)) - 2 - 2 - 5
-    window = a.window or max(40, cols * 2)   # two samples per character cell
+    cols = max(40, min(shutil.get_terminal_size((100, 24)).columns, 140))
+    window = a.window or max(20, cols - 6)
     series = {k: Series(window) for k in ("gen", "pre", "cache")}
 
     prev = None
@@ -249,7 +223,6 @@ def main():
             "cache_now": cache_now,
             "requests": requests,
             "busy": busy,
-            "uptime": time.strftime("%H:%M:%S", time.gmtime(time.time() - t0)),
         }
 
         lines = build(a.port, a.name, series, stats, shutil.get_terminal_size((100, 24)).columns, window, err)

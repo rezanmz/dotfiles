@@ -35,6 +35,9 @@
 #   args="-ngl 99 --parallel 1 --jinja --temp 0.7 --top-p 0.95"   (llama) flags, before the port ones
 #   flags=""                                    (llama) flags, appended last
 #   mtp=0                                # llama: --spec-type draft-mtp when 1; strata: --mtp on|off
+#   draft=$HOME/models/x/dspark.gguf     (llama, optional) DSpark drafter: adds -md and draft-dspark speculation
+#   draft_n=4                            (llama) draft tokens per step (default 4)
+#   draft_kv=q4_0                        (llama) draft KV cache type (default q4_0)
 #   think=auto                           # llama: on|off|auto -> --reasoning.  off is for a model trained
 #                                        #   thinking-off: the template's own default is thinking on (xhigh)
 #   thinking=                            # the level omp asks this model for, written into models.yml: max (the
@@ -150,7 +153,7 @@ EOF
 
 load() {
   about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; mmproj=""; args=""; flags=""
-  mtp=0; think=""; thinking=""; profiles=""; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
+  mtp=0; draft=""; draft_n=""; draft_kv=""; think=""; thinking=""; profiles=""; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
   . "$RECIPES/$1.conf"
   [ -n "$MODEL" ] && model=$MODEL
   CTX=${CTX:-$ctx}
@@ -502,7 +505,9 @@ case "$engine" in
   llama)
     : "${llama_dir:?llm: $cmd.conf has no llama_dir}"
     server=$llama_dir/llama-server
+    [ -x "$server" ] || server=$llama_dir/bin/llama-server
     [ -x "$server" ] || { echo "llm: $server is missing" >&2; exit 1; }
+    [ -d "$llama_dir/lib" ] && export LD_LIBRARY_PATH="$llama_dir/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     set -- "$server" -m "$model" -c "$CTX" -ctk "$KV" -ctv "$KV"
     [ -n "$args" ] && set -- "$@" $args
     if [ -n "$template" ]; then
@@ -511,6 +516,10 @@ case "$engine" in
     fi
     [ -n "$mmproj" ] && set -- "$@" --mmproj "$mmproj"
     [ "${mtp:-0}" = "1" ] && set -- "$@" --spec-type draft-mtp
+    if [ -n "$draft" ]; then
+      [ -f "$draft" ] || { echo "llm: draft model not found: $draft" >&2; exit 1; }
+      set -- "$@" -md "$draft" --spec-type draft-dspark -ctkd "${draft_kv:-q4_0}" -ctvd "${draft_kv:-q4_0}" --spec-draft-n-max "${draft_n:-4}"
+    fi
     # think=off for a model trained thinking-off.  --reasoning off is what reaches the template: measured on
     # b12608 and b12079, the server turns it into enable_thinking=false and the prompt ends with an empty
     # <think></think> block, whereas the template's own default (enable_thinking undefined) opens a thinking block

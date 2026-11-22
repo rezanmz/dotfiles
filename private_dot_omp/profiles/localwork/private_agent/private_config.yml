@@ -4,11 +4,9 @@
 # Separate from `offline` on purpose: sessions, history and agent.db are per-profile, so "read the docs and fix this
 # repo" work never mixes with hermetic drafting.  Both profiles are rewritten by `llm <recipe>` on every start.
 #
-# Thinking is decided per turn by joey-1 (auto), not by a fixed level: the judge MODEL ROLE below names it.
-# Do NOT add providers.autoThinkingModel/judgmentProvider here: `autoThinkingModel: <name>` resolves to `local/<name>`
-# (see the launcher's own note and omp's resolver), not to provider `judge`, so it silently falls back and the judge
-# is never called.  Verified with the judge's own request log: this profile calls /v1/systemone, the version with
-# those two keys did not.
+# Thinking is decided per turn by joey-1 through the judge MODEL ROLE below; do not add providers.autoThinkingModel
+# (`autoThinkingModel: <name>` resolves to `local/<name>`, and with it set the classifier never called the judge in
+# testing).  defaultThinkingLevel must stay a concrete level (max): with `auto` the classifier is never engaged.
 modelRoles:
   smol: local/*
   slow: local/*

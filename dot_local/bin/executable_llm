@@ -248,9 +248,27 @@ providers:
         contextWindow: $CTX
         maxTokens: $maxtok
 EOF
+    if [ -n "$judge_url" ]; then
+      cat <<EOF
+      - id: ${judge_model:-joey-1}
+        name: ${judge_model:-joey-1} — decision model for auto-thinking
+        api: typesafe
+        baseUrl: $judge_url
+        kind: judge
+        authHeader: false
+        apiKey: none
+        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
+        contextWindow: 32768
+        maxTokens: 16384
+EOF
+    fi
     # A decision server is a different api kind: typed answers, calibrated probabilities, no label parsing and no
     # thinking budget to collide with.  It becomes the judge role and the auto-thinking backend below.
     if [ -n "$judge_url" ]; then
+      # The decision model is declared TWICE, on purpose.  `providers.autoThinkingModel: <name>` resolves to
+      # `local/<name>` — omp never looks under another provider for it (measured: with the model only under `judge`,
+      # auto-thinking made no request to it at all and fell back to a level).  So it is a model of `local` with its own
+      # baseUrl (per-model baseUrl is supported), which is what makes `local/<name>` and the judge role agree.
       cat <<EOF
   judge:
     baseUrl: $judge_url
@@ -284,7 +302,7 @@ write_roles() {
     # The judge is its own provider, not `local/*`: `local/*` would resolve the judge role to the chat model.  This
     # line must be PRINTED — a bare `next` drops it from the live file awk writes, which silently removed the role and
     # sent auto-thinking back to the chat model.  With a recipe judge it is pinned; without one it is left as written.
-    inroles && /^[[:space:]]*judge:/ { if (jid != "") print "  judge: judge/" jid; else print; next }
+    inroles && /^[[:space:]]*judge:/ { print; next }   # tracked source owns this line; print it unchanged
     inroles && /^[[:space:]]+[a-zA-Z]+:/ { sub(/:.*/, ": local/" id); print; next }
     /^enabledModels:/ { print; inen=1; next }
     inen && /^[[:space:]]*-/ { if (!done) { print "  - local/" id; done=1; if (jid != "") print "  - judge/" jid }; next }

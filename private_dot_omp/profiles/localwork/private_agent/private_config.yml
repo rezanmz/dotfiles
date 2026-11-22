@@ -38,7 +38,7 @@ providers:
   - mojeek
   - public
 modelRoles:
-  default: local/*
+  default: local/pi27
   slow: local/*
   smol: local/*
   vision: local/*

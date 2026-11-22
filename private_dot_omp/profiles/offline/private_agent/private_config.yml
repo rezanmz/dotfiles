@@ -14,6 +14,7 @@
 # every local model: the higher tiers cost minutes per model call at this machine's decode rate.  A recipe that wants
 # a different level for its own model sets thinking= rather than changing this line, because it is shared.
 modelRoles:
+  default: local/pi27
   smol: local/*
   slow: local/*
   vision: local/*

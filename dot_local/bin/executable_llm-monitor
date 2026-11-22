@@ -1,0 +1,269 @@
+#!/usr/bin/env python3
+"""llm-monitor — nvtop-style live graphs for a running llama.cpp server.
+
+Each panel is a bordered box holding a scrolling bar chart drawn with half-block glyphs (two vertical units per
+text row), newest sample on the right, scaled to that panel's own window peak.  Panels: generation tok/s, prefill
+tok/s, and context fill.
+
+llama-server's /slots counters are per-request and snap back to zero when a request finishes, so a sample whose
+counter decreased is treated as a request boundary: the finished work is banked into the cumulative totals and the
+rate reads 0 for that tick.  Reading the live value as throughput prints negative rates otherwise.
+
+Strata models are not handled here; `llm monitor` delegates those to `strata monitor`.
+
+    llm-monitor --port 8080 [--name pi27] [--interval 1] [--once]
+"""
+
+import argparse
+import json
+import shutil
+import signal
+import sys
+import time
+import urllib.request
+
+# --- terminal ---------------------------------------------------------------------------------------------------
+R = "\033[0m"
+D = "\033[2m"
+B = "\033[1m"
+GREEN = "\033[32m"
+CYAN = "\033[36m"
+YELLOW = "\033[33m"
+RED = "\033[31m"
+
+HOME = "\033[H"
+CLEAR_BELOW = "\033[J"
+
+
+def term_width(default=100):
+    return shutil.get_terminal_size((default, 24)).columns
+
+
+# --- the chart --------------------------------------------------------------------------------------------------
+def chart(vals, width, height):
+    """`height` text rows of half-block bars, newest sample on the right, scaled to the window peak.
+
+    Each text cell covers two vertical units: space = none, ▁ = under one, ▄ = one, █ = two.  That gives 2*height
+    rows of resolution, which is what makes a bar chart readable in a terminal.
+    """
+    if width <= 0 or height <= 0:
+        return []
+    v = list(vals)[-width:]
+    v = [0.0] * (width - len(v)) + v
+    hi = max(v) or 1.0
+    rows = []
+    for i in range(height):
+        base = (height - i - 1) * 2  # units already filled by the rows below this one
+        line = []
+        for x in v:
+            f = (x / hi) * height * 2 - base
+            line.append(" " if f <= 0 else "▁" if f < 1 else "▄" if f < 2 else "█")
+        rows.append("".join(line))
+    return rows
+
+
+def hbar(frac, width):
+    """Plain glyphs only: the panel wraps the whole row in colour, and any escape here would be counted by fit()
+    as printable width and push the right border out by its length."""
+    width = max(1, width)
+    n = int(round(max(0.0, min(1.0, frac)) * width))
+    return "█" * n + "─" * (width - n)
+
+
+# --- the panels -------------------------------------------------------------------------------------------------
+def panel(title, right, body, width, colour=""):
+    """A bordered box, title left and a right-aligned readout in the top edge.
+
+    Colour codes are zero-width, so length is always measured on the plain text and the colour is wrapped around
+    it afterwards — padding a coloured string with ljust() counts the escapes and breaks the border.
+    """
+    inner = max(1, width - 2)
+    left = f" {title} "
+    tab = f" {right} " if right else ""
+    fill = inner - len(left) - len(tab)
+    if fill < 0:  # too narrow for both: drop the readout rather than overflow the box
+        tab, fill = "", max(0, inner - len(left))
+    rows = ["┌" + colour + B + left + R + "─" * fill + D + tab + R + "┐"]
+    for ln in body:
+        rows.append("│ " + colour + fit(ln, inner - 2) + R + " │")
+    rows.append("└" + "─" * inner + "┘")
+    return rows
+
+
+def fit(text, width):
+    """Pad/trim to an exact cell width (assumes single-width glyphs, true for blocks and ASCII)."""
+    if len(text) > width:
+        return text[:width]
+    return text + " " * (width - len(text))
+
+
+def build(port, name, ctx, series, stats, width, err=None):
+    w = max(40, min(width, 140))
+    body_w = w - 4  # panel inner width minus the one-space gutter on each side
+    height = shutil.get_terminal_size((100, 24)).lines
+    gh = max(3, min(10, (height - 16) // 2))  # two charted panels, leave room for the rest
+
+    out = []
+    head = f" {B}{name or 'model'}{R}  {D}127.0.0.1:{port}{R}"
+    if err:
+        head += f"   {RED}{err}{R}"
+    out.append(head)
+    out.append("")
+
+    for title, s, colour, unit in (
+        ("generation", series["gen"], GREEN, "tok/s"),
+        ("prefill", series["pre"], CYAN, "tok/s"),
+    ):
+        readout = f"now {s.now():.0f}  avg {s.avg():.0f}  peak {s.peak():.0f} {unit}"
+        body = chart(s.v, body_w, gh)
+        out.extend(panel(title, readout, body, w, colour))
+
+    frac = (stats["prompt_now"] / ctx) if ctx else 0.0
+    out.extend(
+        panel(
+            "context",
+            f"{stats['prompt_now']}/{ctx}  {frac*100:.0f}%",
+            [hbar(frac, body_w)],
+            w,
+            YELLOW,
+        )
+    )
+
+    out.append("")
+    out.append(
+        f" {D}generated{R} {B}{human(stats['gen_total'])}{R}   "
+        f"{D}prefilled{R} {B}{human(stats['pre_total'])}{R}   "
+        f"{D}requests{R} {B}{stats['requests']}{R}   "
+        f"{'busy' if stats['busy'] else 'idle'}   {D}uptime {stats['uptime']}{R}   "
+        f"{D}ctrl-c to leave{R}"
+    )
+    return out
+
+
+def human(n):
+    if n >= 1_000_000:
+        return f"{n/1_000_000:.1f}M"
+    if n >= 1_000:
+        return f"{n/1_000:.1f}k"
+    return f"{int(n)}"
+
+
+class Series:
+    def __init__(self, window):
+        self.v = []
+        self.window = window
+
+    def add(self, x):
+        self.v.append(float(x))
+        if len(self.v) > self.window:
+            self.v = self.v[-self.window:]
+
+    def now(self):
+        return self.v[-1] if self.v else 0.0
+
+    def avg(self):
+        nz = [x for x in self.v if x > 0]
+        return (sum(nz) / len(nz)) if nz else 0.0  # average of the active samples, not dragged down by idle ticks
+
+    def peak(self):
+        return max(self.v) if self.v else 0.0
+
+
+def get(url, timeout=3.0):
+    with urllib.request.urlopen(url, timeout=timeout) as r:
+        return json.load(r)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--port", type=int, default=8080)
+    ap.add_argument("--name", default="")
+    ap.add_argument("--interval", type=float, default=1.0)
+    ap.add_argument("--window", type=int, default=None, help="samples kept (default: twice the plot width)")
+    ap.add_argument("--once", action="store_true", help="one reading, no screen control (for scripts)")
+    a = ap.parse_args()
+
+    base = f"http://127.0.0.1:{a.port}"
+    # One sample per column, so the graph is full-width from the first second and scrolls exactly one cell per tick.
+    window = a.window or max(40, min(240, term_width() - 4))
+    series = {"gen": Series(window), "pre": Series(window)}
+
+    prev = None
+    gen_total = pre_total = 0
+    requests = 0
+    t0 = time.time()
+    first = True
+
+    def bye(*_):
+        sys.stdout.write(R + "\n")
+        sys.stdout.flush()
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGINT, bye)
+    signal.signal(signal.SIGTERM, bye)
+
+    while True:
+        err = None
+        try:
+            slots = get(base + "/slots")
+            props = get(base + "/props")
+        except Exception:
+            slots, props, err = [], {}, "not answering"
+
+        ctx = 0
+        if isinstance(props, dict):
+            gs = props.get("default_generation_settings") or {}
+            ctx = props.get("n_ctx") or gs.get("n_ctx") or 0
+        if not ctx and slots:
+            ctx = slots[0].get("n_ctx") or 0
+
+        # Two different counters, easy to confuse:
+        #   n_prompt_tokens           the context size, which keeps GROWING during generation (one per token)
+        #   n_prompt_tokens_processed how much of that prompt has been evaluated -- the real prefill counter
+        # Using the first for the prefill panel makes it a copy of the generation panel.
+        ctx_now = sum(s.get("n_prompt_tokens") or 0 for s in slots)
+        proc_now = sum(s.get("n_prompt_tokens_processed") or 0 for s in slots)
+        decoded_now = sum((s.get("next_token") or [{}])[0].get("n_decoded") or 0 for s in slots)
+        busy = any(s.get("is_processing") for s in slots)
+
+        if prev is None:
+            d_p = d_g = 0.0
+        else:
+            pp, gg = prev   # (prompt tokens processed, tokens decoded)
+            if proc_now >= pp:
+                d_p = (proc_now - pp) / a.interval
+            else:
+                pre_total += pp
+                d_p = 0.0
+            if decoded_now >= gg:
+                d_g = (decoded_now - gg) / a.interval
+            else:
+                gen_total += gg
+                requests += 1
+                d_g = 0.0
+
+        series["gen"].add(d_g)
+        series["pre"].add(d_p)
+        prev = (proc_now, decoded_now)
+
+        stats = {
+            "prompt_now": ctx_now,
+            "gen_total": gen_total + decoded_now,
+            "pre_total": pre_total,
+            "requests": requests,
+            "busy": busy,
+            "uptime": time.strftime("%H:%M:%S", time.gmtime(time.time() - t0)),
+        }
+
+        lines = build(a.port, a.name, ctx, series, stats, term_width(), err)
+        if a.once:
+            print("\n".join(l.replace(R, "").replace(D, "").replace(B, "") for l in lines))
+            return
+        sys.stdout.write(("\033[2J" if first else "") + HOME + "\n".join(lines) + "\n" + CLEAR_BELOW)
+        sys.stdout.flush()
+        first = False
+        time.sleep(a.interval)
+
+
+if __name__ == "__main__":
+    main()

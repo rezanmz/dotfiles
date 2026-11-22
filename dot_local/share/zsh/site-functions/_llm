@@ -30,7 +30,7 @@ _llm() {
             "--kv[KV cache format]:format:(${${kv_llama}:#} ${${kv_strata}:#})" \
             '--model[another GGUF]:file:_files -g "*.gguf"' \
             '--print[show the command, run nothing]' \
-            '(-b --background)'{-b,--background}'[start detached and return once the server answers]' \
+            '(-d --detached)'{-d,--detached}'[start detached and return once the server answers]' \
             '(-h --help)'{-h,--help}'[usage]'
           ;;
       esac

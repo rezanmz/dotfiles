@@ -27,6 +27,8 @@
 #   args="-ngl 99 --parallel 1 --jinja --temp 0.7 --top-p 0.95"   (llama) flags, before the port ones
 #   flags=""                                    (llama) flags, appended last
 #   mtp=0                                # llama: --spec-type draft-mtp when 1; strata: --mtp on|off
+#   think=auto                           # llama: on|off|auto -> --reasoning.  off is for a model trained
+#                                        #   thinking-off: the template's own default is thinking on (xhigh)
 #   vision=gpu                           (strata) gpu | cpu | off
 #   reserve=2048                         (strata) MiB of VRAM kept for the desktop
 #   experts=auto                         (strata) auto | mmap | resident: how the experts the GPU does not hold are
@@ -96,7 +98,7 @@ EOF
 
 load() {
   about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; mmproj=""; args=""; flags=""
-  mtp=0; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
+  mtp=0; think=""; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
   . "$RECIPES/$1.conf"
   [ -n "$MODEL" ] && model=$MODEL
   CTX=${CTX:-$ctx}
@@ -244,6 +246,7 @@ llama_dir=\$HOME/.local/opt/llama-b12079
 template=""
 args="-ngl 99 --parallel 1 --jinja --temp 0.7 --top-p 0.95"
 flags=""
+# think=auto   # on|off|auto -> --reasoning (off for a model trained thinking-off)
 # optional, for \`llm fetch\`:
 # hf=ORG/REPO
 # files="NAME.gguf"
@@ -353,6 +356,17 @@ case "$engine" in
     fi
     [ -n "$mmproj" ] && set -- "$@" --mmproj "$mmproj"
     [ "${mtp:-0}" = "1" ] && set -- "$@" --spec-type draft-mtp
+    # think=off for a model trained thinking-off.  --reasoning off is what reaches the template: measured on
+    # b12608 and b12079, the server turns it into enable_thinking=false and the prompt ends with an empty
+    # <think></think> block, whereas the template's own default (enable_thinking undefined) opens a thinking block
+    # and, for the qwen35 family, also injects the "reasoning effort is set to xhigh" instruction.  Passing
+    # --chat-template-kwargs '{"enable_thinking": false}' as well is redundant and deprecated on b12608.
+    case "${think:-auto}" in
+      off)  set -- "$@" --reasoning off ;;
+      on)   set -- "$@" --reasoning on ;;
+      auto) set -- "$@" --reasoning auto ;;
+      *)    echo "llm: $cmd.conf has think='$think'; use on, off or auto" >&2; exit 2 ;;
+    esac
     [ -n "$flags" ] && set -- "$@" $flags
     set -- "$@" --host 127.0.0.1 --port "$PORT"
     if [ "$PRINT" = "1" ]; then

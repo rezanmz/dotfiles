@@ -1,12 +1,46 @@
-# The local-work profile: the same capability surface as the default profile — web search, fetch, LSP, skills, rules,
-# context files — with every model role on the one local deployment.  Nothing here calls a hosted LLM: models.yml and
-# this file name only `local/*`.
-# Separate from `offline` on purpose: sessions, history and agent.db are per-profile, so "read the docs and fix this
-# repo" work never mixes with hermetic drafting.  Both profiles are rewritten by `llm <recipe>` on every start.
+# The local-work profile: the default profile's behaviour, running on the one local deployment.
 #
+# Mirrored from ~/.omp/agent/config.yml (the personal profile), with exactly these differences:
+#   1. modelRoles / enabledModels name `local/*` — the single recipe `llm` last started — instead of 9router combos.
+#   2. defaultThinkingLevel: high, not `auto`.  `auto` resolves through omp's own judge role, which needs a real
+#      decision model; local routing has none, so the level is fixed one step above medium.
+#   3. retry and task are absent, on the user's instruction: with one deployment there is no fallback chain to
+#      build, and subagents serialise on a single slot anyway.
+#   4. disabledProviders is kept.  The default profile does not need it because it uses those providers; here every
+#      role is local, and leaving 380+ remote models discoverable only adds startup work and log noise.
+#
+# Everything else — advisor cadence, hindsight memory, autolearn, the bash guardrail patterns, LSP-on-edit,
+# checkpoint, secrets, compaction, display/statusLine/theme, webSearchOrder — is the default profile's own setting,
+# including the features that talk to memory.reza.network.  `llm <recipe>` rewrites models.yml and the role lines on
+# every start; the rest of this file is yours to edit.
+providers:
+  webSearchOrder:
+  - ecosia
+  - perplexity
+  - gemini
+  - anthropic
+  - codex
+  - xai
+  - zai
+  - exa
+  - tinyfish
+  - jina
+  - kagi
+  - tavily
+  - firecrawl
+  - brave
+  - kimi
+  - parallel
+  - synthetic
+  - startpage
+  - duckduckgo
+  - google
+  - mojeek
+  - public
 modelRoles:
-  smol: local/*
+  default: local/*
   slow: local/*
+  smol: local/*
   vision: local/*
   plan: local/*
   designer: local/*
@@ -17,162 +51,157 @@ modelRoles:
   judge: local/*
   widget: local/*
   memory: local/*
-enabledModels:
-  - local/*
-retry:
-  modelFallback: false
-  fallbackChains: {}
-disabledProviders:
-  - 9router
-  - openrouter
-  - anthropic
-  - openai
-  - openai-codex
-  - google
-  - google-vertex
-  - google-gemini-cli
-  - google-antigravity
-  - groq
-  - mistral
-  - xai
-  - xai-oauth
-  - github-copilot
-  - cursor
-  - azure
-  - amazon-bedrock
-  - bedrock-mantle
-  - cerebras
-  - deepinfra
-  - deepseek
-  - siliconflow
-  - siliconflow-cn
-  - fireworks
-  - together
-  - modular
-  - typesafe
-  - coreweave
-  - nvidia
-  - devin
-  - gmi-cloud
-  - huggingface
-  - inception
-  - moonshot
-  - stepfun
-  - helmcode
-  - meta
-  - nanogpt
-  - novita
-  - venice
-  - vercel-ai-gateway
-  - cloudflare-ai-gateway
-  - cloudflare-workers-ai
-  - snowflake
-  - litellm
-  - kilo
-  - zai
-  - zhipu-coding-plan
-  - umans
-  - qianfan
-  - qwen-portal
-  - synthetic
-  - minimax
-  - minimax-code
-  - minimax-code-cn
-  - alibaba-coding-plan
-  - alibaba-token-plan
-  - sakana
-  - sambanova
-  - scaleway
-  - aimlapi
-  - gitlab-duo
-  - gitlab-duo-agent
-  - opencode-zen
-  - opencode-go
-defaultThinkingLevel: high
-find:
-  enabled: "on"
-prewalk:
-  auto: "off"
-features:
-  unexpectedStopDetection: none
-tui:
-  autoGraph: "off"
 advisor:
-  enabled: false
-recap:
-  enabled: false
-async:
-  widgets: false
-task:
-  completionProbe: false
-edit:
-  autoRepair:
-    enabled: false
-composer:
-  predictions: false
-  shape: band
-memory:
-  backend: "off"
-hindsight:
-  autoRecall: false
-  autoRetain: false
-autolearn:
-  enabled: false
-web_search:
   enabled: true
-fetch:
-  enabled: true
-browser:
-  enabled: true
-dev:
-  autoqa: false
-  autoqaConsent: denied
-telemetry:
-  otlpExportEnabled: false
-startup:
-  checkUpdate: false
-marketplace:
-  autoUpdate: "off"
-collab:
-  autoStart: "off"
-images:
-  blockImages: false
-  describeForTextModels: false
-  urls:
-    enabled: false
-generate_image:
-  enabled: false
-speech:
-  enabled: false
-stt:
-  enabled: false
-speechgen:
-  enabled: false
-github:
-  enabled: false
-mcp:
-  enableProjectConfig: false
-lsp:
-  enabled: true
-eval:
-  autoProvision: false
-providers:
-  cacheWarming: "off"
-  cacheRetention: none
-compaction:
-  methodOrder:
-    - snapcompact
-    - handoff
-    - shake
-    - soft
-  remoteEndpoint: null
-  remoteStreamingV2Enabled: false
-  idleEnabled: false
-skills:
-  enabled: true
-symbolPreset: unicode
+  reviewMode: agent-end
+  reviewInterval: 1
+  maxNotesPerUpdate: 2
+  continueSeverity: blocker
+  evictStaleResults: true
+  syncBacklog: false
+symbolPreset: nerd
 theme:
   dark: titanium
+  light: light
 setupVersion: 3
+dev:
+  autoqaConsent: granted
+composer:
+  shape: box
+defaultThinkingLevel: high
+isolation:
+  backend: auto
+memory:
+  backend: hindsight
+autolearn:
+  enabled: true
+hindsight:
+  apiUrl: https://memory.reza.network
+  bankId: shared
+  scoping: per-project-tagged
+  recallTimeoutMs: 90000
+  retainMode: full-session
+bash:
+  patterns:
+  - match: git push --force-with-lease*
+    approval: allow
+  - match: git push --force*
+    approval: deny
+  - match: git push -f*
+    approval: deny
+  - match: git push * -f*
+    approval: deny
+  - match: curl * | sh*
+    approval: deny
+  - match: curl * | bash*
+    approval: deny
+  - match: wget * | sh*
+    approval: deny
+  - match: wget * | bash*
+    approval: deny
+  - match: dd * of=/dev/*
+    approval: deny
+  - match: mkfs*
+    approval: deny
+  - match: diskutil erase*
+    approval: deny
+lsp:
+  diagnosticsOnEdit: true
+checkpoint:
+  enabled: true
+secrets:
+  enabled: true
+compaction:
+  idleEnabled: false
+  handoffSaveToDisk: true
+display:
+  showTokenUsage: true
+  showTurnTime: true
+  cacheMissMarker: true
+terminal:
+  showProgress: true
+statusLine:
+  preset: custom
+  leftSegments:
+  - model
+  - mode
+  - path
+  - git
+  - pr
+  rightSegments:
+  - context_pct
+  - token_total
+  - cost
+  - time_spent
+  - subagents
+  - status
 update:
-  auto: false
+  auto: true
+enabledModels:
+- local/*
+disabledProviders:
+- 9router
+- openrouter
+- anthropic
+- openai
+- openai-codex
+- google
+- google-vertex
+- google-gemini-cli
+- google-antigravity
+- groq
+- mistral
+- xai
+- xai-oauth
+- github-copilot
+- cursor
+- azure
+- amazon-bedrock
+- bedrock-mantle
+- cerebras
+- deepinfra
+- deepseek
+- siliconflow
+- siliconflow-cn
+- fireworks
+- together
+- modular
+- typesafe
+- coreweave
+- nvidia
+- devin
+- gmi-cloud
+- huggingface
+- inception
+- moonshot
+- stepfun
+- helmcode
+- meta
+- nanogpt
+- novita
+- venice
+- vercel-ai-gateway
+- cloudflare-ai-gateway
+- cloudflare-workers-ai
+- snowflake
+- litellm
+- kilo
+- zai
+- zhipu-coding-plan
+- umans
+- qianfan
+- qwen-portal
+- synthetic
+- minimax
+- minimax-code
+- minimax-code-cn
+- alibaba-coding-plan
+- alibaba-token-plan
+- sakana
+- sambanova
+- scaleway
+- aimlapi
+- gitlab-duo
+- gitlab-duo-agent
+- opencode-zen
+- opencode-go

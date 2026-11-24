@@ -38,6 +38,7 @@
 #   draft=$HOME/models/x/dspark.gguf     (llama, optional) DSpark drafter: adds -md and draft-dspark speculation
 #   draft_n=4                            (llama) draft tokens per step (default 4)
 #   draft_kv=q4_0                        (llama) draft KV cache type (default q4_0)
+#   engine_env="VAR=value ..."           (llama|strata) exported before the engine starts
 #   think=auto                           # llama: on|off|auto -> --reasoning.  off is for a model trained
 #                                        #   thinking-off: the template's own default is thinking on (xhigh)
 #   thinking=                            # the level omp asks this model for, written into models.yml: max (the
@@ -153,8 +154,9 @@ EOF
 
 load() {
   about=""; engine=""; model=""; ctx=""; kv=""; llama_dir=""; template=""; mmproj=""; args=""; flags=""
-  mtp=0; draft=""; draft_n=""; draft_kv=""; think=""; thinking=""; profiles=""; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
+  mtp=0; draft=""; draft_n=""; draft_kv=""; engine_env=""; think=""; thinking=""; profiles=""; vision=""; reserve=""; experts=""; strata_config=""; hf=""; files=""; bytes=""; fetch_dir=""
   . "$RECIPES/$1.conf"
+  [ -n "$engine_env" ] && export $engine_env
   [ -n "$MODEL" ] && model=$MODEL
   CTX=${CTX:-$ctx}
   KV=${KV:-$kv}
